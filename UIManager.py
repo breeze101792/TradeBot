@@ -4,6 +4,7 @@ import time
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk, GLib
+from Painter import Painter
 
 
 def app_main():
@@ -59,10 +60,10 @@ class SideBarInfoBox:
         
         # info_frame.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0,0.1,0))
 
-        self.stock_name_var = Gtk.Label(label="2454")
-        self.stock_name_var.set_halign(Gtk.Align.END)
-        self.stock_name_var.set_hexpand(bool(1))
-        info_frame.attach(self.stock_name_var, 1, 0, 1, 1)
+        self.stock_name_label = Gtk.Label(label="2454")
+        self.stock_name_label.set_halign(Gtk.Align.END)
+        self.stock_name_label.set_hexpand(bool(1))
+        info_frame.attach(self.stock_name_label, 1, 0, 1, 1)
 
         # info_frame.set_margin_left(5)
         
@@ -70,26 +71,43 @@ class SideBarInfoBox:
         self.side_bar_box.pack_start(info_frame, True, True, 0)
     def get_main_layer(self):
         return self.side_bar_box
-    def on_search_entry_input(self, widget, event=None):
-        print("Test")
-        self.stock_name_var.set_text(widget.get_text())
+    def refresh(self):
+        print("Refresh ")
+        self.stock_name_label.set_text(self.search_entry.get_text())
     def set_search_callback(self, cb_func):
         self.search_entry.connect("stop-search", cb_func)
         self.search_entry.connect("search-changed", cb_func)
         self.search_button.connect("button-press-event", cb_func)
+    # attr
+    def get_stock_name_label(self):
+        return self.stock_name_label.get_text()
+
 
 class MainChartBox:
     def __init__(self):
+        self._var_stock_name = str()
         self.box_main_chart = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
         label_title = Gtk.Label(label="Graphic Chart")
         self.box_main_chart.pack_start(label_title, False, False, 0)
 
+        self.chart_painter = Painter()
+        self.box_main_chart.pack_start(self.chart_painter.get_canvas(), True, True, 4)
+
     def refresh(self):
-        print("Refresh Chart")
+        print("Refresh Chart " + self._var_stock_name)
+
         
     def get_main_layer(self):
         return self.box_main_chart
+    # attr
+    @property
+    def var_stock_name(self):
+        return self._var_stock_name
+    @var_stock_name.setter
+    def var_stock_name(self, value):
+        print("Setter " + value)
+        self._var_stock_name = value
         
 
 class UIManager(Gtk.Window):
@@ -217,6 +235,9 @@ class UIManager(Gtk.Window):
             print(widget.get_name() + " deactivated")
     def on_search_action(self, widget, event=None):
         print("On Search Action")
+        self.side_bar_info_box.refresh()
+        self.main_chart_box.var_stock_name = self.side_bar_info_box.get_stock_name_label()
+        self.main_chart_box.refresh()
 
 if __name__ == "__main__":
     window = UIManager()        
