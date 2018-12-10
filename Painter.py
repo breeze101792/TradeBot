@@ -19,19 +19,28 @@ class Painter:
         self.canvas = FigureCanvas(self.fig)
         self.title = title
         self.refresh()
+    # action
     def refresh(self):
         self.ax.cla()
         self.ax.patch.set_alpha(0)
         self.ax.set_title(self.title)
     def draw(self):
         self.fig.canvas.draw()
-    def get_canvas(self):
-        return self.canvas
-    def set_point(self, point):
-        # point = [[1,2,3],[4,5,6]]
-        self.ax.plot(point[0], point[1], self.color[0] + "-")
     def clear(self):
         self.ax.cla()
+    # attr
+    def get_canvas(self):
+        return self.canvas
+    def draw_2d_line(self, data_point):
+        # point = [[1,2,3],[4,5,6]]
+        self.ax.plot(data_point[0], data_point[1], self.color[0] + "-")
+    def draw_box(self):
+        spread = np.random.rand(50) * 100
+        center = np.ones(25) * 50
+        flier_high = np.random.rand(10) * 100 + 100
+        flier_low = np.random.rand(10) * -100
+        data = np.concatenate((spread, center, flier_high, flier_low), 0)
+        self.ax.boxplot(data)
 
 class paper:
     def __init__(self, unit_xy = (10, 10), title = ""):

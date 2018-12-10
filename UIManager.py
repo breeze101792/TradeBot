@@ -79,7 +79,7 @@ class SideBarInfoBox:
         self.search_entry.connect("search-changed", cb_func)
         self.search_button.connect("button-press-event", cb_func)
     # attr
-    def get_stock_name_label(self):
+    def get_stock_name(self):
         return self.stock_name_label.get_text()
 
 
@@ -96,7 +96,7 @@ class MainChartBox:
 
     def refresh(self):
         print("Refresh Chart " + self._var_stock_name)
-
+        self.chart_painter.draw_box()
         
     def get_main_layer(self):
         return self.box_main_chart
@@ -236,7 +236,7 @@ class UIManager(Gtk.Window):
     def on_search_action(self, widget, event=None):
         print("On Search Action")
         self.side_bar_info_box.refresh()
-        self.main_chart_box.var_stock_name = self.side_bar_info_box.get_stock_name_label()
+        self.main_chart_box.var_stock_name = self.side_bar_info_box.get_stock_name()
         self.main_chart_box.refresh()
 
 if __name__ == "__main__":
