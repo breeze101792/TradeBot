@@ -1,6 +1,6 @@
 # Nead to add additional info
 import urllib.request, json, urllib
-from Debug import *
+from debug import *
 import base64
 
 class StockID:
