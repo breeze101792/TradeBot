@@ -9,3 +9,8 @@
 * Analysis -> Do analysis with stock
     Do differenct analysis for stock
 
+## Dependency
+```
+pip install numpy matplotlib
+```
+
