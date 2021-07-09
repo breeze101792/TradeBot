@@ -1,7 +1,7 @@
 #!/bin/env python3
 from debug import *
 from hal_common import Stock
-from datatype import *
+from common import *
 
 def UI_main():
     from UIManager import UIManager

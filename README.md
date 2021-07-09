@@ -14,3 +14,8 @@
 pip install numpy matplotlib
 ```
 
+Get option hal twstock
+```
+pip install twstock
+```
+

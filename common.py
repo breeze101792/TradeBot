@@ -1,4 +1,4 @@
-from debug import *
+
 
 class StockID:
     code = None
