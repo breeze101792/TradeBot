@@ -4,105 +4,51 @@ sys.path.insert(0, '../')
 
 from utility.common import *
 # from debug import *
-from stockPool import *
-from HalInterface import *
+# from market.stockPool import *
+from market.hal_twstock import *
 
-class Market(DataSrc):
+class Market:
     def __init__(self):
+        self.net_src = TWSESrc()
         pass
     def search_product(self, query_str):
-        stockid = StockID(2454, "Mediatek")
-        return stockid
-
+        return self.net_src.search_product(query_str)
     def get_product_list(self):
-        stock_list=[]
-        stockid = StockID(2454, "Mediatek")
-        stock_list.append(stockid)
-        stockid = StockID(2330, "TSMC")
-        stock_list.append(stockid)
-        return stock_list
-
-    # def get_stock_info(self, stockID, startDate = -1, endDate = -1):
-    #     return [[1,2,3,4],[5,6,7,8],[9,10,11,12,13]]
+        return self.net_src.get_product_list()
+    def get_product_info(self, stockID):
+        return self.net_src.get_product_info(stockID)
     def get_product_data(self, stockID, startDate = -1, endDate = -1):
-        return [[1,2,3,4],[5,6,7,8],[9,10,11,12,13]]
+        return self.net_src.get_product_data( stockID)
 
 def mkt_main():
     tw_mkt = Market()
-    stockid = tw_mkt.search_product("Mediatek")
-    print("StockID: ", stockid)
+    stock_str = "2454"
 
     print("## Function Test: search_product")
     print("#############################################")
-    stock_str = "2454"
-    stock_id = tw_mkt.search_product(stock_str.__str__())
-    print("Stock: ", stock_id)
+    product_info = tw_mkt.search_product(stock_str.__str__())
+    print("Stock: ", product_info['name'])
+    product_id=product_info['code']
 
-    print("\n## Function Test: get_stock_info")
+    print("\n## Function Test: get_product_info")
+    print("#############################################")
+    product_info = tw_mkt.get_product_info(product_id.__str__())
+    print("code: ", product_info['code'], ", name: ", product_info['name'], ", industry: ", product_info['industry'])
+
+    print("\n## Function Test: get_product_list")
     print("#############################################")
     stock_list = tw_mkt.get_product_list()
-    for each_stock in stock_list:
-        print("StockID: ", each_stock)
+    # print(stock_list)
+    # return
+    for each_stock in stock_list[0:10]:
+        print("StockID: ", each_stock['code'], ", name: ", each_stock['name'])
 
     print("\n## Function Test: get_product_data")
     print("#############################################")
-    stock_str = "2454"
-    stock_id = tw_mkt.search_product(stock_str.__str__())
-    print("Stock: ", stock_id)
-    stock_data = tw_mkt.get_product_data(stock_id)
+    stock_data = tw_mkt.get_product_data(product_id)
+    for each_data in stock_data[0:10]:
+        print("date: ", each_data['date'], ", open: ", each_data['open'], ", close: ", each_data['close'], ", high: ", each_data['high'], ", low: ", each_data['low'], ", volume: ", each_data['volume'])
 
 if __name__ == '__main__':
     mkt_main()
-
-
-# import urllib.request, json, urllib
-# import base64
-# class StockID:
-#     code = None
-#     name = None
-#     def __init__(self, code=None, name=None):
-#         self.code = code
-#         self.name = name
-#     def __str__(self):
-#         return "{}({})".format(self.name, self.code)
-
-#class Stock:
-#    def __init__(self):
-#        self.web_url = None
-#        pass
-#    def __connect(self):
-
-#        pass
-#    def search_stock(self, stock_name):
-#        # stock_name is string, could be name or stock code
-#        stock_list = []
-#        web_url = "http://mis.tse.com.tw/stock/api/getStockNames.jsp?n={}".format(urllib.parse.quote(stock_name))
-#        with urllib.request.urlopen(web_url) as url:
-#            json_data = json.loads(url.read().decode())
-#            dbg_debug(json_data['rtcode'])
-#            if json_data['rtcode'] != "0000":
-#                return RetValue.error
-#            dbg_debug(json_data['datas'][0]['n'])
-#            if json_data['datas'][0]['c'] == stock_name or json_data['datas'][0]['n'] == stock_name:
-#                stock_list.append(StockID(json_data['datas'][0]['c'], json_data['datas'][0]['n']))
-#                return stock_list
-
-#            for each_stock in json_data['datas']:
-#                stock_list.append(StockID(each_stock['c'], each_stock['n']))
-
-#        return stock_list
-#    def get_stock_info(self, stock_id):
-#        # stock_id is class stockID
-#        stock_list = []
-#        # 
-#        web_url = "http://mis.tse.com.tw/stock/api/getStock.jsp?ch={}.tw&json={}".format(stock_id.code, 1)
-#        dbg_debug(web_url)
-#        with urllib.request.urlopen(web_url) as url:
-#            json_data = json.loads(url.read().decode())
-#            dbg_debug(json_data['rtcode'])
-#            print(json_data)
-#            if json_data['rtcode'] != "0000":
-#                return RetValue.error
-#        pass
-
 

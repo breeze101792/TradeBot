@@ -1,4 +1,4 @@
-from common import *
+# from common import *
 from HalInterface import *
 from twstock.stock import *
 import twstock
@@ -34,7 +34,8 @@ class TWSESrc(DataSrc):
         # {'9958': {'code': '9958', 'name': '世紀鋼', 'type': '股票', 'market': '上市', 'industry': '鋼鐵工業', 'startdate': '20080312'}}
         return self.product_list[product_id]
     def get_product_list(self):
-        return self.product_list
+        # return self.product_list
+        return list(self.product_list.values())
     def get_product_data_by_date(self, product_id, start_mounth, end_mounth):
         pass
     def get_product_data(self, product_id):

@@ -1,4 +1,5 @@
 from stockPool import *
+from HalInterface import *
 
 class DBSrc(DataBaseSrc):
     def __init__(self):
