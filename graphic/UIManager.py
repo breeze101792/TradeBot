@@ -4,7 +4,7 @@ import time
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk, GLib
-from Painter import Painter
+from graphic.Painter import Painter
 
 
 def app_main():
@@ -156,7 +156,7 @@ class UIManager(Gtk.Window):
     # UI creation
     def create_ui_manager(self):
         ui_info = None
-        with open('UISettings.xml') as f:
+        with open('graphic/UISettings.xml') as f:
             ui_info = f.read()
             f.closed
         uimanager = Gtk.UIManager()

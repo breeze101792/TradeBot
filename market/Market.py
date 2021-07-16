@@ -1,6 +1,9 @@
 # Nead to add additional info
-from common import *
-from debug import *
+import sys
+sys.path.insert(0, '../')
+
+from utility.common import *
+# from debug import *
 from stockPool import *
 from HalInterface import *
 

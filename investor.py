@@ -1,10 +1,10 @@
 #!/bin/env python3
-from debug import *
-from hal_common import Stock
-from common import *
+from utility.debug import *
+# from hal_common import Stock
+# from utility.common import *
+from graphic.UIManager import UIManager
 
 def UI_main():
-    from UIManager import UIManager
     window = UIManager()        
     window.ui_start()
 
