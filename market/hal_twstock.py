@@ -27,9 +27,9 @@ class TWSESrc(DataSrc):
                     'industry':each_product.group, \
                     'startdate':int(each_product.start.replace("/","")) }
         # print(self.product_list)
-    def search_product(self, query_str):
+    def search_product(self, query_data):
         # {'9958': {'code': '9958', 'name': '世紀鋼', 'type': '股票', 'market': '上市', 'industry': '鋼鐵工業', 'startdate': '20080312'}}
-        return self.product_list[query_str]
+        return self.product_list[query_data]
     def get_product_info(self, product_id):
         # {'9958': {'code': '9958', 'name': '世紀鋼', 'type': '股票', 'market': '上市', 'industry': '鋼鐵工業', 'startdate': '20080312'}}
         return self.product_list[product_id]

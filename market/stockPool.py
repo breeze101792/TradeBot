@@ -171,12 +171,12 @@ class StockPool:
                         'trasactioncnt': each_data[7] }
                 ret_data_list.append(tmp_data)
             return ret_data_list
-    def insert_product_info(self, product_code, insert_data):
+    def insert_product_info(self, insert_data):
         if insert_data is None:
             return False
         # (ID int NOT NULL, Code text NOT NULL, Name text, Type text, Market text, Industry text, StartDate date)
         # {'code': '2330', 'name': '台積電', 'type': '股票', 'market': '上市', 'industry': '半導體業', 'startdate': '19940905'}
-        query_str = "SELECT Code FROM ProductInfo WHERE Code == '%s'" % product_code
+        query_str = "SELECT Code FROM ProductInfo WHERE Code == '%s'" % insert_data['code']
         # print(insert_data)
         if self.__is_locked():
             # print('db is locked')
@@ -248,9 +248,10 @@ def db_main():
     # print(pool.update('pool', 1))
     print(pool.dump_productinfo())
     print(pool.dump_historicaldata())
+
     tmp_info={'code': '2330', 'name': '台積電', 'type': '股票', 'market': '上市', 'industry': '半導體業', 'startdate': '19940905'}
     tmp_data={'date': '2021-05-26', 'open': 587.0, 'high': 588.0, 'low': 581.0, 'close': 585.0, 'volume': 19555305, 'turnover': 11433686898, 'trasactioncnt': 21034}
-    print(pool.insert_product_info(tmp_info['code'],tmp_info))
+    print(pool.insert_product_info(tmp_info))
     print(pool.insert_historical_data(tmp_info['code'],tmp_data))
 
     print(pool.query_for_all_productinfo())
