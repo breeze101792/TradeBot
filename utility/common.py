@@ -1,5 +1,4 @@
 
-
 class StockID:
     code = None
     name = None
@@ -8,3 +7,97 @@ class StockID:
         self.name = name
     def __str__(self):
         return "{}({})".format(self.name, self.code)
+
+class ProductData:
+    # {'date': '2021-05-26', 'open': 587.0, 'high': 588.0, 'low': 581.0, 'close': 585.0, 'volume': 19555305, 'turnover': 11433686898, 'trasactioncnt':
+    def __init__(self):
+        self.data=None
+
+    def dump(self):
+        # print(self.data)
+        for each_data in self.data:
+            print("date: " , each_data['date'] , \
+                    ", open: " , each_data['open'] , \
+                    ", close: " , each_data['close'] , \
+                    ", high: " , each_data['high'] , \
+                    ", low: " , each_data['low'] , \
+                    ", close: " , each_data['close'] , \
+                    ", volume: " , each_data['volume'] , \
+                    ", turnover: " , each_data['turnover'] , \
+                    ", trasactioncnt: " , each_data['trasactioncnt'])
+
+    def set_data(self, data):
+        self.data = data
+
+    @property
+    def date(self):
+        print(self.data)
+        return [d.date for d in self.data]
+    @property
+    def volume(self):
+        return [d.volume for d in self.data]
+    @property
+    def turnover(self):
+        return [d.turnover for d in self.data]
+    @property
+    def trasactioncnt(self):
+        return [d.trasactioncnt for d in self.data]
+    @property
+    def high(self):
+        return [d.high for d in self.data]
+    @property
+    def low(self):
+        return [d.low for d in self.data]
+    @property
+    def open(self):
+        return [d.open for d in self.data]
+    @property
+    def close(self):
+        return [d.close for d in self.data]
+
+class Product:
+    # {'code': '2330', 'name': '台積電', 'type': '股票', 'market': '上市', 'industry': '半導體業', 'startdate': '19940905'}
+    def __init__(self, info=None):
+        self.info = {'code': '', 'name': '', 'type': '', 'market': '', 'industry': '', 'startdate': ''}
+        self.__data = ProductData() 
+
+        if info is not None:
+            self.set_info(info)
+
+    def __str__(self):
+        return str("code: " + self.info['code'] + \
+                ", name: " + self.info['name'] + \
+                ", type: " + self.info['type'] + \
+                ", market: " + self.info['market'] + \
+                ", industry: " + self.info['industry'] + \
+                ", startdate: " + self.info['startdate'].__str__())
+
+    def set_info(self, product_info):
+        self.info = dict(product_info)
+
+    def set_data(self, data):
+        self.__data.set_data(data)
+
+    # Product Infomation
+    @property
+    def name(self):
+        return self.info['name']
+    @property
+    def code(self):
+        return self.info['code']
+    @property
+    def type(self):
+        return self.info['type']
+    @property
+    def market(self):
+        return self.info['market']
+    @property
+    def industry(self):
+        return self.info['industry']
+    @property
+    def startdate(self):
+        return self.info['startdate']
+    @property
+    def data(self):
+        return self.__data
+
