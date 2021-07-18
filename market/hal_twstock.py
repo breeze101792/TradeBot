@@ -25,7 +25,7 @@ class TWSESrc(DataSrc):
                     'type':each_product.type, \
                     'market':each_product.market, \
                     'industry':each_product.group, \
-                    'startdate':each_product.start.replace("/","") }
+                    'startdate':int(each_product.start.replace("/","")) }
         # print(self.product_list)
     def search_product(self, query_str):
         # {'9958': {'code': '9958', 'name': '世紀鋼', 'type': '股票', 'market': '上市', 'industry': '鋼鐵工業', 'startdate': '20080312'}}
@@ -35,6 +35,7 @@ class TWSESrc(DataSrc):
         return self.product_list[product_id]
     def get_product_list(self):
         # return self.product_list
+        # [{'code': '9958', 'name': '世紀鋼', 'type': '股票', 'market': '上市', 'industry': '鋼鐵工業', 'startdate': '20080312'}, ]
         return list(self.product_list.values())
     def get_product_data_by_date(self, product_id, start_mounth, end_mounth):
         pass
@@ -62,10 +63,12 @@ class TWSESrc(DataSrc):
 
 # Data(date=datetime.datetime(2021, 6, 30, 0, 0), capacity=34021380, turnover=20301841661, open=599.0, high=599.0, low=595.0, close=595.0, change=0.0, transaction=20097)
 def twse_main():
-    twse = TWSESrc()
-    print(twse.get_product_info('2330'))
-    print(twse.get_product_data('2330')[0])
-    # twse.search_stock()
+    hal_src = TWSESrc()
+    product_code='2330'
+    print(hal_src.get_product_list()[0:10])
+    print(hal_src.search_product(product_code))
+    print(hal_src.get_product_info(product_code))
+    print(hal_src.get_product_data(product_code)[0])
 
 if __name__ == '__main__':
     twse_main()

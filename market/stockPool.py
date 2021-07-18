@@ -80,7 +80,7 @@ class StockPool:
             # print('sent commit')
             self.__db_connection.commit()
             return True
-    def query_for_all_product(self):
+    def dump_productinfo(self):
         if self.__is_locked():
             # print('db is locked')
             return False
@@ -90,7 +90,7 @@ class StockPool:
             result = self.__cursor.execute(query_str)
             self.__unlock()
             return result.fetchall()
-    def query_for_all_historicaldata(self):
+    def dump_historicaldata(self):
         if self.__is_locked():
             # print('db is locked')
             return False
@@ -100,6 +100,77 @@ class StockPool:
             result = self.__cursor.execute(query_str)
             self.__unlock()
             return result.fetchall()
+    def query_for_all_productinfo(self):
+        if self.__is_locked():
+            # print('db is locked')
+            return False
+        else:
+            self.__lock()
+            query_str = "SELECT Code, Name, Type, Market, Industry, StartDate FROM ProductInfo"
+            result = self.__cursor.execute(query_str)
+            self.__unlock()
+
+            tmp_info_list = result.fetchall()
+            ret_info_list=[]
+            for each_info in tmp_info_list:
+                tmp_info={\
+                    'code':      each_info[0], \
+                    'name':      each_info[1], \
+                    'type':      each_info[2], \
+                    'market':    each_info[3], \
+                    'industry':  each_info[4], \
+                    'startdate': each_info[5] }
+                ret_info_list.append(tmp_info)
+            return ret_info_list
+    def query_for_productinfo(self, product_code):
+        if self.__is_locked():
+            # print('db is locked')
+            return False
+        else:
+            self.__lock()
+            tmp_id=self.__generate_id(product_code)
+            query_str = "SELECT Code, Name, Type, Market, Industry, StartDate FROM ProductInfo WHERE ID == '%s'" % tmp_id
+            result = self.__cursor.execute(query_str)
+            self.__unlock()
+            tmp_info = result.fetchall()[0]
+
+            ret_info={\
+                'code':      tmp_info[0], \
+                'name':      tmp_info[1], \
+                'type':      tmp_info[2], \
+                'market':    tmp_info[3], \
+                'industry':  tmp_info[4], \
+                'startdate': tmp_info[5] }
+            return ret_info
+    def query_for_historicaldata(self, product_code):
+        if self.__is_locked():
+            # print('db is locked')
+            return False
+        else:
+            self.__lock()
+            tmp_id=self.__generate_id(product_code)
+            query_str = "SELECT Date, Open, High, Low, Close, Volume, Turnover, TransactionCnt FROM HistoricalData WHERE ID == '%s'" % (tmp_id)
+            # print(query_str)
+            result = self.__cursor.execute(query_str)
+            self.__unlock()
+
+            tmp_data_list = result.fetchall()
+            ret_data_list=[]
+            # print(tmp_data_list)
+
+            for each_data in list(tmp_data_list):
+                # print(each_data)
+                tmp_data={\
+                        'date':          each_data[0], \
+                        'open':          each_data[1], \
+                        'high':          each_data[2], \
+                        'low':           each_data[3], \
+                        'close':         each_data[4], \
+                        'volume':        each_data[5], \
+                        'turnover':      each_data[6], \
+                        'trasactioncnt': each_data[7] }
+                ret_data_list.append(tmp_data)
+            return ret_data_list
     def insert_product_info(self, product_code, insert_data):
         if insert_data is None:
             return False
@@ -170,19 +241,24 @@ class StockPool:
 
 def db_main():
     pool = StockPool()
+    product_code="2330"
     pool.db__init()
     pool.connect()
     # pool.insert('pool')
     # print(pool.update('pool', 1))
-    print(pool.query_for_all_product())
-    print(pool.query_for_all_historicaldata())
+    print(pool.dump_productinfo())
+    print(pool.dump_historicaldata())
     tmp_info={'code': '2330', 'name': '台積電', 'type': '股票', 'market': '上市', 'industry': '半導體業', 'startdate': '19940905'}
     tmp_data={'date': '2021-05-26', 'open': 587.0, 'high': 588.0, 'low': 581.0, 'close': 585.0, 'volume': 19555305, 'turnover': 11433686898, 'trasactioncnt': 21034}
     print(pool.insert_product_info(tmp_info['code'],tmp_info))
     print(pool.insert_historical_data(tmp_info['code'],tmp_data))
 
-    print(pool.query_for_all_product())
-    print(pool.query_for_all_historicaldata())
+    print(pool.query_for_all_productinfo())
+    print(pool.query_for_productinfo(product_code))
+    print(pool.query_for_historicaldata(product_code))
+
+    print(pool.dump_productinfo())
+    print(pool.dump_historicaldata())
     pool.close()
 
 if __name__ == '__main__':
