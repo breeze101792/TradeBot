@@ -1,3 +1,4 @@
+import pandas as pd
 
 class StockID:
     code = None
@@ -16,22 +17,36 @@ class ProductData:
     def dump(self):
         # print(self.data)
         for each_data in self.data:
-            print("date: " , each_data['date'] , \
-                    ", open: " , each_data['open'] , \
-                    ", close: " , each_data['close'] , \
-                    ", high: " , each_data['high'] , \
-                    ", low: " , each_data['low'] , \
-                    ", close: " , each_data['close'] , \
-                    ", volume: " , each_data['volume'] , \
-                    ", turnover: " , each_data['turnover'] , \
-                    ", trasactioncnt: " , each_data['trasactioncnt'])
+            print("date: " + each_data['date'].__str__() + \
+                    ", open: " + each_data['open'].__str__() + \
+                    ", close: " + each_data['close'].__str__() + \
+                    ", high: " + each_data['high'].__str__() + \
+                    ", low: " + each_data['low'].__str__() + \
+                    ", close: " + each_data['close'].__str__() + \
+                    ", volume: " + each_data['volume'].__str__() + \
+                    ", turnover: " + each_data['turnover'].__str__() + \
+                    ", trasactioncnt: " + each_data['trasactioncnt'].__str__())
 
     def set_data(self, data):
         self.data = data
 
     @property
+    def pdata(self):
+        # print("Data", self.data)
+        # print([list(d.values()) for d in self.data])
+        df = pd.DataFrame([list(d.values()) for d in self.data], columns=self.data[0].keys())
+
+        df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
+        df.set_index('date', inplace=True)
+        # print(df.head)
+        return df
+
+    @property
+    def ndata(self):
+        return [d.date for d in self.data]
+
+    @property
     def date(self):
-        print(self.data)
         return [d.date for d in self.data]
     @property
     def volume(self):

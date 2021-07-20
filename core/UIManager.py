@@ -5,6 +5,7 @@ import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk, GLib
 from graphic.Painter import Painter
+from utility.debug import *
 
 
 def app_main():
@@ -38,11 +39,11 @@ class SideBarInfoBox:
         search_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.search_entry = Gtk.SearchEntry()
         # search_entry.set_input_hints("test")
-        self.search_entry.set_text("2454")
+        self.search_entry.set_text("2332")
 
         search_box.pack_start(self.search_entry, False, True, 5)
         self.search_button = Gtk.Button.new_with_label("Search")
-        
+
         search_box.pack_start(self.search_button, False, False, 5)
         self.side_bar_box.add(search_box)
 
@@ -57,7 +58,7 @@ class SideBarInfoBox:
         stock_name.set_halign(Gtk.Align.FILL)
         info_frame.attach(stock_name, 0, 0, 1, 1)
 
-        
+
         # info_frame.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0,0.1,0))
 
         self.stock_name_label = Gtk.Label(label="2454")
@@ -66,8 +67,8 @@ class SideBarInfoBox:
         info_frame.attach(self.stock_name_label, 1, 0, 1, 1)
 
         # info_frame.set_margin_left(5)
-        
-        
+
+
         self.side_bar_box.pack_start(info_frame, True, True, 0)
     def get_main_layer(self):
         return self.side_bar_box
@@ -93,11 +94,12 @@ class MainChartBox:
 
         self.chart_painter = Painter()
         self.box_main_chart.pack_start(self.chart_painter.get_canvas(), True, True, 4)
+        self.chart_painter.draw_box()
 
     def refresh(self):
         print("Refresh Chart " + self._var_stock_name)
         self.chart_painter.draw_box()
-        
+
     def get_main_layer(self):
         return self.box_main_chart
     # attr
@@ -108,10 +110,10 @@ class MainChartBox:
     def var_stock_name(self, value):
         print("Setter " + value)
         self._var_stock_name = value
-        
+
 
 class UIManager(Gtk.Window):
-    
+
     def __init__(self):
         Gtk.Window.__init__(self, title="Investor")
 
@@ -131,7 +133,7 @@ class UIManager(Gtk.Window):
 
         basebox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.add(basebox)
-        
+
         basebox.pack_start(menubar, False, False, 0)
 
         toolbar = uimanager.get_widget("/ToolBar")
@@ -156,7 +158,7 @@ class UIManager(Gtk.Window):
     # UI creation
     def create_ui_manager(self):
         ui_info = None
-        with open('graphic/UISettings.xml') as f:
+        with open('core/UISettings.xml') as f:
             ui_info = f.read()
             f.closed
         uimanager = Gtk.UIManager()
@@ -177,16 +179,16 @@ class UIManager(Gtk.Window):
         action_group.add_action(action_filenewmenu)
 
         action_new = Gtk.Action("FileNewStandard", "_New",
-            "Create a new file", Gtk.STOCK_NEW)
+                "Create a new file", Gtk.STOCK_NEW)
         action_new.connect("activate", self.on_menu_file_new_generic)
         action_group.add_action_with_accel(action_new, None)
 
         action_group.add_actions([
             ("FileNewFoo", None, "New Foo", None, "Create new foo",
-             self.on_menu_file_new_generic),
+                self.on_menu_file_new_generic),
             ("FileNewGoo", None, "_New Goo", None, "Create new goo",
-             self.on_menu_file_new_generic),
-        ])
+                self.on_menu_file_new_generic),
+            ])
 
         action_filequit = Gtk.Action("FileQuit", None, None, Gtk.STOCK_QUIT)
         action_filequit.connect("activate", self.on_menu_file_quit)
@@ -196,12 +198,12 @@ class UIManager(Gtk.Window):
         action_group.add_actions([
             ("EditMenu", None, "Edit"),
             ("EditCopy", Gtk.STOCK_COPY, None, None, None,
-             self.on_menu_others),
+                self.on_menu_others),
             ("EditPaste", Gtk.STOCK_PASTE, None, None, None,
-             self.on_menu_others),
+                self.on_menu_others),
             ("EditSomething", None, "Something", "<control><alt>S", None,
-             self.on_menu_others)
-        ])
+                self.on_menu_others)
+            ])
 
     def add_choices_menu_actions(self, action_group):
         action_group.add_action(Gtk.Action("ChoicesMenu", "Choices", None,
@@ -210,7 +212,7 @@ class UIManager(Gtk.Window):
         action_group.add_radio_actions([
             ("ChoiceOne", None, "One", None, None, 1),
             ("ChoiceTwo", None, "Two", None, None, 2)
-        ], 1, self.on_menu_choices_changed)
+            ], 1, self.on_menu_choices_changed)
 
         three = Gtk.ToggleAction("ChoiceThree", "Three", None, None)
         three.connect("toggled", self.on_menu_choices_toggled)

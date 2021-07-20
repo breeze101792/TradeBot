@@ -170,6 +170,7 @@ class StockPool:
                         'turnover':      each_data[6], \
                         'trasactioncnt': each_data[7] }
                 ret_data_list.append(tmp_data)
+            # print(ret_data_list)
             return ret_data_list
     def insert_product_info(self, insert_data):
         if insert_data is None:

@@ -13,7 +13,7 @@ class DataSrc:
         return self.product_list[product_id]
     def get_product_list(self):
         return self.product_list
-    def get_product_data_by_date(self, product_id, start_mounth, end_mounth):
+    def get_product_data_by_date(self, product_id, start_date):
         pass
     def get_product_data(self, product_id):
         pass

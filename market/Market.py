@@ -22,6 +22,7 @@ class Market:
         return product_list
         # return self.local_src.get_product_list()
     def get_product(self, product_code):
+        print("product code:", product_code)
         target_product = Product()
         target_product.set_info(self.local_src.get_product_info(product_code))
         target_product.set_data(self.local_src.get_product_data(product_code))
@@ -36,13 +37,14 @@ class Market:
         product_data_list = self.online_src.get_product_data(product_code)
         self.local_src.insert_product_data(product_code, product_data_list)
     def update_all_product_data(self):
-        for each_product in self.online_src.get_product_list()[0:10]:
+        for each_product in self.online_src.get_product_list():
             self.update_product_data(each_product['code'])
 
 
 def mkt_update_main():
     tw_mkt = Market()
-    product_code = "2330"
+    # product_code = "2330"
+    product_code = "2454"
 
     print("\n## Function Test: update_product_list")
     print("#############################################")
@@ -55,13 +57,14 @@ def mkt_update_main():
         # print("StockID: ", each_stock['code'], ", name: ", each_stock['name'])
         print(each_stock)
 
-    print("\n## Function Test: update_all_product_data")
-    print("#############################################")
-    tw_mkt.update_all_product_data()
-
-    # print("\n## Function Test: update_product_data")
+    # TODO Don't enable this in test mode
+    # print("\n## Function Test: update_all_product_data")
     # print("#############################################")
-    # tw_mkt.update_product_data(product_code)
+    # tw_mkt.update_all_product_data()
+
+    print("\n## Function Test: update_product_data")
+    print("#############################################")
+    tw_mkt.update_product_data(product_code)
 
     return 
 
@@ -81,6 +84,7 @@ def mkt_main():
     product_ins = tw_mkt.get_product(product_code.__str__())
     print(product_ins)
     product_ins.data.dump()
+    product_ins.data.pdata
 
     # End of test
     return
