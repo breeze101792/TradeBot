@@ -39,7 +39,7 @@ class Drawer:
     # attr
     def get_canvas(self):
         return self.canvas
-    def set_data(self, product):
+    def set_product(self, product):
         self.product = product
         self.pdata = product.data.pdata
 
@@ -67,7 +67,7 @@ def drawer_main():
     product_ins = tw_mkt.get_product(product_code.__str__())
     drawer = Drawer()
     # print(product_ins.data.pdata)
-    drawer.set_data(product_ins)
+    drawer.set_product(product_ins)
     canvas = drawer.get_canvas()
     drawer.draw()
 
