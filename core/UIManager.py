@@ -4,8 +4,19 @@ import time
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk, GLib
-from graphic.Painter import Painter
+# from graphic.Painter import Painter
+from graphic.Drawer import *
 from utility.debug import *
+#---------------------------
+import mplfinance as mpf
+import pandas as pd
+# from matplotlib.backends.backend_gtk3agg import (
+#     FigureCanvasGTK3Agg as FigureCanvas)
+from matplotlib.backends.backend_gtk3cairo import (
+    FigureCanvasGTK3Cairo as FigureCanvas)
+import matplotlib
+from market.Market import *
+matplotlib.use("GTK3Cairo")
 
 
 def app_main():
@@ -92,13 +103,27 @@ class MainChartBox:
         label_title = Gtk.Label(label="Graphic Chart")
         self.box_main_chart.pack_start(label_title, False, False, 0)
 
-        self.chart_painter = Painter()
+        # self.chart_painter = Painter()
+        # self.box_main_chart.pack_start(self.chart_painter.get_canvas(), True, True, 4)
+        # self.chart_painter.draw_box()
+
+
+        self.chart_painter = Drawer()
         self.box_main_chart.pack_start(self.chart_painter.get_canvas(), True, True, 4)
-        self.chart_painter.draw_box()
+        # --------------------------------------
+        tw_mkt = Market()
+        # product_code = "1569"
+        product_code = "2330"
+
+        product_ins = tw_mkt.get_product(product_code.__str__())
+        self.chart_painter.set_product(product_ins)
+        self.chart_painter.draw()
+        # --------------------------------------
 
     def refresh(self):
         print("Refresh Chart " + self._var_stock_name)
-        self.chart_painter.draw_box()
+        self.chart_painter.draw()
+        # self.chart_painter.draw_box()
 
     def get_main_layer(self):
         return self.box_main_chart
@@ -257,3 +282,30 @@ if __name__ == "__main__":
 
     # PyApp()
     # Gtk.main()
+
+class MainChartBox_bak:
+    def __init__(self):
+        self._var_stock_name = str()
+        self.box_main_chart = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+        label_title = Gtk.Label(label="Graphic Chart")
+        self.box_main_chart.pack_start(label_title, False, False, 0)
+
+        self.chart_painter = Painter()
+        self.box_main_chart.pack_start(self.chart_painter.get_canvas(), True, True, 4)
+        self.chart_painter.draw_box()
+
+    def refresh(self):
+        print("Refresh Chart " + self._var_stock_name)
+        self.chart_painter.draw_box()
+
+    def get_main_layer(self):
+        return self.box_main_chart
+    # attr
+    @property
+    def var_stock_name(self):
+        return self._var_stock_name
+    @var_stock_name.setter
+    def var_stock_name(self, value):
+        print("Setter " + value)
+        self._var_stock_name = value

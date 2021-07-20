@@ -37,7 +37,7 @@ class ProductData:
         df = pd.DataFrame([list(d.values()) for d in self.data], columns=self.data[0].keys())
 
         # df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
-        df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+        df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
         df.set_index('date', inplace=True)
         # print(df.head)
         return df

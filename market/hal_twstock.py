@@ -96,7 +96,7 @@ class TWSESrc(DataSrc):
                 print("YD: ", each_year, each_month)
 
                 time.sleep(self.request_delay)
-                stock.fetch_from(each_year, each_month)
+                stock.fetch(each_year, each_month)
 
                 # print(stock.data[0])
                 # print(type(stock.data[0]))
