@@ -1,8 +1,9 @@
 # from common import *
-import sys
-sys.path.insert(0, '../')
+# import sys
+# sys.path.insert(0, '../')
 from market.HalInterface import *
 from twstock.stock import *
+from utility.debug import *
 import twstock
 import datetime
 import time
@@ -82,9 +83,9 @@ class TWSESrc(DataSrc):
             start_month = 1
 
         stock = Stock(product_id)
-        print(start_year, current_year)
+        dbg_info("Fetch from %s to %s" % (start_year, current_year))
         for each_year in range(start_year, current_year + 1):
-            print("Y: ", each_year)
+            # print("Y: ", each_year)
             tmp_start_month=1
             tmp_end_month=12
             if each_year == start_year:
@@ -93,7 +94,8 @@ class TWSESrc(DataSrc):
                 tmp_end_month = current_month
 
             for each_month in range(tmp_start_month, tmp_end_month + 1):
-                print("YD: ", each_year, each_month)
+                dbg_info("Fetch Product %s durning YD %s-%s " % (product_id, each_year, each_month))
+
 
                 time.sleep(self.request_delay)
                 stock.fetch(each_year, each_month)
@@ -113,6 +115,7 @@ class TWSESrc(DataSrc):
                             'turnover':each_data.turnover, \
                             'trasactioncnt':each_data.transaction }
                     stock_data.append(tmp_data)
+        # print(stock_data)
 
         return stock_data
     def get_product_data(self, product_id):

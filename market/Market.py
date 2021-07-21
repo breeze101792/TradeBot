@@ -1,9 +1,9 @@
 # Nead to add additional info
-import sys
-sys.path.insert(0, '../')
+# import sys
+# sys.path.insert(0, '../')
 
 from utility.common import *
-# from utility.debug import *
+from utility.debug import *
 # from market.stockPool import *
 from market.hal_twstock import *
 from market.hal_database import *
@@ -33,18 +33,22 @@ class Market:
             product_list.append(each_product)
         # print(product_list)
         self.local_src.insert_product_info(product_list)
-    def update_product_data(self, product_code):
-        product_data_list = self.online_src.get_product_data(product_code)
+    def update_product_data(self, product_code, start_date=0):
+        dbg_info("Update Product %s from %s" % (product_code, start_date))
+        # product_data_list = self.online_src.get_product_data(product_code)
+        product_data_list = self.online_src.get_product_data_by_date(product_code, start_date)
+        # print("product_data_list", product_data_list)
         self.local_src.insert_product_data(product_code, product_data_list)
-    def update_all_product_data(self):
+    def update_all_product_data(self, start_date=0):
         for each_product in self.online_src.get_product_list():
-            self.update_product_data(each_product['code'])
+            # self.update_product_data(each_product['code'])
+            self.update_product_data(each_product['code'], start_date)
 
 
 def mkt_update_main():
     tw_mkt = Market()
-    # product_code = "2330"
-    product_code = "2454"
+    product_code = "2330"
+    # product_code = "2454"
 
     print("\n## Function Test: update_product_list")
     print("#############################################")
@@ -57,14 +61,13 @@ def mkt_update_main():
         # print("StockID: ", each_stock['code'], ", name: ", each_stock['name'])
         print(each_stock)
 
-    # TODO Don't enable this in test mode
-    # print("\n## Function Test: update_all_product_data")
+    # print("\n## Function Test: update_product_data")
     # print("#############################################")
-    # tw_mkt.update_all_product_data()
+    # tw_mkt.update_product_data(product_code)
 
-    print("\n## Function Test: update_product_data")
+    print("\n## Function Test: update_all_product_data")
     print("#############################################")
-    tw_mkt.update_product_data(product_code)
+    tw_mkt.update_all_product_data(20200101)
 
     return 
 

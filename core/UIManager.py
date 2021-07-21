@@ -1,145 +1,22 @@
-import threading
-import time
-
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk, GLib
-# from graphic.Painter import Painter
-from graphic.Drawer import *
-from utility.debug import *
-#---------------------------
-import mplfinance as mpf
-import pandas as pd
-# from matplotlib.backends.backend_gtk3agg import (
-#     FigureCanvasGTK3Agg as FigureCanvas)
-from matplotlib.backends.backend_gtk3cairo import (
-    FigureCanvasGTK3Cairo as FigureCanvas)
 import matplotlib
-from market.Market import *
 matplotlib.use("GTK3Cairo")
 
-
-def app_main():
-    win = Gtk.Window(default_height=50, default_width=300)
-    win.connect("delete-event", Gtk.main_quit)
-
-    progress = Gtk.ProgressBar(show_text=True)
-    win.add(progress)
-
-    def update_progess(i):
-        progress.pulse()
-        progress.set_text(str(i))
-        return False
-
-    def example_target():
-        for i in range(50):
-            GLib.idle_add(update_progess, i)
-            time.sleep(0.2)
-
-    win.show_all()
-
-    thread = threading.Thread(target=example_target)
-    thread.daemon = True
-    thread.start()
-
-class SideBarInfoBox:
-    def __init__(self):
-        self.side_bar_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.side_bar_box.set_hexpand(False)
-
-        search_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        self.search_entry = Gtk.SearchEntry()
-        # search_entry.set_input_hints("test")
-        self.search_entry.set_text("2332")
-
-        search_box.pack_start(self.search_entry, False, True, 5)
-        self.search_button = Gtk.Button.new_with_label("Search")
-
-        search_box.pack_start(self.search_button, False, False, 5)
-        self.side_bar_box.add(search_box)
-
-        info_label = Gtk.Label(label="Infomation")
-        info_label.set_halign(Gtk.Align.FILL)
-        self.side_bar_box.pack_start(info_label, False, False, 0)
-
-        info_frame = Gtk.Grid()
-        info_frame.set_column_spacing(5)
-        stock_name = Gtk.Label(label="Name")
-        stock_name.set_halign(Gtk.Align.END)
-        stock_name.set_halign(Gtk.Align.FILL)
-        info_frame.attach(stock_name, 0, 0, 1, 1)
-
-
-        # info_frame.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0,0.1,0))
-
-        self.stock_name_label = Gtk.Label(label="2454")
-        self.stock_name_label.set_halign(Gtk.Align.END)
-        self.stock_name_label.set_hexpand(bool(1))
-        info_frame.attach(self.stock_name_label, 1, 0, 1, 1)
-
-        # info_frame.set_margin_left(5)
-
-
-        self.side_bar_box.pack_start(info_frame, True, True, 0)
-    def get_main_layer(self):
-        return self.side_bar_box
-    def refresh(self):
-        print("Refresh ")
-        self.stock_name_label.set_text(self.search_entry.get_text())
-    def set_search_callback(self, cb_func):
-        self.search_entry.connect("stop-search", cb_func)
-        self.search_entry.connect("search-changed", cb_func)
-        self.search_button.connect("button-press-event", cb_func)
-    # attr
-    def get_stock_name(self):
-        return self.stock_name_label.get_text()
-
-
-class MainChartBox:
-    def __init__(self):
-        self._var_stock_name = str()
-        self.box_main_chart = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-
-        label_title = Gtk.Label(label="Graphic Chart")
-        self.box_main_chart.pack_start(label_title, False, False, 0)
-
-        # self.chart_painter = Painter()
-        # self.box_main_chart.pack_start(self.chart_painter.get_canvas(), True, True, 4)
-        # self.chart_painter.draw_box()
-
-
-        self.chart_painter = Drawer()
-        self.box_main_chart.pack_start(self.chart_painter.get_canvas(), True, True, 4)
-        # --------------------------------------
-        tw_mkt = Market()
-        # product_code = "1569"
-        product_code = "2330"
-
-        product_ins = tw_mkt.get_product(product_code.__str__())
-        self.chart_painter.set_product(product_ins)
-        self.chart_painter.draw()
-        # --------------------------------------
-
-    def refresh(self):
-        print("Refresh Chart " + self._var_stock_name)
-        self.chart_painter.draw()
-        # self.chart_painter.draw_box()
-
-    def get_main_layer(self):
-        return self.box_main_chart
-    # attr
-    @property
-    def var_stock_name(self):
-        return self._var_stock_name
-    @var_stock_name.setter
-    def var_stock_name(self, value):
-        print("Setter " + value)
-        self._var_stock_name = value
-
+#---------------------------
+from graphic.Drawer import *
+from utility.debug import *
+from market.Market import *
+from core.SideBar import *
+from core.MainChart import *
+from utility.debug import *
 
 class UIManager(Gtk.Window):
 
     def __init__(self):
+        self.current_product = None
+        self.mkt = Market()
         Gtk.Window.__init__(self, title="Investor")
 
         self.set_default_size(800, 500)
@@ -172,8 +49,19 @@ class UIManager(Gtk.Window):
         self.side_bar_info_box.set_search_callback(self.on_search_action)
         main_frame.pack_start(self.side_bar_info_box.get_main_layer(), False, False, 0)
 
-        self.main_chart_box = MainChartBox()
+        self.main_chart_box = MainChart()
         main_frame.pack_start(self.main_chart_box.get_main_layer(), True, True, 0)
+
+        self.initialization()
+
+    def initialization(self):
+        self.current_product = self.mkt.get_product("2330") 
+        # self.current_product.data.dump()
+
+        self.side_bar_info_box.refresh()
+
+        self.main_chart_box.set_product(self.current_product)
+        self.main_chart_box.refresh()
 
     def ui_start(self):
         self.connect("destroy", Gtk.main_quit)
@@ -244,26 +132,36 @@ class UIManager(Gtk.Window):
         action_group.add_action(three)
     # call back function
     def on_menu_file_new_generic(self, widget):
-        print("A File|New menu item was selected.")
+        dbg_info("A File|New menu item was selected.")
 
     def on_menu_file_quit(self, widget):
         Gtk.main_quit()
 
     def on_menu_others(self, widget):
-        print("Menu item " + widget.get_name() + " was selected")
+        dbg_info("Menu item " + widget.get_name() + " was selected")
 
     def on_menu_choices_changed(self, widget, current):
-        print(current.get_name() + " was selected.")
+        dbg_info(current.get_name() + " was selected.")
 
     def on_menu_choices_toggled(self, widget):
         if widget.get_active():
-            print(widget.get_name() + " activated")
+            dbg_info(widget.get_name() + " activated")
         else:
-            print(widget.get_name() + " deactivated")
+            dbg_info(widget.get_name() + " deactivated")
     def on_search_action(self, widget, event=None):
-        print("On Search Action")
+        search_str = self.side_bar_info_box.get_search_entry()
+        dbg_info("On Search Action %s, Event %s", (search_str, event))
+
+        if search_str == "":
+            return
+
+        self.current_product = self.mkt.get_product(search_str)
+        # self.current_product.data.dump()
+
+        self.side_bar_info_box.set_product(self.current_product)
         self.side_bar_info_box.refresh()
-        self.main_chart_box.var_stock_name = self.side_bar_info_box.get_stock_name()
+
+        self.main_chart_box.set_product(self.current_product)
         self.main_chart_box.refresh()
 
 if __name__ == "__main__":
@@ -283,29 +181,28 @@ if __name__ == "__main__":
     # PyApp()
     # Gtk.main()
 
-class MainChartBox_bak:
-    def __init__(self):
-        self._var_stock_name = str()
-        self.box_main_chart = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+# import threading
+# import time
+# def app_main():
+#     win = Gtk.Window(default_height=50, default_width=300)
+#     win.connect("delete-event", Gtk.main_quit)
 
-        label_title = Gtk.Label(label="Graphic Chart")
-        self.box_main_chart.pack_start(label_title, False, False, 0)
+#     progress = Gtk.ProgressBar(show_text=True)
+#     win.add(progress)
 
-        self.chart_painter = Painter()
-        self.box_main_chart.pack_start(self.chart_painter.get_canvas(), True, True, 4)
-        self.chart_painter.draw_box()
+#     def update_progess(i):
+#         progress.pulse()
+#         progress.set_text(str(i))
+#         return False
 
-    def refresh(self):
-        print("Refresh Chart " + self._var_stock_name)
-        self.chart_painter.draw_box()
+#     def example_target():
+#         for i in range(50):
+#             GLib.idle_add(update_progess, i)
+#             time.sleep(0.2)
 
-    def get_main_layer(self):
-        return self.box_main_chart
-    # attr
-    @property
-    def var_stock_name(self):
-        return self._var_stock_name
-    @var_stock_name.setter
-    def var_stock_name(self, value):
-        print("Setter " + value)
-        self._var_stock_name = value
+#     win.show_all()
+
+#     thread = threading.Thread(target=example_target)
+#     thread.daemon = True
+#     thread.start()
+

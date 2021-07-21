@@ -21,22 +21,30 @@ class Drawer:
         self.product= None
         self.pdata = None
 
+        self.ax1 = None
+        self.ax2 = None
+        self.ax3 = None
+
         self.fig = mpf.figure(style='yahoo',figsize=(9,8))
 
         self.canvas = FigureCanvas(self.fig)
         self.canvas.set_size_request(800, 600)
 
+
     # action
     def refresh(self):
-        pass
-        # self.ax.cla()
-        # self.ax.patch.set_alpha(0)
-        # self.ax.set_title(self.title)
-    def draw(self):
+        if self.ax1 is not None:
+            self.ax1.remove()
+        if self.ax2 is not None:
+            self.ax2.remove()
+        if self.ax3 is not None:
+            self.ax3.remove()
         # self.fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=0.5)
-        ax1 = self.fig.add_subplot(3,1,(1,2))
-        ax2 = self.fig.add_subplot(3,1,3,sharex=ax1)
-        mpf.plot(self.pdata,type='candle',ax=ax1,volume=ax2)
+        self.ax1 = self.fig.add_subplot(3,1,(1,2))
+        self.ax2 = self.fig.add_subplot(3,1,3,sharex=self.ax1)
+        # self.pdata.head()
+        mpf.plot(self.pdata,type='candle',ax=self.ax1,volume=self.ax2)
+        self.canvas.draw()
     def clear(self):
         pass
         # self.ax.cla()
@@ -46,6 +54,7 @@ class Drawer:
     def set_product(self, product):
         self.product = product
         self.pdata = product.data.pdata
+        self.pdata.head()
 
 
 import sys

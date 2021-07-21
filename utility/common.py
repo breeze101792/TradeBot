@@ -12,7 +12,8 @@ class StockID:
 class ProductData:
     # {'date': '2021-05-26', 'open': 587.0, 'high': 588.0, 'low': 581.0, 'close': 585.0, 'volume': 19555305, 'turnover': 11433686898, 'trasactioncnt':
     def __init__(self):
-        self.data=None
+        self.data=[{'date': '', 'open': 0, 'high': 0, 'low': 0, 'close': 0, 'volume': 0, 'turnover': 0, 'trasactioncnt':0}]
+
 
     def dump(self):
         # print(self.data)
@@ -33,8 +34,12 @@ class ProductData:
     @property
     def pdata(self):
         # print("Data", self.data)
-        # print([list(d.values()) for d in self.data])
-        df = pd.DataFrame([list(d.values()) for d in self.data], columns=self.data[0].keys())
+        if len(self.data) > 30:
+            tmp_data = self.data[:30]
+        # print([print(list(d.values()), "\n") for d in self.data])
+        # print("-------------------------------------------------------\n")
+        # df = pd.DataFrame([list(d.values()) for d in self.data], columns=self.data[0].keys())
+        df = pd.DataFrame([list(d.values()) for d in tmp_data], columns=tmp_data[0].keys())
 
         # df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
         df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
