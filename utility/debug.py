@@ -1,5 +1,18 @@
 from time import gmtime, strftime
 
+class Bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    ERROR = '\033[91m'
+    CRITICAL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+
 class DebugLevel:
     CRITICAL    = 0x1
     ERROR       = 0x2
@@ -15,19 +28,19 @@ class RetValue:
 debug_level = DebugLevel.MAX
 def dbg_debug(*args):
     if debug_level & DebugLevel.DEBUG > 0:
-        dbgprint("[Debug]", *args)
+        dbgprint("[Debug] ", *args)
 def dbg_info(*args):
     if debug_level & DebugLevel.INFOMATION > 0:
-        dbgprint("[Info]", *args)
+        dbgprint("[Info] ", *args)
 def dbg_warning(*args):
     if debug_level & DebugLevel.WARNING > 0:
-        dbgprint("[Warnning]", *args)
+        dbgprint(Bcolors.WARNING, "[Warnning] ", *args, Bcolors.ENDC)
 def dbg_error(*args):
     if debug_level & DebugLevel.ERROR > 0:
-        dbgprint("[Error]", *args)
+        dbgprint(Bcolors.ERROR, "[Error] ", *args, Bcolors.ENDC)
 def dbg_critical(*args):
     if debug_level & DebugLevel.CRITICAL > 0:
-        dbgprint("[Critical]", *args)
+        dbgprint(Bcolors.CRITICAL,"[Critical] ", *args, Bcolors.ENDC)
 
 def dbgprint(*args):
     timestamp = strftime("%d-%H:%M", gmtime())

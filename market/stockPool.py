@@ -1,5 +1,6 @@
 import sqlite3
 import os
+from utility.debug import *
 
 class StockPool:
     __db_lock = False
@@ -77,7 +78,7 @@ class StockPool:
             # print('db is locked')
             return False
         else:
-            # print('sent commit')
+            dbg_info('commit database')
             self.__db_connection.commit()
             return True
     def dump_productinfo(self):
@@ -132,7 +133,13 @@ class StockPool:
             query_str = "SELECT Code, Name, Type, Market, Industry, StartDate FROM ProductInfo WHERE ID == '%s'" % tmp_id
             result = self.__cursor.execute(query_str)
             self.__unlock()
-            tmp_info = result.fetchall()[0]
+            # tmp_info = result.fetchall()[0]
+
+            tmp_info = result.fetchall()
+            if len(tmp_info) == 0:
+                return False
+            # dbg_info("return prodcut info", tmp_info)
+            tmp_info = tmp_info[0]
 
             ret_info={\
                 'code':      tmp_info[0], \
@@ -187,9 +194,9 @@ class StockPool:
             result = self.__cursor.execute(query_str).fetchone()
             # print(result)
             if result is not None:
-                # word is already in the wordbank
+                dbg_info( "Data is already in the wordbank" )
                 self.__unlock()
-                return False
+                return True
             else:
                 tmp_id=self.__generate_id(insert_data['code'])
                 query_str = "INSERT INTO ProductInfo (ID, Code, Name, Type, Market, Industry, StartDate) VALUES ('%s','%s','%s','%s','%s','%s','%s')" % (tmp_id, insert_data['code'], insert_data['name'], insert_data['type'], insert_data['market'], insert_data['industry'], insert_data['startdate'])
@@ -213,9 +220,9 @@ class StockPool:
             result = self.__cursor.execute(query_str).fetchone()
             # print(result)
             if result is not None:
-                # word is already in the wordbank
+                dbg_info( "Data is already in the wordbank" )
                 self.__unlock()
-                return False
+                return True
             else:
                 query_str = "INSERT INTO HistoricalData (ID, Date, Open, High, Low, Close, Volume, Turnover, TransactionCnt) VALUES ('%s','%s','%s','%s','%s','%s','%s','%s','%s')" % (tmp_id, insert_data['date'], insert_data['open'], insert_data['high'], insert_data['low'], insert_data['close'], insert_data['volume'], insert_data['turnover'], insert_data['trasactioncnt'])
                 # print(query_str)

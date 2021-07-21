@@ -27,7 +27,7 @@ class DBSrc(DataBaseSrc):
     def insert_product_info(self, query_data):
         result = False
         for each_data in query_data:
-            # print(each_data)
+            # dbg_info(each_data)
             result = self.database.insert_product_info(each_data)
             if result == False:
                 break
@@ -39,12 +39,13 @@ class DBSrc(DataBaseSrc):
         result = False
         # print(product_code, query_data)
         for each_data in query_data:
-            # print(each_data)
+            # dbg_info(each_data)
             result = self.database.insert_historical_data(product_code, each_data)
             if result == False:
                 break
         if result == True:
             self.database.commit()
+        # dbg_info("Writing Result ", result)
         return result
 
 

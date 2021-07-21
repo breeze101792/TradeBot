@@ -22,7 +22,7 @@ class Market:
         return product_list
         # return self.local_src.get_product_list()
     def get_product(self, product_code):
-        print("product code:", product_code)
+        dbg_info("product code:", product_code)
         target_product = Product()
         target_product.set_info(self.local_src.get_product_info(product_code))
         target_product.set_data(self.local_src.get_product_data(product_code))
@@ -37,7 +37,7 @@ class Market:
         dbg_info("Update Product %s from %s" % (product_code, start_date))
         # product_data_list = self.online_src.get_product_data(product_code)
         product_data_list = self.online_src.get_product_data_by_date(product_code, start_date)
-        # print("product_data_list", product_data_list)
+        dbg_info("product_data_list", product_data_list)
         self.local_src.insert_product_data(product_code, product_data_list)
     def update_all_product_data(self, start_date=0):
         for each_product in self.online_src.get_product_list():
@@ -67,7 +67,8 @@ def mkt_update_main():
 
     print("\n## Function Test: update_all_product_data")
     print("#############################################")
-    tw_mkt.update_all_product_data(20200101)
+    # tw_mkt.update_all_product_data(20200101)
+    tw_mkt.update_all_product_data(20210101)
 
     return 
 

@@ -58,6 +58,7 @@ class UIManager(Gtk.Window):
         self.current_product = self.mkt.get_product("2330") 
         # self.current_product.data.dump()
 
+        self.side_bar_info_box.set_product(self.current_product)
         self.side_bar_info_box.refresh()
 
         self.main_chart_box.set_product(self.current_product)

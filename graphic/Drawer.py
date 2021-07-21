@@ -13,6 +13,7 @@ from matplotlib.backends.backend_gtk3cairo import (
 from matplotlib.figure import Figure
 import matplotlib
 matplotlib.use("GTK3Cairo")
+from datetime import datetime
 
 
 class Drawer:
@@ -43,7 +44,32 @@ class Drawer:
         self.ax1 = self.fig.add_subplot(3,1,(1,2))
         self.ax2 = self.fig.add_subplot(3,1,3,sharex=self.ax1)
         # self.pdata.head()
-        mpf.plot(self.pdata,type='candle',ax=self.ax1,volume=self.ax2)
+        dbg_warning("Remove Specific days restriction")
+
+
+        # -------------------------------------
+        # start = datetime.datetime(2021, 6, 1)
+        # end = datetime.datetime(2021, 7, 1)
+        # index = pd.date_range(start, end)
+
+        # pdata_window = self.pdata.bdate_range(start, end)
+        # pdata_window = self.pdata["2021-07"]
+        # pdata_window = self.pdata["2021-07"]
+        # pdata_window = self.pdata['2021-06-01' :'2021-07-20']
+
+        pdata_window = self.pdata.loc['2021-06-01' :'2021-07-20']
+
+        # pdata_window = self.pdata['2021-07-01' :'2021-07-20']
+        # pdata_window = self.pdata['2021-01-01' :'2021-07-20']
+        # pdata_window = self.pdata[(self.pdata.Timestamp >= datetime(2021, 6, 1)) & (df.Timestamp <= datetime(2021, 7, 20))]
+        # -------------------------------------
+        # print(pdata_window.head())
+        # print(pdata_window.isnull())
+
+        # self.pdata['2021-06-01' :'2021-07-20'].head()
+        # mpf.plot(self.pdata['2021-06-01' :'2021-07-20'],type='candle',ax=self.ax1,volume=self.ax2)
+        mpf.plot(pdata_window.astype(float), type='candle',ax=self.ax1,volume=self.ax2)
+        # mpf.plot(self.pdata,type='candle',ax=self.ax1,volume=self.ax2)
         self.canvas.draw()
     def clear(self):
         pass
@@ -54,7 +80,7 @@ class Drawer:
     def set_product(self, product):
         self.product = product
         self.pdata = product.data.pdata
-        self.pdata.head()
+        # self.pdata.head()
 
 
 import sys

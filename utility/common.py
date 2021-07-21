@@ -1,4 +1,5 @@
 import pandas as pd
+from utility.debug import *
 
 class StockID:
     code = None
@@ -12,7 +13,7 @@ class StockID:
 class ProductData:
     # {'date': '2021-05-26', 'open': 587.0, 'high': 588.0, 'low': 581.0, 'close': 585.0, 'volume': 19555305, 'turnover': 11433686898, 'trasactioncnt':
     def __init__(self):
-        self.data=[{'date': '', 'open': 0, 'high': 0, 'low': 0, 'close': 0, 'volume': 0, 'turnover': 0, 'trasactioncnt':0}]
+        self.data=[{'date': '2021-07-01', 'open': 0, 'high': 0, 'low': 0, 'close': 0, 'volume': 0, 'turnover': 0, 'trasactioncnt':0}]
 
 
     def dump(self):
@@ -29,21 +30,31 @@ class ProductData:
                     ", trasactioncnt: " + each_data['trasactioncnt'].__str__())
 
     def set_data(self, data):
-        self.data = data
+        if data is None:
+            self.data=[{'date': '2021-07-01', 'open': 0, 'high': 0, 'low': 0, 'close': 0, 'volume': 0, 'turnover': 0, 'trasactioncnt':0}]
+        else:
+            self.data = data
 
     @property
     def pdata(self):
-        # print("Data", self.data)
-        if len(self.data) > 30:
-            tmp_data = self.data[:30]
+        # dbg_info("Data",len(self.data), " ->\n", self.data)
+        if len(self.data) == 0:
+            return None
+        tmp_data = self.data
+        # dbg_warning("Remove 30 days restriction")
+        # if len(self.data) > 45:
+        #     tmp_data = self.data[:45]
+
         # print([print(list(d.values()), "\n") for d in self.data])
         # print("-------------------------------------------------------\n")
         # df = pd.DataFrame([list(d.values()) for d in self.data], columns=self.data[0].keys())
         df = pd.DataFrame([list(d.values()) for d in tmp_data], columns=tmp_data[0].keys())
+        # print(df.head)
 
         # df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
         df['date'] = pd.to_datetime(df['date'], format='%Y%m%d')
         df.set_index('date', inplace=True)
+        df.sort_index(ascending=True, inplace=True)
         # print(df.head)
         return df
 
