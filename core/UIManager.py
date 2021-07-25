@@ -10,15 +10,15 @@ from utility.debug import *
 from market.Market import *
 from core.SideBar import *
 from core.MainChart import *
+from core.TabManager import *
 from utility.debug import *
 
 class UIManager(Gtk.Window):
-
     def __init__(self):
         self.current_product = None
         self.mkt = Market()
-        Gtk.Window.__init__(self, title="Investor")
 
+        super().__init__(title="Investor")
         self.set_default_size(800, 500)
 
         # Program Layout
@@ -47,10 +47,14 @@ class UIManager(Gtk.Window):
 
         self.side_bar_info_box = SideBarInfoBox()
         self.side_bar_info_box.set_search_callback(self.on_search_action)
-        main_frame.pack_start(self.side_bar_info_box.get_main_layer(), False, False, 0)
+        main_frame.pack_start(self.side_bar_info_box.get_main_layer(), False, False, 5)
 
-        self.main_chart_box = MainChart()
-        main_frame.pack_start(self.main_chart_box.get_main_layer(), True, True, 0)
+        # self.main_chart_box = MainChart()
+        # main_frame.pack_start(self.main_chart_box.get_main_layer(), True, True, 0)
+
+        self.tab_manager = TabManager()
+        self.tab_manager.set_event_cb(self.on_product_callback)
+        main_frame.pack_start(self.tab_manager.get_main_layer(), True, True, 0)
 
         self.initialization()
 
@@ -61,8 +65,8 @@ class UIManager(Gtk.Window):
         self.side_bar_info_box.set_product(self.current_product)
         self.side_bar_info_box.refresh()
 
-        self.main_chart_box.set_product(self.current_product)
-        self.main_chart_box.refresh()
+        self.tab_manager.set_product(self.current_product)
+        self.tab_manager.refresh()
 
     def ui_start(self):
         self.connect("destroy", Gtk.main_quit)
@@ -149,6 +153,15 @@ class UIManager(Gtk.Window):
             dbg_info(widget.get_name() + " activated")
         else:
             dbg_info(widget.get_name() + " deactivated")
+    def on_product_callback(self, args, event=None):
+        self.current_product = args
+        # self.current_product.data.dump()
+
+        self.side_bar_info_box.set_product(self.current_product)
+        self.side_bar_info_box.refresh()
+
+        self.tab_manager.set_product(self.current_product)
+        self.tab_manager.refresh()
     def on_search_action(self, widget, event=None):
         search_str = self.side_bar_info_box.get_search_entry()
         dbg_info("On Search Action %s, Event %s", (search_str, event))
@@ -156,14 +169,15 @@ class UIManager(Gtk.Window):
         if search_str == "":
             return
 
-        self.current_product = self.mkt.get_product(search_str)
+        product = self.mkt.get_product(search_str)
         # self.current_product.data.dump()
+        self.on_product_callback(product, None)
 
-        self.side_bar_info_box.set_product(self.current_product)
-        self.side_bar_info_box.refresh()
+        # self.side_bar_info_box.set_product(self.current_product)
+        # self.side_bar_info_box.refresh()
 
-        self.main_chart_box.set_product(self.current_product)
-        self.main_chart_box.refresh()
+        # self.tab_manager.set_product(self.current_product)
+        # self.tab_manager.refresh()
 
 if __name__ == "__main__":
     window = UIManager()        

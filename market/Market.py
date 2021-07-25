@@ -7,6 +7,7 @@ from utility.debug import *
 # from market.stockPool import *
 from market.hal_twstock import *
 from market.hal_database import *
+from datetime import date
 
 class Market:
     def __init__(self):
@@ -25,6 +26,7 @@ class Market:
         dbg_info("product code:", product_code)
         target_product = Product()
         target_product.set_info(self.local_src.get_product_info(product_code))
+        dbg_info("product code:", target_product.code + "(" + target_product.name + ")")
         target_product.set_data(self.local_src.get_product_data(product_code))
         return target_product
     def update_product_list(self):
@@ -34,12 +36,17 @@ class Market:
         # print(product_list)
         self.local_src.insert_product_info(product_list)
     def update_product_data(self, product_code, start_date=0):
+        if start_date == 0:
+            start_date = int(date.today().strftime("%Y%m%d"))
+
         dbg_info("Update Product %s from %s" % (product_code, start_date))
         # product_data_list = self.online_src.get_product_data(product_code)
         product_data_list = self.online_src.get_product_data_by_date(product_code, start_date)
         dbg_info("product_data_list", product_data_list)
         self.local_src.insert_product_data(product_code, product_data_list)
     def update_all_product_data(self, start_date=0):
+        if start_date == 0:
+            start_date = int(date.today().strftime("%Y%m%d"))
         for each_product in self.online_src.get_product_list():
             # self.update_product_data(each_product['code'])
             self.update_product_data(each_product['code'], start_date)
@@ -47,12 +54,16 @@ class Market:
 
 def mkt_update_main():
     tw_mkt = Market()
-    product_code = "2330"
+    # product_code = "2603"
+    # product_code = "0050"
+    # product_code = "2727"
+    product_code = "8069"
+    # product_code = "2330"
     # product_code = "2454"
 
-    print("\n## Function Test: update_product_list")
-    print("#############################################")
-    tw_mkt.update_product_list()
+    # print("\n## Function Test: update_product_list")
+    # print("#############################################")
+    # tw_mkt.update_product_list()
 
     print("\n## Function Test: get_product_list")
     print("#############################################")
@@ -61,14 +72,14 @@ def mkt_update_main():
         # print("StockID: ", each_stock['code'], ", name: ", each_stock['name'])
         print(each_stock)
 
-    # print("\n## Function Test: update_product_data")
-    # print("#############################################")
-    # tw_mkt.update_product_data(product_code)
-
-    print("\n## Function Test: update_all_product_data")
+    print("\n## Function Test: update_product_data")
     print("#############################################")
-    # tw_mkt.update_all_product_data(20200101)
-    tw_mkt.update_all_product_data(20210101)
+    tw_mkt.update_product_data(product_code)
+
+    # print("\n## Function Test: update_all_product_data")
+    # print("#############################################")
+    # # tw_mkt.update_all_product_data(20200101)
+    # tw_mkt.update_all_product_data(20210101)
 
     return 
 

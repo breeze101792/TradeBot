@@ -12,6 +12,7 @@ from core.SideBar import *
 class SideBarInfoBox:
     def __init__(self):
         self.current_product = None
+        self.frame_padding = 5
 
         ##############################################
         ## Container
@@ -26,10 +27,10 @@ class SideBarInfoBox:
         self.search_entry = Gtk.SearchEntry()
         # self.search_entry.set_text("Search Code")
 
-        search_box.pack_start(self.search_entry, False, True, 5)
+        search_box.pack_start(self.search_entry, False, True, self.frame_padding)
         self.search_button = Gtk.Button.new_with_label("Search")
 
-        search_box.pack_start(self.search_button, False, False, 5)
+        search_box.pack_start(self.search_button, False, False, self.frame_padding)
         self.side_bar_box.add(search_box)
 
         ##############################################
@@ -37,7 +38,7 @@ class SideBarInfoBox:
         ##############################################
         info_frame = Gtk.Frame()
         info_frame.set_label("Product Info")
-        self.side_bar_box.pack_start(info_frame, True, True, 0)
+        self.side_bar_box.pack_start(info_frame, False, True, self.frame_padding)
 
         info_grid = Gtk.Grid()
         info_grid.set_column_spacing(5)
@@ -85,10 +86,14 @@ class SideBarInfoBox:
         ##############################################
         analysis_frame = Gtk.Frame()
         analysis_frame.set_label("Analysis Info")
-        self.side_bar_box.pack_start(analysis_frame, True, True, 0)
+        # analysis_frame.set_border_width(5)
+        # analysis_frame.set_label_align(1,1)
+        self.side_bar_box.pack_start(analysis_frame, False, True, self.frame_padding)
 
         analysis_grid = Gtk.Grid()
+        analysis_grid.set_baseline_row(5)
         analysis_grid.set_column_spacing(5)
+        # analysis_grid.set_row_spacing(20)
         # analysis_grid.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0,0.1,0))
         analysis_frame.add(analysis_grid)
         grid_idx = 0

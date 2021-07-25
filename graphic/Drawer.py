@@ -13,7 +13,7 @@ from matplotlib.backends.backend_gtk3cairo import (
 from matplotlib.figure import Figure
 import matplotlib
 matplotlib.use("GTK3Cairo")
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 
 class Drawer:
@@ -21,15 +21,26 @@ class Drawer:
         # self.color = ["r","b","g","c","m","y","k","w"]
         self.product= None
         self.pdata = None
+        self.layout_mode = 2
+        self.drawing_type = "candle"
+
+        self.end_date = date.today()
+        self.duration = 30
 
         self.ax1 = None
         self.ax2 = None
         self.ax3 = None
 
-        self.fig = mpf.figure(style='yahoo',figsize=(9,8))
-
+        # self.fig = mpf.figure(style='yahoo',figsize=(9,8))
+        self.fig = mpf.figure(style='yahoo')
+        # self.fig.patch.set_facecolor('black')
         self.canvas = FigureCanvas(self.fig)
-        self.canvas.set_size_request(800, 600)
+
+        # self.canvas.set_hexpand(True)
+        # self.canvas.set_vexpand(True)
+        # self.canvas.set_halign(Gtk.Align.CENTER)
+        # self.canvas.set_halign(Gtk.Align.FILL)
+        # self.canvas.set_size_request(800, 600)
 
 
     # action
@@ -40,47 +51,100 @@ class Drawer:
             self.ax2.remove()
         if self.ax3 is not None:
             self.ax3.remove()
-        # self.fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=0.5)
-        self.ax1 = self.fig.add_subplot(3,1,(1,2))
-        self.ax2 = self.fig.add_subplot(3,1,3,sharex=self.ax1)
-        # self.pdata.head()
-        dbg_warning("Remove Specific days restriction")
 
+        if self.layout_mode == 1:
+            # self.fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=0.5)
+            self.ax1 = self.fig.add_subplot(3,1,(1,2))
+            # self.pdata.head()
 
-        # -------------------------------------
-        # start = datetime.datetime(2021, 6, 1)
-        # end = datetime.datetime(2021, 7, 1)
-        # index = pd.date_range(start, end)
+            pdata_window = self.pdata.loc[self.end_date - timedelta(days=self.duration) :self.end_date]
 
-        # pdata_window = self.pdata.bdate_range(start, end)
-        # pdata_window = self.pdata["2021-07"]
-        # pdata_window = self.pdata["2021-07"]
-        # pdata_window = self.pdata['2021-06-01' :'2021-07-20']
+            # mpf.plot(pdata_window.astype(float), type=self.drawing_type, ax=self.ax1, axisoff=True, tight_layout=True)
+            mpf.plot(pdata_window.astype(float), type=self.drawing_type, ax=self.ax1)
+            self.canvas.draw()
+        elif self.layout_mode == 2:
+            # self.fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=0.5)
+            self.ax1 = self.fig.add_subplot(3,1,(1,2))
+            self.ax2 = self.fig.add_subplot(3,1,3,sharex=self.ax1)
+            # self.pdata.head()
 
-        pdata_window = self.pdata.loc['2021-06-01' :'2021-07-20']
+            self.ax1.set_xticklabels([])
 
-        # pdata_window = self.pdata['2021-07-01' :'2021-07-20']
-        # pdata_window = self.pdata['2021-01-01' :'2021-07-20']
-        # pdata_window = self.pdata[(self.pdata.Timestamp >= datetime(2021, 6, 1)) & (df.Timestamp <= datetime(2021, 7, 20))]
-        # -------------------------------------
-        # print(pdata_window.head())
-        # print(pdata_window.isnull())
+            pdata_window = self.pdata.loc[self.end_date - timedelta(days=self.duration) :self.end_date]
 
-        # self.pdata['2021-06-01' :'2021-07-20'].head()
-        # mpf.plot(self.pdata['2021-06-01' :'2021-07-20'],type='candle',ax=self.ax1,volume=self.ax2)
-        mpf.plot(pdata_window.astype(float), type='candle',ax=self.ax1,volume=self.ax2)
-        # mpf.plot(self.pdata,type='candle',ax=self.ax1,volume=self.ax2)
-        self.canvas.draw()
+            mpf.plot(pdata_window.astype(float), type=self.drawing_type, mav = (5, 10, 20), ax=self.ax1,volume=self.ax2)
+            self.canvas.draw()
+        elif self.layout_mode == 3:
+            pass
+
     def clear(self):
         pass
         # self.ax.cla()
     # attr
     def get_canvas(self):
         return self.canvas
+    def set_date(self, end_date, duration):
+        self.end_date = date(end_date)
+        self.duration = duration
     def set_product(self, product):
         self.product = product
         self.pdata = product.data.pdata
         # self.pdata.head()
+    def set_layout(self, layout_mode=2):
+        self.layout_mode = layout_mode
+    def set_drawing_type(self, drawing_type="candle"):
+        self.drawing_type = drawing_type
+
+
+class SingleDraw:
+    def __init__(self, unit_xy = (10, 10), title = ""):
+        # self.color = ["r","b","g","c","m","y","k","w"]
+        self.product= None
+        self.pdata = None
+
+        self.end_date = date.today()
+        self.duration = 20
+
+        self.ax1 = None
+        self.ax2 = None
+        self.ax3 = None
+
+        # self.fig = mpf.figure(style='yahoo',figsize=(9,8))
+        self.fig = mpf.figure(style='yahoo')
+        # self.fig.patch.set_facecolor('black')
+        self.canvas = FigureCanvas(self.fig)
+
+    # action
+    def refresh(self):
+        if self.ax1 is not None:
+            self.ax1.remove()
+
+        # self.fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=0.5)
+        self.ax1 = self.fig.add_subplot(3,1,(1,2))
+        # self.pdata.head()
+
+        matplotlib.pyplot.axis('off')
+
+        pdata_window = self.pdata.loc[self.end_date - timedelta(days=self.duration) :self.end_date]
+
+        # mpf.plot(pdata_window.astype(float), type=self.drawing_type, ax=self.ax1, axisoff=True, tight_layout=True)
+        mpf.plot(pdata_window.astype(float), type="line", ax=self.ax1)
+        self.canvas.draw()
+
+    def clear(self):
+        pass
+        # self.ax.cla()
+    # attr
+    def get_canvas(self):
+        return self.canvas
+    def set_date(self, end_date, duration):
+        self.end_date = date(end_date)
+        self.duration = duration
+    def set_product(self, product):
+        self.product = product
+        self.pdata = product.data.pdata
+        # self.pdata.head()
+
 
 
 import sys

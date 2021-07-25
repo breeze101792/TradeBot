@@ -37,7 +37,7 @@ class ProductData:
 
     @property
     def pdata(self):
-        # dbg_info("Data",len(self.data), " ->\n", self.data)
+        dbg_info("Data (",len(self.data), ") ->\n", self.data[:5])
         if len(self.data) == 0:
             return None
         tmp_data = self.data

@@ -23,10 +23,8 @@ class TWSESrc(DataSrc):
         for each_id in id_list:
             each_product=raw_list[each_id]
             # if each_product.market != "上市" and each_product.market != "興櫃":
-            if each_product.type != "股票":
-                continue
-            if each_product.type != "股票":
-                continue
+            # if each_product.type != "股票":
+            #     continue
             # print(each_product.code, each_product.name, each_product.type, each_product.market, each_product.group, each_product.start)
             self.product_list[each_product.code]={'code':each_product.code, \
                     'name':each_product.name, \

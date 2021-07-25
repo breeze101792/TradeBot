@@ -14,8 +14,8 @@ class MainChart:
         self._var_stock_name = str()
         self.box_main_chart = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
-        label_title = Gtk.Label(label="Graphic Chart")
-        self.box_main_chart.pack_start(label_title, False, False, 0)
+        # label_title = Gtk.Label(label="Graphic Chart")
+        # self.box_main_chart.pack_start(label_title, False, False, 0)
 
         self.chart_drawer = Drawer()
         self.box_main_chart.pack_start(self.chart_drawer.get_canvas(), True, True, 4)
