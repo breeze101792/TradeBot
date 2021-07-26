@@ -7,7 +7,7 @@ from utility.debug import *
 # from market.stockPool import *
 from market.hal_twstock import *
 from market.hal_database import *
-from datetime import date
+from datetime import datetime, date, timedelta
 
 class Market:
     def __init__(self):
@@ -19,7 +19,11 @@ class Market:
     def get_product_list(self):
         product_list = []
         for each_product in self.local_src.get_product_list():
-            product_list.append(Product(each_product))
+            # dbg_info(each_product)
+            tmp_product = Product(each_product)
+            # FIXME Only this type of procut will be showen in upper layer
+            if (tmp_product.type == "股票" or tmp_product.type == "ETF") and tmp_product.market == "上市":
+                product_list.append(tmp_product)
         return product_list
         # return self.local_src.get_product_list()
     def get_product(self, product_code):
@@ -37,7 +41,7 @@ class Market:
         self.local_src.insert_product_info(product_list)
     def update_product_data(self, product_code, start_date=0):
         if start_date == 0:
-            start_date = int(date.today().strftime("%Y%m%d"))
+            start_date = int((date.today() -  timedelta(days=7)).strftime("%Y%m%d"))
 
         dbg_info("Update Product %s from %s" % (product_code, start_date))
         # product_data_list = self.online_src.get_product_data(product_code)
@@ -46,7 +50,7 @@ class Market:
         self.local_src.insert_product_data(product_code, product_data_list)
     def update_all_product_data(self, start_date=0):
         if start_date == 0:
-            start_date = int(date.today().strftime("%Y%m%d"))
+            start_date = int((date.today() -  timedelta(days=7)).strftime("%Y%m%d"))
         for each_product in self.online_src.get_product_list():
             # self.update_product_data(each_product['code'])
             self.update_product_data(each_product['code'], start_date)
@@ -57,7 +61,8 @@ def mkt_update_main():
     # product_code = "2603"
     # product_code = "0050"
     # product_code = "2727"
-    product_code = "8069"
+    # product_code = "8069"
+    product_code = "3714"
     # product_code = "2330"
     # product_code = "2454"
 
@@ -68,7 +73,8 @@ def mkt_update_main():
     print("\n## Function Test: get_product_list")
     print("#############################################")
     stock_list = tw_mkt.get_product_list()
-    for each_stock in stock_list[0:10]:
+    # for each_stock in stock_list[0:10]:
+    for each_stock in stock_list:
         # print("StockID: ", each_stock['code'], ", name: ", each_stock['name'])
         print(each_stock)
 

@@ -19,7 +19,7 @@ class ProductList(Gtk.FlowBox):
         self.product_cb = None
 
         self.set_valign(Gtk.Align.START)
-        self.set_max_children_per_line(30)
+        # self.set_max_children_per_line(30)
         # self.set_selection_mode(Gtk.SelectionMode.NONE)
         self.connect('child-activated', self.__on_selected_cb)
 
@@ -31,8 +31,7 @@ class ProductList(Gtk.FlowBox):
         self.add_product("2603")
         self.add_product("2454")
         self.add_product("2727")
-        # self.add_product("2714")
-        # self.add_product("8069")
+        self.add_product("3714")
         self.add_product("8069")
 
     def add_product(self, product_code):

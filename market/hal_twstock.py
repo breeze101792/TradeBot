@@ -3,6 +3,7 @@
 # sys.path.insert(0, '../')
 from market.HalInterface import *
 from twstock.stock import *
+from twstock.codes import *
 from utility.debug import *
 import twstock
 import datetime
@@ -40,6 +41,9 @@ class TWSESrc(DataSrc):
         # {'9958': {'code': '9958', 'name': '世紀鋼', 'type': '股票', 'market': '上市', 'industry': '鋼鐵工業', 'startdate': '20080312'}}
         return self.product_list[product_id]
     def get_product_list(self):
+        # twstock.codes.fetch.__update_codes()
+        # twstock.codes.__update_codes()
+        # __update_codes()
         # return self.product_list
         # [{'code': '9958', 'name': '世紀鋼', 'type': '股票', 'market': '上市', 'industry': '鋼鐵工業', 'startdate': '20080312'}, ]
         return list(self.product_list.values())

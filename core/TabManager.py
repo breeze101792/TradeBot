@@ -12,19 +12,18 @@ class TabManager():
         self.nb = Gtk.Notebook()
 
         ##############################################
-        ## Product Page
-        ##############################################
-        self.product_list = ProductList()
-        self.nb.append_page(self.product_list)
-        self.nb.set_tab_label_text(self.product_list, "Product List")
-
-        ##############################################
         ## Chart Page
         ##############################################
         self.main_chart = MainChart()
         self.nb.append_page(self.main_chart.get_main_layer())
         self.nb.set_tab_label_text(self.main_chart.get_main_layer(), "Chart")
 
+        ##############################################
+        ## Product Page
+        ##############################################
+        self.product_list = ProductList()
+        self.nb.append_page(self.product_list)
+        self.nb.set_tab_label_text(self.product_list, "Product List")
 
     def refresh(self):
         self.main_chart.refresh()

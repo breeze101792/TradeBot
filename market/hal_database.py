@@ -30,6 +30,7 @@ class DBSrc(DataBaseSrc):
             # dbg_info(each_data)
             result = self.database.insert_product_info(each_data)
             if result == False:
+                dbg_error("Can't save data to data base.", each_data)
                 break
         if result == True:
             self.database.commit()

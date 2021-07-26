@@ -45,17 +45,24 @@ class UIManager(Gtk.Window):
         main_frame = Gtk.Box()
         basebox.pack_start(main_frame, True, True, 0)
 
+        ##############################################
+        ## Side Bar
+        ##############################################
         self.side_bar_info_box = SideBarInfoBox()
         self.side_bar_info_box.set_search_callback(self.on_search_action)
+        self.side_bar_info_box.set_event_cb(self.on_product_callback)
         main_frame.pack_start(self.side_bar_info_box.get_main_layer(), False, False, 5)
 
-        # self.main_chart_box = MainChart()
-        # main_frame.pack_start(self.main_chart_box.get_main_layer(), True, True, 0)
-
+        ##############################################
+        ## Tab Manager
+        ##############################################
         self.tab_manager = TabManager()
         self.tab_manager.set_event_cb(self.on_product_callback)
         main_frame.pack_start(self.tab_manager.get_main_layer(), True, True, 0)
 
+        ##############################################
+        ## Post Settings
+        ##############################################
         self.initialization()
 
     def initialization(self):

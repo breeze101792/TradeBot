@@ -8,8 +8,10 @@ from graphic.Drawer import *
 from utility.debug import *
 from market.Market import *
 from core.SideBar import *
+from core.ProductList import *
+from core.UIBasic import *
 
-class SideBarInfoBox:
+class SideBarInfoBox(UIBasic):
     def __init__(self):
         self.current_product = None
         self.frame_padding = 5
@@ -122,6 +124,13 @@ class SideBarInfoBox:
         analysis_grid.attach(self.ten_day_price_label, 1, grid_idx, 1, 1)
         grid_idx = grid_idx + 1
 
+        ##############################################
+        ## Product List
+        ##############################################
+        self.product_list = ProductList()
+        self.product_list.set_max_children_per_line(1)
+        self.side_bar_box.pack_start(self.product_list, False, True, self.frame_padding)
+
     def get_main_layer(self):
         return self.side_bar_box
     def refresh(self):
@@ -146,4 +155,6 @@ class SideBarInfoBox:
         return self.search_entry.get_text()
     def get_stock_name(self):
         return self.product_name_label.get_text()
+    def set_event_cb(self, cb_func):
+        self.product_list.set_selected_cb(cb_func)
 
