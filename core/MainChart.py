@@ -78,9 +78,14 @@ class MainChart:
         self.box_main_chart.pack_start(self.chart_drawer.get_canvas(), True, True, 4)
 
         # scroll bar
-        # hadjustment = Gtk.Adjustment(100, 0, 100, 1, 10, 0)
-        # hscrollbar = Gtk.Scrollbar(orientation=Gtk.Orientation.HORIZONTAL, adjustment=hadjustment)
-        # self.box_main_chart.pack_start(hscrollbar, False, False, 4)
+        self.time_adjustment = Gtk.Adjustment(100, 0, 100, 10, 20, 0)
+        self.time_adjustment.connect("value-changed", self.on_time_adjustment_change)
+        hscrollbar = Gtk.Scrollbar(orientation=Gtk.Orientation.HORIZONTAL, adjustment=self.time_adjustment)
+        self.box_main_chart.pack_start(hscrollbar, False, False, 4)
+    def on_time_adjustment_change(self, widget, event=None):
+        # dbg_info("Value: ", widget.get_value())
+        self.chart_drawer.set_date_by_percentage(widget.get_value())
+        self.chart_drawer.refresh()
 
     def on_range_button(self, widget, event=None):
         button_label = widget.get_label()
@@ -109,6 +114,7 @@ class MainChart:
             self.chart_drawer.set_date(end_date=date.today(), duration=3650)
             self.chart_drawer.set_drawing_type('line')
         self.chart_drawer.refresh()
+        self.time_adjustment.set_value(100)
 
     def refresh(self):
         # print("Refresh Chart " + self._var_stock_name)
