@@ -104,7 +104,12 @@ class Drawer:
     def set_date_by_percentage(self, percentage):
         # dbg_info("set date:", end_date, " - ", duration, " = ", self.end_date - timedelta(days=self.duration))
         # self.end_date = date.today() - timedelta(days=100-percentage)
-        self.end_date = self.pdata.index[int(len(self.pdata) * percentage / 100)]
+        taget_index = int(len(self.pdata) * percentage / 100)
+        if taget_index < 30:
+            taget_index = 30
+        if taget_index > len(self.pdata) -1:
+            taget_index = len(self.pdata) - 1
+        self.end_date = self.pdata.index[taget_index]
     def set_product(self, product):
         self.product = product
         self.pdata = product.data.pdata
