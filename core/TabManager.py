@@ -25,6 +25,14 @@ class TabManager():
         self.nb.append_page(self.product_list)
         self.nb.set_tab_label_text(self.product_list, "Product List")
 
+        self.product_list.add_product("0050")
+        self.product_list.add_product("2330")
+        self.product_list.add_product("2603")
+        self.product_list.add_product("2454")
+        self.product_list.add_product("2727")
+        self.product_list.add_product("3714")
+        self.product_list.add_product("8069")
+
     def refresh(self):
         self.main_chart.refresh()
 

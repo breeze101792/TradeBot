@@ -1,6 +1,7 @@
 import numpy as np
 import mplfinance as mpf
 import pandas as pd
+import math
 # ------------------------------------
 import gi
 gi.require_version('Gtk', '3.0')
@@ -23,6 +24,7 @@ class Drawer:
         self.pdata = None
         self.layout_mode = 2
         self.drawing_type = "candle"
+        self.xtick_cnt = 20
 
         self.end_date = date.today()
         self.duration = 30
@@ -52,6 +54,8 @@ class Drawer:
         if self.ax3 is not None:
             self.ax3.remove()
 
+        self.fig.subplots_adjust(left=0.05, bottom=0.1, right=0.95, top=0.95, wspace=0.05, hspace=0.05)
+
         if self.layout_mode == 1:
             # self.fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=0.5)
             self.ax1 = self.fig.add_subplot(3,1,(1,2))
@@ -61,6 +65,10 @@ class Drawer:
 
             # mpf.plot(pdata_window.astype(float), type=self.drawing_type, ax=self.ax1, axisoff=True, tight_layout=True)
             mpf.plot(pdata_window.astype(float), type=self.drawing_type, ax=self.ax1)
+
+            start, end = self.ax1.get_xlim()
+            self.ax1.xaxis.set_ticks(np.arange(start, end, math.ceil((end - start) / self.xtick_cnt)))
+
             self.canvas.draw()
         elif self.layout_mode == 2:
             # self.fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=None, hspace=0.5)
@@ -68,11 +76,16 @@ class Drawer:
             self.ax2 = self.fig.add_subplot(3,1,3,sharex=self.ax1)
             # self.pdata.head()
 
-            self.ax1.set_xticklabels([])
+            # self.ax1.set_xticklabels([])
+            # self.ax1.get_xaxis().set_visible(False)
 
             pdata_window = self.pdata.loc[self.end_date - timedelta(days=self.duration) :self.end_date]
 
             mpf.plot(pdata_window.astype(float), type=self.drawing_type, mav = (5, 10, 20), ax=self.ax1,volume=self.ax2)
+
+            start, end = self.ax1.get_xlim()
+            self.ax1.xaxis.set_ticks(np.arange(start, end, math.ceil((end - start) / self.xtick_cnt)))
+
             self.canvas.draw()
         elif self.layout_mode == 3:
             pass
@@ -84,8 +97,10 @@ class Drawer:
     def get_canvas(self):
         return self.canvas
     def set_date(self, end_date, duration):
-        self.end_date = date(end_date)
+        # self.end_date = date(end_date)
+        self.end_date = end_date
         self.duration = duration
+        # dbg_info("set date:", end_date, " - ", duration, " = ", self.end_date - timedelta(days=self.duration))
     def set_product(self, product):
         self.product = product
         self.pdata = product.data.pdata

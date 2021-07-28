@@ -44,6 +44,10 @@ class SideBarInfoBox(UIBasic):
 
         info_grid = Gtk.Grid()
         info_grid.set_column_spacing(5)
+        info_grid.set_margin_left(5)
+        info_grid.set_margin_right(5)
+        info_grid.set_margin_top(5)
+        info_grid.set_margin_bottom(5)
         # info_grid.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0,0.1,0))
         info_frame.add(info_grid)
         grid_idx = 0
@@ -95,6 +99,10 @@ class SideBarInfoBox(UIBasic):
         analysis_grid = Gtk.Grid()
         analysis_grid.set_baseline_row(5)
         analysis_grid.set_column_spacing(5)
+        analysis_grid.set_margin_left(5)
+        analysis_grid.set_margin_right(5)
+        analysis_grid.set_margin_top(5)
+        analysis_grid.set_margin_bottom(5)
         # analysis_grid.set_row_spacing(20)
         # analysis_grid.modify_bg(Gtk.StateType.NORMAL, Gdk.Color(0,0.1,0))
         analysis_frame.add(analysis_grid)
@@ -130,6 +138,11 @@ class SideBarInfoBox(UIBasic):
         self.product_list = ProductList()
         self.product_list.set_max_children_per_line(1)
         self.side_bar_box.pack_start(self.product_list, False, True, self.frame_padding)
+
+        self.product_list.add_product("0050")
+        self.product_list.add_product("2330")
+        self.product_list.add_product("2603")
+        self.product_list.add_product("2454")
 
     def get_main_layer(self):
         return self.side_bar_box

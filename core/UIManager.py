@@ -66,7 +66,7 @@ class UIManager(Gtk.Window):
         self.initialization()
 
     def initialization(self):
-        self.current_product = self.mkt.get_product("2330") 
+        self.current_product = self.mkt.get_product("0050") 
         # self.current_product.data.dump()
 
         self.side_bar_info_box.set_product(self.current_product)

@@ -26,13 +26,13 @@ class ProductList(Gtk.FlowBox):
         ##############################################
         ## Preset Set
         ##############################################
-        self.add_product("0050")
-        self.add_product("2330")
-        self.add_product("2603")
-        self.add_product("2454")
-        self.add_product("2727")
-        self.add_product("3714")
-        self.add_product("8069")
+        # self.add_product("0050")
+        # self.add_product("2330")
+        # self.add_product("2603")
+        # self.add_product("2454")
+        # self.add_product("2727")
+        # self.add_product("3714")
+        # self.add_product("8069")
 
     def add_product(self, product_code):
         for each_product in self.info_chart_list:
