@@ -51,6 +51,11 @@ class MainChart:
         # self.box_main_chart.pack_start(self.one_month_button, False, False, 5)
         self.setting_grid.add(self.one_month_button)
 
+        self.three_month_button = Gtk.Button.new_with_label("3M")
+        self.three_month_button.connect("clicked", self.on_range_button)
+        # self.box_main_chart.pack_start(self.three_month_button, False, False, 5)
+        self.setting_grid.add(self.three_month_button)
+
         self.six_month_button = Gtk.Button.new_with_label("6M")
         self.six_month_button.connect("clicked", self.on_range_button)
         # self.box_main_chart.pack_start(self.six_month_button, False, False, 5)
@@ -100,6 +105,9 @@ class MainChart:
         elif button_label == "1M":
             self.chart_drawer.set_date(end_date=date.today(), duration=30)
             self.chart_drawer.set_drawing_type('candle')
+        elif button_label == "3M":
+            self.chart_drawer.set_date(end_date=date.today(), duration=60)
+            self.chart_drawer.set_drawing_type('candle')
         elif button_label == "6M":
             self.chart_drawer.set_date(end_date=date.today(), duration=120)
             self.chart_drawer.set_drawing_type('candle')
@@ -114,7 +122,7 @@ class MainChart:
             self.chart_drawer.set_date(end_date=date.today(), duration=3650)
             self.chart_drawer.set_drawing_type('line')
         self.chart_drawer.refresh()
-        self.time_adjustment.set_value(100)
+        # self.time_adjustment.set_value(100)
 
     def refresh(self):
         # print("Refresh Chart " + self._var_stock_name)

@@ -12,7 +12,7 @@ import time
 
 class TWSESrc(DataSrc):
     def __init__(self):
-        self.request_delay=10
+        self.request_delay=3
         self.product_list={}
 
         self.__src_init()
@@ -97,7 +97,6 @@ class TWSESrc(DataSrc):
 
             for each_month in range(tmp_start_month, tmp_end_month + 1):
                 dbg_info("Fetch Product %s durning YD %s-%s " % (product_id, each_year, each_month))
-
 
                 time.sleep(self.request_delay)
                 stock.fetch(each_year, each_month)

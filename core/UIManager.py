@@ -115,6 +115,14 @@ class UIManager(Gtk.Window):
                 self.on_menu_file_new_generic),
             ])
 
+        action_fileupdate = Gtk.Action("FileUpdate", "Sync", None, Gtk.STOCK_REFRESH)
+        action_fileupdate.connect("activate", self.on_menu_file_update)
+        action_group.add_action(action_fileupdate)
+
+        action_filepreference = Gtk.Action("FilePreference", None, None, Gtk.STOCK_PREFERENCES )
+        action_filepreference.connect("activate", self.on_menu_file_preference)
+        action_group.add_action(action_filepreference)
+
         action_filequit = Gtk.Action("FileQuit", None, None, Gtk.STOCK_QUIT)
         action_filequit.connect("activate", self.on_menu_file_quit)
         action_group.add_action(action_filequit)
@@ -146,9 +154,17 @@ class UIManager(Gtk.Window):
     def on_menu_file_new_generic(self, widget):
         dbg_info("A File|New menu item was selected.")
 
+    def on_menu_file_update(self, widget):
+        dbg_info("A File Update menu item was selected.")
+        self.mkt.update_product_data(self.current_product.code)
+        product = self.mkt.get_product(self.current_product.code)
+        self.on_product_callback(product, None)
+
+    def on_menu_file_preference(self, widget):
+        dbg_info("A File Preference menu item was selected.")
+
     def on_menu_file_quit(self, widget):
         Gtk.main_quit()
-
     def on_menu_others(self, widget):
         dbg_info("Menu item " + widget.get_name() + " was selected")
 
@@ -169,9 +185,10 @@ class UIManager(Gtk.Window):
 
         self.tab_manager.set_product(self.current_product)
         self.tab_manager.refresh()
+    # FIXME need to be remove, add it to side bar
     def on_search_action(self, widget, event=None):
         search_str = self.side_bar_info_box.get_search_entry()
-        dbg_info("On Search Action %s, Event %s", (search_str, event))
+        dbg_info("On Search Action %s, Event %s" % (search_str, event))
 
         if search_str == "":
             return
@@ -179,12 +196,6 @@ class UIManager(Gtk.Window):
         product = self.mkt.get_product(search_str)
         # self.current_product.data.dump()
         self.on_product_callback(product, None)
-
-        # self.side_bar_info_box.set_product(self.current_product)
-        # self.side_bar_info_box.refresh()
-
-        # self.tab_manager.set_product(self.current_product)
-        # self.tab_manager.refresh()
 
 if __name__ == "__main__":
     window = UIManager()        

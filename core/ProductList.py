@@ -41,6 +41,7 @@ class ProductList(Gtk.FlowBox):
                 return True
 
         product_ins = self.mkt.get_product(product_code)
+        # dbg_info("Add Product: ", product_ins.code ,"|", product_ins.name)
         info_char = InfoChart()
         info_char.set_product(product_ins)
         info_char.refresh()
@@ -50,12 +51,16 @@ class ProductList(Gtk.FlowBox):
         # self.pack_start(info_char.get_main_layer(), True, True, 4)
 
 
-    def rm_product(self):
+    def rm_product(self, product_code):
         pass
-
+    def rm_all_product(self):
+        for each_product in self.info_chart_list:
+            # dbg_info(each_product)
+            self.remove(each_product.get_main_layer().get_parent())
+            self.info_chart_list.remove(each_product)
 
     def refresh(self):
-        pass
+        self.show_all()
     def __on_selected_cb(self, widget, event=None):
         if self.product_cb is not None:
             child_idx = self.get_selected_children()[0].get_index()
