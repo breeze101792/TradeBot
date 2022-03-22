@@ -47,6 +47,10 @@ class Drawer:
 
     # action
     def refresh(self):
+        return
+        if self.pdata is None:
+            dbg_warning("pdata is none")
+            return
         if self.ax1 is not None:
             self.ax1.remove()
         if self.ax2 is not None:
@@ -62,6 +66,9 @@ class Drawer:
             # self.pdata.head()
 
             pdata_window = self.pdata.loc[self.end_date - timedelta(days=self.duration) :self.end_date]
+            if len(pdata_window) == 0:
+                dbg_warning("No data in the list. Pease update data first")
+                return
 
             # mpf.plot(pdata_window.astype(float), type=self.drawing_type, ax=self.ax1, axisoff=True, tight_layout=True)
             mpf.plot(pdata_window.astype(float), type=self.drawing_type, ax=self.ax1)
@@ -80,6 +87,9 @@ class Drawer:
             # self.ax1.get_xaxis().set_visible(False)
 
             pdata_window = self.pdata.loc[self.end_date - timedelta(days=self.duration) :self.end_date]
+            if len(pdata_window) == 0:
+                dbg_warning("No data in the list. Pease update data first")
+                return
 
             mpf.plot(pdata_window.astype(float), type=self.drawing_type, mav = (5, 10, 20), ax=self.ax1,volume=self.ax2)
 
@@ -140,6 +150,9 @@ class SingleDraw:
 
     # action
     def refresh(self):
+        if self.pdata is None:
+            dbg_warning("pdata is none")
+            return
         if self.ax1 is not None:
             self.ax1.remove()
 
@@ -150,6 +163,11 @@ class SingleDraw:
         matplotlib.pyplot.axis('off')
 
         pdata_window = self.pdata.loc[self.end_date - timedelta(days=self.duration) :self.end_date]
+
+        if len(pdata_window) == 0:
+            dbg_warning("No data in the list. Pease update data first")
+            return
+
 
         # mpf.plot(pdata_window.astype(float), type=self.drawing_type, ax=self.ax1, axisoff=True, tight_layout=True)
         mpf.plot(pdata_window.astype(float), type="line", ax=self.ax1)

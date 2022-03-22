@@ -12,6 +12,7 @@ import time
 
 class TWSESrc(DataSrc):
     def __init__(self):
+        self.initial_request_delay=10
         self.request_delay=3
         self.product_list={}
 
@@ -84,6 +85,7 @@ class TWSESrc(DataSrc):
         if start_month < 1:
             start_month = 1
 
+        time.sleep(self.initial_request_delay)
         stock = Stock(product_id)
         dbg_info("Fetch from %s to %s" % (start_year, current_year))
         for each_year in range(start_year, current_year + 1):

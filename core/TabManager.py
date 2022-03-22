@@ -17,36 +17,35 @@ class TabManager():
         ##############################################
         self.main_chart = MainChart()
         self.nb.append_page(self.main_chart.get_main_layer())
-        self.nb.set_tab_label_text(self.main_chart.get_main_layer(), "Chart")
+        self.nb.set_tab_label_text(self.main_chart.get_main_layer(), "Technical Analysis")
 
         ###############################################
-        ### Product Page
+        ### Fundamental Analysis
         ###############################################
-        self.product_list = ProductList()
-        #self.nb.append_page(self.product_list)
-        #self.nb.set_tab_label_text(self.product_list, "Product List")
+        #self.fundamental_analysis_place_holder = Gtk.Box()
+        #self.nb.append_page(self.fundamental_analysis_place_holder)
+        #self.nb.set_tab_label_text(self.fundamental_analysis_place_holder, "Fundamental Analysis")
 
-        #self.product_list.add_product("0050")
-        #self.product_list.add_product("2330")
-        #self.product_list.add_product("2603")
-        #self.product_list.add_product("2454")
-        #self.product_list.add_product("2727")
-        #self.product_list.add_product("3714")
-        #self.product_list.add_product("8069")
+        ###############################################
+        ### Chip Analysis
+        ###############################################
+        #self.chip_analysis_place_holder = Gtk.Box()
+        #self.nb.append_page(self.chip_analysis_place_holder)
+        #self.nb.set_tab_label_text(self.chip_analysis_place_holder, "Chip Analysis")
 
         ##############################################
         ## Filter Page
         ##############################################
         self.product_filter = ProductFilter()
         self.nb.append_page(self.product_filter)
-        self.nb.set_tab_label_text(self.product_filter, "Filter")
+        self.nb.set_tab_label_text(self.product_filter, "Product Filter")
 
-        ##############################################
-        ## Update Page
-        ##############################################
-        self.update_place_holder = Gtk.Box()
-        self.nb.append_page(self.update_place_holder)
-        self.nb.set_tab_label_text(self.update_place_holder, "Update")
+        ###############################################
+        ### Update Page
+        ###############################################
+        #self.update_place_holder = Gtk.Box()
+        #self.nb.append_page(self.update_place_holder)
+        #self.nb.set_tab_label_text(self.update_place_holder, "Update")
 
     def refresh(self):
         self.main_chart.refresh()
@@ -58,5 +57,5 @@ class TabManager():
     def get_main_layer(self):
         return self.nb
     def set_event_cb(self, cb_func):
-        self.product_list.set_selected_cb(cb_func)
+        # self.product_list.set_selected_cb(cb_func)
         self.product_filter.set_selected_cb(cb_func)

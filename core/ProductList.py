@@ -41,11 +41,11 @@ class ProductList(Gtk.FlowBox):
                 return True
 
         product_ins = self.mkt.get_product(product_code)
-        # dbg_info("Add Product: ", product_ins.code ,"|", product_ins.name)
         info_char = InfoChart()
         info_char.set_product(product_ins)
         info_char.refresh()
 
+        # dbg_info("Add Product: ", product_ins.code ,"|", product_ins.name)
         self.info_chart_list.append(info_char)
         self.add(info_char.get_main_layer())
         # self.pack_start(info_char.get_main_layer(), True, True, 4)
@@ -54,10 +54,18 @@ class ProductList(Gtk.FlowBox):
     def rm_product(self, product_code):
         pass
     def rm_all_product(self):
-        for each_product in self.info_chart_list:
-            # dbg_info(each_product)
-            self.remove(each_product.get_main_layer().get_parent())
-            self.info_chart_list.remove(each_product)
+        size_of_list = len(self.info_chart_list)
+
+        for product_idx in range(0, size_of_list):
+            # dbg_info("remove product:", size_of_list, self.info_chart_list[product_idx])
+            self.remove(self.info_chart_list[product_idx].get_main_layer().get_parent())
+        # self.info_chart_list.remove(self.info_chart_list[product_idx])
+        self.info_chart_list = []
+
+        # for each_product in self.info_chart_list:
+        #     # dbg_info(each_product)
+        #     self.remove(each_product.get_main_layer().get_parent())
+        #     self.info_chart_list.remove(each_product)
 
     def refresh(self):
         self.show_all()

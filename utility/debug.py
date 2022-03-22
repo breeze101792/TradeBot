@@ -1,4 +1,6 @@
 from time import gmtime, strftime
+import inspect
+import os
 
 class Bcolors:
     HEADER = '\033[95m'
@@ -19,6 +21,7 @@ class DebugLevel:
     WARNING     = 0x4
     INFOMATION  = 0x8
     DEBUG       = 0x10
+    TRACE       = 0x20
     MAX         = 0xff
 
 class RetValue:
@@ -26,12 +29,15 @@ class RetValue:
     SUCCESS = 0
 # TODO REMOVE this var
 debug_level = DebugLevel.MAX
+def dbg_trace(*args):
+    if debug_level & DebugLevel.DEBUG > 0:
+        dbgprint(Bcolors.ENDC, "[Trace] ", *args, Bcolors.ENDC)
 def dbg_debug(*args):
     if debug_level & DebugLevel.DEBUG > 0:
-        dbgprint("[Debug] ", *args)
+        dbgprint(Bcolors.ENDC, "[Debug] ", *args, Bcolors.ENDC)
 def dbg_info(*args):
     if debug_level & DebugLevel.INFOMATION > 0:
-        dbgprint("[Info] ", *args)
+        dbgprint(Bcolors.ENDC, "[Info] ", *args, Bcolors.ENDC)
 def dbg_warning(*args):
     if debug_level & DebugLevel.WARNING > 0:
         dbgprint(Bcolors.WARNING, "[Warnning] ", *args, Bcolors.ENDC)
@@ -40,8 +46,15 @@ def dbg_error(*args):
         dbgprint(Bcolors.ERROR, "[Error] ", *args, Bcolors.ENDC)
 def dbg_critical(*args):
     if debug_level & DebugLevel.CRITICAL > 0:
-        dbgprint(Bcolors.CRITICAL,"[Critical] ", *args, Bcolors.ENDC)
+        dbgprint(Bcolors.CRITICAL, "[Critical] ", *args, Bcolors.ENDC)
 
 def dbgprint(*args):
     timestamp = strftime("%d-%H:%M", gmtime())
-    print("[{}]".format(timestamp) + "".join(map(str,args)))
+    caller_frame = inspect.stack()[2]
+
+    caller_filename = os.path.splitext(os.path.basename(caller_frame.filename))[0]
+    caller_function = caller_frame.function
+
+    # print("[{}]".format(timestamp) + "".join(map(str,args)))
+    print("[{}][{}][{}]".format(timestamp, caller_filename, caller_function) + "".join(map(str,args)))
+

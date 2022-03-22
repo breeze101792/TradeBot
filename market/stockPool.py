@@ -34,12 +34,14 @@ class StockPool:
             conn.close()
             # print('successful init')
     def __lock(self):
+        # dbg_info("db Lock")
         if self.__db_lock == False:
             self.__db_lock = True
             return True
         else:
             return False
     def __unlock(self):
+        # dbg_info("db Unlock")
         if self.__db_lock == True:
             self.__db_lock = False
             return True
@@ -75,7 +77,7 @@ class StockPool:
             return True
     def commit(self):
         if self.__is_locked():
-            # print('db is locked')
+            dbg_info('db is locked')
             return False
         else:
             dbg_info('commit database')

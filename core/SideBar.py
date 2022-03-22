@@ -141,8 +141,10 @@ class SideBarInfoBox(UIBasic):
 
         self.product_list.add_product("0050")
         self.product_list.add_product("2330")
-        self.product_list.add_product("2603")
         self.product_list.add_product("2454")
+        self.product_list.add_product("8069")
+        self.product_list.add_product("3714")
+        self.product_list.add_product("00893")
 
     def get_main_layer(self):
         return self.side_bar_box

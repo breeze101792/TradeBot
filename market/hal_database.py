@@ -32,9 +32,11 @@ class DBSrc(DataBaseSrc):
             if result == False:
                 dbg_error("Can't save data to data base.", each_data)
                 break
-        if result == True:
+        if result is not False:
             self.database.commit()
-        return result
+            return True
+        else:
+            return False
 
     def insert_product_data(self, product_code, query_data):
         result = False
@@ -43,11 +45,15 @@ class DBSrc(DataBaseSrc):
             # dbg_info(each_data)
             result = self.database.insert_historical_data(product_code, each_data)
             if result == False:
+                dbg_warning("Fail to Write data to db ", each_data)
                 break
-        if result == True:
+        if result is not False:
+            # dbg_info("Do DB commit ")
             self.database.commit()
-        # dbg_info("Writing Result ", result)
-        return result
+            # dbg_info("Writing Result ", result)
+            return True
+        else:
+            return False
 
 
 def db_test():

@@ -16,23 +16,56 @@ class Market:
         self.online_src = TWSESrc()
     def search_product(self, query_str):
         return self.local_src.search_product(query_str)
-    def get_product_list(self):
+    ##############################################
+    ##  Product Function
+    ##############################################
+    def prodcut_sanity_check(self, target_product):
+        # dbg_info(target_product)
+        if (target_product['type'] == "股票" or target_product['type'] == "ETF") and target_product['market'] == "上市":
+            return True
+        else:
+            return False
+    def get_industry_list(self):
+        industry_list = []
+        for each_product in self.local_src.get_product_list():
+            if each_product['industry'] not in industry_list and \
+                    each_product['industry'] != "" and \
+                    self.prodcut_sanity_check(each_product) == True:
+                industry_list.append(each_product['industry'])
+        return industry_list
+    def get_product_list(self, industry=""):
         product_list = []
         for each_product in self.local_src.get_product_list():
-            # dbg_info(each_product)
-            tmp_product = Product(each_product)
-            # FIXME Only this type of procut will be showen in upper layer
-            if (tmp_product.type == "股票" or tmp_product.type == "ETF") and tmp_product.market == "上市":
+            if each_product['industry'] != industry:
+                continue
+            # else:
+            #     dbg_info(each_product['industry'], "<->", industry)
+
+            # dbg_info(each_product['code'], "(", each_product['code'], ")")
+            if self.prodcut_sanity_check(each_product) == True:
+                tmp_product = Product(each_product)
+                # FIXME Only this type of procut will be showen in upper layer
                 product_list.append(tmp_product)
         return product_list
         # return self.local_src.get_product_list()
     def get_product(self, product_code):
-        dbg_info("product code:", product_code)
+        # dbg_info("product code:", product_code)
         target_product = Product()
         target_product.set_info(self.local_src.get_product_info(product_code))
         dbg_info("product code:", target_product.code + "(" + target_product.name + ")")
         target_product.set_data(self.local_src.get_product_data(product_code))
         return target_product
+    # def get_product_by_industry(self, industry):
+    #     target_list = []
+    #     for each_product in self.local_src.get_product_list():
+    #         # dbg_info(each_product)
+    #         if each_product['industry'] == industry:
+    #             tmp_product = self.get_product(each_product['code'])
+    #             target_list.append(tmp_product)
+    #     return target_list
+    ##############################################
+    ##  Udate Function
+    ##############################################
     def update_product_list(self):
         product_list = []
         for each_product in self.online_src.get_product_list():

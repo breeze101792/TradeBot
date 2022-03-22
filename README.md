@@ -11,7 +11,7 @@
 
 ## Dependency
 ```
-pip install numpy matplotlib
+pip install numpy matplotlib mplfinance lxml
 ```
 
 Get option hal twstock
