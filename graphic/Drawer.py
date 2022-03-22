@@ -47,7 +47,6 @@ class Drawer:
 
     # action
     def refresh(self):
-        return
         if self.pdata is None:
             dbg_warning("pdata is none")
             return
