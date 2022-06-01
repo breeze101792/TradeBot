@@ -15,6 +15,8 @@ from matplotlib.figure import Figure
 import matplotlib
 matplotlib.use("GTK3Cairo")
 from datetime import datetime, date, timedelta
+from market.Market import *
+from utility.common import *
 
 
 class Drawer:
@@ -183,15 +185,16 @@ class SingleDraw:
         self.duration = duration
     def set_product(self, product):
         self.product = product
+        # print( product.data.pdata )
         self.pdata = product.data.pdata
         # self.pdata.head()
 
 
 
-import sys
-sys.path.insert(0, '../')
-from market.Market import *
-from utility.common import *
+# import sys
+# sys.path.insert(0, '../')
+# from market.Market import *
+# from utility.common import *
 def drawer_main():
     win = Gtk.Window()
     win.connect("delete-event", Gtk.main_quit)

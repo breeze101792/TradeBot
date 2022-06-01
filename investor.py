@@ -4,8 +4,13 @@ from datetime import datetime, date, timedelta
 from utility.debug import *
 # from hal_common import Stock
 # from utility.common import *
-from core.UIManager import UIManager
-from market.Market import *
+flag_gui_enable=True
+try:
+    from gui.UIManager import UIManager
+    from market.Market import *
+except:
+    dbg_debug("No GUI Running")
+    flag_gui_enable=False
 
 def UI_main():
     window = UIManager()
@@ -62,10 +67,16 @@ def main():
         get_product_list()
     elif options.action_launch_graphic==True:
         dbg_info("action_launch_graphic")
-        UI_main()
+        if flag_gui_enable == True:
+            UI_main()
+        else:
+            dbg_error("Can't start gui")
     else:
         dbg_info("Default Action")
-        UI_main()
+        if flag_gui_enable == True:
+            UI_main()
+        else:
+            dbg_info("Will run cli")
 
 if __name__ == '__main__':
     main()

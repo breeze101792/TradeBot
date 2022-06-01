@@ -4,10 +4,10 @@ from gi.repository import Gtk, Gdk, GLib
 import matplotlib
 matplotlib.use("GTK3Cairo")
 #---------------------------
-from graphic.Drawer import *
+from gui.graphic.Drawer import *
 from utility.debug import *
 from market.Market import *
-from core.SideBar import *
+from gui.SideBar import *
 
 class MainChart:
     def __init__(self):

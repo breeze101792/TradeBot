@@ -54,6 +54,7 @@ class Market:
         target_product.set_info(self.local_src.get_product_info(product_code))
         dbg_info("product code:", target_product.code + "(" + target_product.name + ")")
         target_product.set_data(self.local_src.get_product_data(product_code))
+        # dbg_info("product:", target_product.data[0])
         return target_product
     # def get_product_by_industry(self, industry):
     #     target_list = []

@@ -4,12 +4,12 @@ from gi.repository import Gtk, Gdk, GLib
 import matplotlib
 matplotlib.use("GTK3Cairo")
 #---------------------------
-from graphic.Drawer import *
+from gui.graphic.Drawer import *
 from utility.debug import *
 from market.Market import *
-from core.SideBar import *
-from core.ProductList import *
-from core.UIBasic import *
+from gui.SideBar import *
+from gui.ProductList import *
+from gui.UIBasic import *
 
 class SideBarInfoBox(UIBasic):
     def __init__(self):
@@ -139,12 +139,12 @@ class SideBarInfoBox(UIBasic):
         self.product_list.set_max_children_per_line(1)
         self.side_bar_box.pack_start(self.product_list, False, True, self.frame_padding)
 
-        self.product_list.add_product("0050")
-        self.product_list.add_product("2330")
-        self.product_list.add_product("2454")
-        self.product_list.add_product("8069")
-        self.product_list.add_product("3714")
-        self.product_list.add_product("00893")
+        # self.product_list.add_product("0050")
+        # self.product_list.add_product("2330")
+        # self.product_list.add_product("2454")
+        # self.product_list.add_product("8069")
+        # self.product_list.add_product("3714")
+        # self.product_list.add_product("00893")
 
     def get_main_layer(self):
         return self.side_bar_box

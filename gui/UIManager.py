@@ -5,12 +5,12 @@ import matplotlib
 matplotlib.use("GTK3Cairo")
 
 #---------------------------
-from graphic.Drawer import *
+from gui.graphic.Drawer import *
 from utility.debug import *
 from market.Market import *
-from core.SideBar import *
-from core.MainChart import *
-from core.TabManager import *
+from gui.SideBar import *
+from gui.MainChart import *
+from gui.TabManager import *
 from utility.debug import *
 
 class UIManager(Gtk.Window):
@@ -83,7 +83,7 @@ class UIManager(Gtk.Window):
     # UI creation
     def create_ui_manager(self):
         ui_info = None
-        with open('core/UISettings.xml') as f:
+        with open('gui/UISettings.xml') as f:
             ui_info = f.read()
             f.closed
         uimanager = Gtk.UIManager()

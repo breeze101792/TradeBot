@@ -2,10 +2,10 @@ import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk, GLib
 #---------------------------
-from core.MainChart import *
+from gui.MainChart import *
 from utility.debug import *
-from core.ProductList import *
-from core.ProductFilter import *
+from gui.ProductList import *
+from gui.ProductFilter import *
 
 class TabManager():
     def __init__(self):
