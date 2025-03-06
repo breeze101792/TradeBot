@@ -6,10 +6,12 @@ import threading
 
 # Local file
 from utility.debug import *
+from core.database import *
 
 class Core:
     def __init__(self):
-        dbg_info('Core Initialising.')
+        # Defines
+        self.def_database_name = "trader.db"
 
         # Flags
         self.flag_core_running = False
@@ -23,11 +25,12 @@ class Core:
         self.service_thread = None
         self.heatbeat_thread = None
 
-        self.__initcheck()
+        # class
+        self.database = None
 
     def __initcheck(self):
         # Check env setup is okay or not.
-        pass
+        return True
     def __sanitycheck(self):
         # Check sanity check on heart beat okay or not.
         dbg_info('Sanity Check.')
@@ -67,11 +70,14 @@ class Core:
     def __service(self):
         dbg_info('Service Start.')
         self.flag_service_running = True
-        # TODO Impl heatbeat
         service_interval_time=1
         while True:
             try:
                 dbg_trace('Service running in every {}s'.format(service_interval_time))
+                # TODO Impl service
+
+
+
                 time.sleep(service_interval_time)
             except KeyboardInterrupt:
                 dbg_warning("Keyboard Interupt.")
@@ -93,9 +99,30 @@ class Core:
 
         self.flag_service_running = False
         dbg_warning('Service End.')
+    def initialize(self):
+        dbg_info('Core start initialize.')
+        try:
+            self.database = Database(self.def_database_name)
+            self.database.connect()
+            self.database.setup()
+            self.database.dump_all()
+        except Exception as e:
+            dbg_error(e)
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+            raise
+        finally:
+            pass
+
+        dbg_info('Core initialized.')
     def start(self):
         dbg_info('Core Start.')
         thread_list = []
+
+        if self.__initcheck() is False:
+            dbg_error('Init check fail. Start.')
+            return False
+
         self.flag_core_running = True
         try:
             self.service_thread = threading.Thread(target=self.__service)
@@ -139,4 +166,7 @@ class Core:
     def quit(self):
         dbg_info('Core Quit.')
         # TODO, do final check.
+
+        if self.database is not None:
+            self.database.close()
 

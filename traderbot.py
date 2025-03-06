@@ -26,6 +26,7 @@ def main():
     try:
         dbg_info("Trade Bot starting .")
 
+        core.initialize()
         core.start()
     except KeyboardInterrupt:
         dbg_error("Keyboard Interupt.")
