@@ -68,5 +68,5 @@ cerebro.run()
 print(f"Ending Portfolio Value: {cerebro.broker.getvalue()}")
 
 # 繪製回測圖表
-cerebro.plot()
+# cerebro.plot()
 
