@@ -4,6 +4,12 @@ import traceback
 import time
 import threading
 
+# FIXME, may be remove latter
+import backtrader as bt
+import pandas as pd
+from datetime import datetime
+from core.strategy import *
+
 # Local file
 from utility.debug import *
 from core.database import *
@@ -77,6 +83,18 @@ class Core:
         database.close()
 
         return tracking_list
+    def update_tracking_list(self, productid, tracking = True):
+        # If i need to add this, we need to check if produt is corrent or not.
+        tracking_list = []
+        database = None
+
+        database = Database(self.def_database_name)
+        database.connect()
+        database.add_tracking_product(productid, tracking)
+        database.close()
+
+        # time.sleep(5)
+        return tracking_list
 
     def __service(self):
         dbg_info('Service Start.')
@@ -86,23 +104,62 @@ class Core:
         # TODO, Impl it in more general way.
         market = Yahoo()
 
+        # Add this for temp add product.
+        if False:
+            product_list = ['2454.TW', '2646.TW', '2330.TW', '2603.TW', '2379.TW', '2303.TW', '3293.TWO', '00731.TW', '00713.TW', '00888.TWO', '8069.TWO' ]
+            # product_list = ['2454.TW', '2330.TW', '2603.TW', '2379.TW', '2303.TW', '2412.TW']
+            for each_ticker in product_list:
+                self.update_tracking_list(each_ticker)
+
+        # self.update_tracking_list('2646.TW', False)
         # do the evaluation on every service_interval_time.
         while True:
             try:
                 dbg_trace('Service running in every {}s'.format(service_interval_time))
                 # TODO Impl service
+                ###############################################################
+                init_cash = 1000000
+                # Init Backtrader
+                cerebro = bt.Cerebro()
+
                 tracking_list = self.get_tracking_list()
                 for each_ticker in tracking_list:
                     dbg_info("Product List: ", each_ticker.__str__())
                     try:
-                        df = market.get_ticker(each_ticker)
-                        dbg_debug('{}'.format(df))
+                        df = market.get_ticker(each_ticker, start_date = "2020-01-01", end_date = "2025-01-01")
+                        # dbg_debug('{}'.format(df.head()))
+                        data = bt.feeds.PandasData(dataname=df)
+                        # Add data to enginee
+                        cerebro.adddata(data, name=each_ticker)
                     except Exception as e:
+                        self.update_tracking_list(each_ticker, False)
                         dbg_error(e)
 
                         traceback_output = traceback.format_exc()
                         dbg_error(traceback_output)
                         continue
+
+
+                dbg_info("Start running Strategy.")
+                # Load strategy
+                # cerebro.addstrategy(MovingAverageCrossover)
+                cerebro.addstrategy(BreakoutMomentum)
+
+                # Setup init cash
+                cerebro.broker.set_cash(init_cash)
+                # Set commission
+                cerebro.broker.setcommission(commission=0.001)
+                # set perc
+                cerebro.broker.set_slippage_perc(perc=0.001)
+                # Do testing
+                cerebro.run()
+
+                dbg_info(f"Init cash({init_cash}), Profit: {(cerebro.broker.getvalue() - init_cash):.2f}/({(cerebro.broker.getvalue() - init_cash)/init_cash*100:.2f}%)")
+                # Do ploting
+                # cerebro.plot()
+                break
+                ###############################################################
+
 
                 # dbg_info("Tracking List: " + tracking_list.__str__())
 
