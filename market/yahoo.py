@@ -1,8 +1,11 @@
 import yfinance as yf
 import pandas as pd
 import traceback
+import os
 
 from datetime import datetime
+
+from utility.debug import *
 
 class Yahoo:
     def __init__(self):
@@ -53,19 +56,21 @@ class Yahoo:
         # print(f"DataFrame loaded from {file_path}")
         return df
 
-    def get_ticker(ticker: str, start_date: str = None, end_date: str = None, period: str = None):
+    def get_ticker(self, ticker: str, start_date: str = None, end_date: str = None, period: str = None):
         # ticker = "8069.TWO"  # name from Yahoo Finance
         # start_date = "2018-01-01"
         # end_date = "2025-01-01"
         ticker_local_path = './data'
-        ticker_local_file = ticker + ".csv"
+        ticker_local_file = ticker.__str__() + ".csv"
 
         # Download stock data
-        df = load_from_csv(ticker_local_file, 'Date', folder=ticker_local_path)
+        df = Yahoo.load_from_csv(ticker_local_file, 'Date', folder=ticker_local_path)
         if df is None:
             # df = yf.download(ticker, start=start_date, end=end_date, multi_level_index=False)
             df = yf.Ticker(ticker).history(period="max")
-            save_to_csv(df, ticker_local_file, folder=ticker_local_path)
+            Yahoo.save_to_csv(df, ticker_local_file, folder=ticker_local_path)
+        else:
+            dbg_debug(f"DataFrame loaded from {ticker_local_file}")
 
         # Check if data download ok
         if df.empty:

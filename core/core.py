@@ -73,7 +73,7 @@ class Core:
 
         database = Database(self.def_database_name)
         database.connect()
-        tracking_list = database.get_tracking_product()
+        tracking_list = [each_item[0].__str__() for each_item in database.get_tracking_product()]
         database.close()
 
         return tracking_list
@@ -81,15 +81,30 @@ class Core:
     def __service(self):
         dbg_info('Service Start.')
         self.flag_service_running = True
-        service_interval_time=1
+        # TODO, change it to real life settings.
+        service_interval_time=5
+        # TODO, Impl it in more general way.
+        market = Yahoo()
 
+        # do the evaluation on every service_interval_time.
         while True:
             try:
                 dbg_trace('Service running in every {}s'.format(service_interval_time))
                 # TODO Impl service
-
                 tracking_list = self.get_tracking_list()
-                dbg_info("Tracking List: " + tracking_list.__str__())
+                for each_ticker in tracking_list:
+                    dbg_info("Product List: ", each_ticker.__str__())
+                    try:
+                        df = market.get_ticker(each_ticker)
+                        dbg_debug('{}'.format(df))
+                    except Exception as e:
+                        dbg_error(e)
+
+                        traceback_output = traceback.format_exc()
+                        dbg_error(traceback_output)
+                        continue
+
+                # dbg_info("Tracking List: " + tracking_list.__str__())
 
                 time.sleep(service_interval_time)
             except KeyboardInterrupt:
