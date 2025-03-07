@@ -7,6 +7,7 @@ import threading
 # Local file
 from utility.debug import *
 from core.database import *
+from market.yahoo import *
 
 class Core:
     def __init__(self):
@@ -66,17 +67,29 @@ class Core:
 
         self.flag_heatbeat_running = False
         dbg_warning('Heatbeat End.')
+    def get_tracking_list(self):
+        tracking_list = []
+        database = None
+
+        database = Database(self.def_database_name)
+        database.connect()
+        tracking_list = database.get_tracking_product()
+        database.close()
+
+        return tracking_list
 
     def __service(self):
         dbg_info('Service Start.')
         self.flag_service_running = True
         service_interval_time=1
+
         while True:
             try:
                 dbg_trace('Service running in every {}s'.format(service_interval_time))
                 # TODO Impl service
 
-
+                tracking_list = self.get_tracking_list()
+                dbg_info("Tracking List: " + tracking_list.__str__())
 
                 time.sleep(service_interval_time)
             except KeyboardInterrupt:
@@ -102,10 +115,12 @@ class Core:
     def initialize(self):
         dbg_info('Core start initialize.')
         try:
+            # Checking & init database
             self.database = Database(self.def_database_name)
             self.database.connect()
             self.database.setup()
             self.database.dump_all()
+            self.database.close()
         except Exception as e:
             dbg_error(e)
             traceback_output = traceback.format_exc()
@@ -167,6 +182,6 @@ class Core:
         dbg_info('Core Quit.')
         # TODO, do final check.
 
-        if self.database is not None:
-            self.database.close()
+        # if self.database is not None:
+        #     self.database.close()
 
