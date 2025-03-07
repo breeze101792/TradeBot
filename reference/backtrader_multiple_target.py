@@ -1,52 +1,41 @@
 import backtrader as bt
 import yfinance as yf
 import datetime
+
 import pandas as pd
 import os
 
-# 1️⃣ 定義均線突破策略 (Moving Average Crossover)
-class MovingAverageCrossover(bt.Strategy):
-    params = (
-        ("short_period", 50),  # 短期均線 (50日)
-        ("long_period", 200),  # 長期均線 (200日)
-        ("risk_per_trade", 0.02),  # 單筆交易最大風險 (2%)
-    )
+# 1️⃣ 定義策略
+class BreakoutMomentum(bt.Strategy):
+    params = (("breakout_period", 20), ("stop_loss_pct", 0.03), ("take_profit_pct", 0.08), ("risk_per_trade", 0.05))
 
     def __init__(self):
-        self.sma_short = {data: bt.indicators.SimpleMovingAverage(data, period=self.params.short_period) for data in self.datas}
-        self.sma_long = {data: bt.indicators.SimpleMovingAverage(data, period=self.params.long_period) for data in self.datas}
-        self.stop_loss = {}  # 記錄止損價格
-        self.take_profit = {}  # 記錄止盈價格
+        self.highest_high = {data: bt.ind.Highest(data.high, period=self.params.breakout_period) for data in self.datas}
+        self.stop_loss = {}
+        self.take_profit = {}
 
     def next(self):
         for data in self.datas:
             pos = self.getposition(data)
             price = data.close[0]
 
-            # 進場：短均線上穿長均線
-            if not pos and self.sma_short[data][0] > self.sma_long[data][0] and self.sma_short[data][-1] <= self.sma_long[data][-1]:
+            if not pos and price > self.highest_high[data][-1]:
                 size = self.broker.get_cash() * self.params.risk_per_trade / price
                 self.buy(data=data, size=size)
-                self.stop_loss[data] = price * 0.95  # 設定止損 (5%)
-                self.take_profit[data] = price * 1.2  # 設定止盈 (20%)
-                print(f"📈 {data._name} 買入 @ {price:.2f}, 止損: {self.stop_loss[data]:.2f}, 止盈: {self.take_profit[data]:.2f}")
+                self.stop_loss[data] = price * (1 - self.params.stop_loss_pct)
+                self.take_profit[data] = price * (1 + self.params.take_profit_pct)
 
-            # 出場：短均線下穿長均線 或 達到止盈/止損
             elif pos:
-                if self.sma_short[data][0] < self.sma_long[data][0] or price < self.stop_loss[data]:
+                if price < self.stop_loss[data]:
                     self.sell(data=data, size=pos.size)
-                    print(f"📉 {data._name} 止損出場 @ {price:.2f}")
-
                 elif price > self.take_profit[data]:
                     self.sell(data=data, size=pos.size)
-                    print(f"🏆 {data._name} 止盈出場 @ {price:.2f}")
 
 # 2️⃣ 下載 Yahoo Finance 資料
 # def get_data(symbol, start, end):
-#     df = yf.download(symbol, start=start, end=end, multi_level_index=False)
-#     df.index = df.index.tz_localize(None)  # 移除時區，以避免 Backtrader 時間錯誤
+#     df = yf.download(symbol, start=start, end=end)
+#     df.index = df.index.tz_localize(None)
 #     return bt.feeds.PandasData(dataname=df)
-
 def save_to_csv(df: pd.DataFrame, filename: str, folder: str = './'):
     """
     Save a Pandas DataFrame to a CSV file in a specified folder.
@@ -119,29 +108,47 @@ def get_data(symbol, start_date, end_date):
 # 3️⃣ 設定回測環境
 def run_backtest():
     cerebro = bt.Cerebro()
-    cerebro.addstrategy(MovingAverageCrossover)
+    cerebro.addstrategy(BreakoutMomentum)
 
-    # 設定初始資金
     cerebro.broker.set_cash(100000)
 
-    # 載入多支標的
-    symbols = ["AAPL", "MSFT", "GOOG", "TSLA", "NVDA"]  # 可自行修改標的
-    start_date = "2020-01-01"
+    symbols = ["TSLA", "NVDA", "AAPL", "MSFT", "AMD"]
+    start_date = "2022-01-01"
     end_date = "2024-01-01"
 
     for symbol in symbols:
         data = get_data(symbol, start_date, end_date)
         cerebro.adddata(data, name=symbol)
 
-    # 設定交易成本
-    cerebro.broker.setcommission(commission=0.001)  # 0.1% 手續費
+    cerebro.broker.setcommission(commission=0.001)
 
-    # 4️⃣ 執行回測
+    # 4️⃣ 加入績效分析器
+    cerebro.addanalyzer(bt.analyzers.AnnualReturn, _name="annual_return")  # 年化報酬率
+    cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe", riskfreerate=0.02)  # 夏普比率
+    cerebro.addanalyzer(bt.analyzers.DrawDown, _name="drawdown")  # 最大回撤
+
+    # 5️⃣ 執行回測
     print("🚀 啟動回測...")
-    cerebro.run()
+    results = cerebro.run()
+    strat = results[0]  # 獲取策略結果
+
+    # 6️⃣ 顯示績效指標
     print("✅ 回測結束，資金餘額:", cerebro.broker.getvalue())
 
-    # 5️⃣ 繪製績效圖
+    # 年化報酬率
+    print("📊 年化報酬率:")
+    for year, ret in strat.analyzers.annual_return.get_analysis().items():
+        print(f"  {year}: {ret:.2%}")
+
+    # 夏普比率
+    sharpe_ratio = strat.analyzers.sharpe.get_analysis().get("sharperatio", None)
+    print(f"📈 夏普比率: {sharpe_ratio:.2f}" if sharpe_ratio else "📈 夏普比率: 無法計算")
+
+    # 最大回撤
+    drawdown = strat.analyzers.drawdown.get_analysis()
+    print(f"📉 最大回撤: {drawdown['max']['drawdown']:.2f}%")
+
+    # 7️⃣ 繪製績效圖
     # cerebro.plot()
 
 # 執行回測

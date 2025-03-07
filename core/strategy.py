@@ -67,14 +67,56 @@ class BreakoutMomentum(bt.Strategy):
                 self.buy(data=data, size=size)
                 self.stop_loss[data] = price * (1 - self.params.stop_loss_pct)  # 設定止損
                 self.take_profit[data] = price * (1 + self.params.take_profit_pct)  # 設定止盈
-                print(f"🚀 {data._name} 突破買入 @ {price:.2f}, 止損: {self.stop_loss[data]:.2f}, 止盈: {self.take_profit[data]:.2f}")
+                print(f"🚀 [{self.data.datetime.date(0)}]{data._name} 突破買入 @ {price:.2f}, 止損: {self.stop_loss[data]:.2f}, 止盈: {self.take_profit[data]:.2f}")
 
             # 出場：跌破止損 或 達到止盈
             elif pos:
                 if price < self.stop_loss[data]:
                     self.sell(data=data, size=pos.size)
-                    print(f"⚠️ {data._name} 止損出場 @ {price:.2f}")
+                    print(f"⚠️ [{self.data.datetime.date(0)}]{data._name} 止損出場 @ {price:.2f}")
 
                 elif price > self.take_profit[data]:
                     self.sell(data=data, size=pos.size)
-                    print(f"🏆 {data._name} 止盈出場 @ {price:.2f}")
+                    print(f"🏆 [{self.data.datetime.date(0)}]{data._name} 止盈出場 @ {price:.2f}")
+
+class BreakoutMomentumEn(bt.Strategy):
+    params = {
+        "breakout_period": 20,  # 突破期間
+        "trailing_stop_pct": 0.05,  # 移動止損 5%
+        "trailing_takeprofit_pct": 0.1,  # 移動止盈 10%
+        "risk_per_trade": 0.05  # 風險資金占比
+    }
+
+    def __init__(self):
+        self.highest_high = {data: bt.ind.Highest(data.high, period=self.params.breakout_period) for data in self.datas}
+        self.trailing_stop = {}
+        self.trailing_takeprofit = {}
+
+    def next(self):
+        for data in self.datas:
+            pos = self.getposition(data)
+            price = data.close[0]
+
+            # **開倉條件：價格創新高**
+            if not pos and price > self.highest_high[data][-1]:
+                size = self.broker.get_cash() * self.params.risk_per_trade / price
+                self.buy(data=data, size=size)
+
+                # 設定初始移動止損 / 移動止盈
+                self.trailing_stop[data] = price * (1 - self.params.trailing_stop_pct)
+                self.trailing_takeprofit[data] = price * (1 + self.params.trailing_takeprofit_pct)
+
+            # **更新移動止損 / 移動止盈**
+            elif pos:
+                # 當價格上漲時，更新移動止損和止盈
+                if price > self.trailing_takeprofit[data]:  
+                    self.trailing_stop[data] = max(self.trailing_stop[data], price * (1 - self.params.trailing_stop_pct))
+                    self.trailing_takeprofit[data] = price * (1 + self.params.trailing_takeprofit_pct)
+
+                # **出場條件**
+                if price < self.trailing_stop[data]:  # 觸發移動止損
+                    self.sell(data=data, size=pos.size)
+                elif price > self.trailing_takeprofit[data]:  # 觸發移動止盈
+                    self.sell(data=data, size=pos.size)
+
+

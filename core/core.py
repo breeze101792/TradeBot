@@ -93,7 +93,6 @@ class Core:
         database.add_tracking_product(productid, tracking)
         database.close()
 
-        # time.sleep(5)
         return tracking_list
 
     def __service(self):
@@ -106,12 +105,16 @@ class Core:
 
         # Add this for temp add product.
         if False:
-            product_list = ['2454.TW', '2646.TW', '2330.TW', '2603.TW', '2379.TW', '2303.TW', '3293.TWO', '00731.TW', '00713.TW', '00888.TWO', '8069.TWO' ]
+            product_list = ['2454.TW', '2330.TW', '2603.TW', '2379.TW', '2303.TW', '3293.TWO', '00731.TW', '00713.TW', '00888.TWO', '8069.TWO' ]
+            # product_list = ['2646.TW', '00888.TWO']
             # product_list = ['2454.TW', '2330.TW', '2603.TW', '2379.TW', '2303.TW', '2412.TW']
             for each_ticker in product_list:
                 self.update_tracking_list(each_ticker)
 
         # self.update_tracking_list('2646.TW', False)
+        # self.update_tracking_list('00888.TWO', False)
+        # self.update_tracking_list('00713.TW', True)
+        # self.update_tracking_list('00731.TW', True)
         # do the evaluation on every service_interval_time.
         while True:
             try:
@@ -126,12 +129,16 @@ class Core:
                 for each_ticker in tracking_list:
                     dbg_info("Product List: ", each_ticker.__str__())
                     try:
-                        df = market.get_ticker(each_ticker, start_date = "2020-01-01", end_date = "2025-01-01")
+                        # df = market.get_ticker(each_ticker, start_date = "2020-01-01", end_date = "2025-01-01")
+                        df = market.get_ticker(each_ticker)
                         # dbg_debug('{}'.format(df.head()))
-                        data = bt.feeds.PandasData(dataname=df)
+                        data = bt.feeds.PandasData(dataname=df, fromdate=datetime(2020, 1, 1), todate=datetime(2025, 1, 1))
+                        # bt.feeds.PandasData(dataname=df, fromdate=datetime.datetime(2022, 1, 1), todate=datetime.datetime(2024, 1, 1))
+
                         # Add data to enginee
                         cerebro.adddata(data, name=each_ticker)
                     except Exception as e:
+                        dbg_error("Disable ticker: ", each_ticker)
                         self.update_tracking_list(each_ticker, False)
                         dbg_error(e)
 
@@ -143,7 +150,8 @@ class Core:
                 dbg_info("Start running Strategy.")
                 # Load strategy
                 # cerebro.addstrategy(MovingAverageCrossover)
-                cerebro.addstrategy(BreakoutMomentum)
+                # cerebro.addstrategy(BreakoutMomentum)
+                cerebro.addstrategy(BreakoutMomentumEn)
 
                 # Setup init cash
                 cerebro.broker.set_cash(init_cash)
@@ -151,10 +159,28 @@ class Core:
                 cerebro.broker.setcommission(commission=0.001)
                 # set perc
                 cerebro.broker.set_slippage_perc(perc=0.001)
-                # Do testing
-                cerebro.run()
+                # Add analyzer
+                cerebro.addanalyzer(bt.analyzers.AnnualReturn, _name="annual_return")
+                cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe", riskfreerate=0.02)
+                cerebro.addanalyzer(bt.analyzers.DrawDown, _name="drawdown")
+                # Do backtesting
+                results = cerebro.run()
+                strat = results[0]  # Get strategy result.
 
                 dbg_info(f"Init cash({init_cash}), Profit: {(cerebro.broker.getvalue() - init_cash):.2f}/({(cerebro.broker.getvalue() - init_cash)/init_cash*100:.2f}%)")
+                # Annual return
+                dbg_info("Annual return:")
+                for year, ret in strat.analyzers.annual_return.get_analysis().items():
+                    dbg_info(f"  {year}: {ret:.2%}")
+
+                # Sharpe Ratio
+                sharpe_ratio = strat.analyzers.sharpe.get_analysis().get("sharperatio", None)
+                dbg_info(f"Sharpe Ratio: {sharpe_ratio:.2f}" if sharpe_ratio else "📈 夏普比率: 無法計算")
+
+                # Drawdown
+                drawdown = strat.analyzers.drawdown.get_analysis()
+                dbg_info(f"Drawdown: {drawdown['max']['drawdown']:.2f}%")
+
                 # Do ploting
                 # cerebro.plot()
                 break

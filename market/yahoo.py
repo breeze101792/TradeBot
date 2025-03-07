@@ -66,8 +66,12 @@ class Yahoo:
         # Download stock data
         df = Yahoo.load_from_csv(ticker_local_file, 'Date', folder=ticker_local_path)
         if df is None:
-            # df = yf.download(ticker, start=start_date, end=end_date, multi_level_index=False)
-            df = yf.Ticker(ticker).history(period="max")
+            if period is not None:
+                df = yf.Ticker(ticker).history(period=period)
+            elif start_date is not None and end_date is not None:
+                df = yf.download(ticker, start=start_date, end=end_date, multi_level_index=False)
+            else:
+                df = yf.Ticker(ticker).history(period="max")
             Yahoo.save_to_csv(df, ticker_local_file, folder=ticker_local_path)
         else:
             dbg_debug(f"DataFrame loaded from {ticker_local_file}")
