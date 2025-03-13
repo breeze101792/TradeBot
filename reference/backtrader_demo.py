@@ -190,8 +190,8 @@ def main():
                 # 顯示最終資金
                 # print(f"Ending   Portfolio Value: {cerebro.broker.getvalue()}")
 
-                profit = (cerebro.broker.getvalue() - init_crash)/init_crash
-                print(f"{each_ticker}: {(cerebro.broker.getvalue() - init_crash)}/{profit}")
+                profit = (cerebro.broker.getvalue() - init_crash)/init_crash * 100
+                print(f"Profit {each_ticker}: {(cerebro.broker.getvalue() - init_crash)}/{profit:.2f}%")
                 # 繪製回測圖表
                 # cerebro.plot()
                 total_earn += cerebro.broker.getvalue() - init_crash

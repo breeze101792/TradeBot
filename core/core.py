@@ -14,6 +14,7 @@ from core.strategy import *
 from utility.debug import *
 from core.database import *
 from market.yahoo import *
+from market.twse import *
 
 class Core:
     def __init__(self):
@@ -90,7 +91,40 @@ class Core:
 
         database = Database(self.def_database_name)
         database.connect()
-        database.add_tracking_product(productid, tracking)
+        database.update_tracking_product(productid, tracking)
+        database.close()
+
+        return tracking_list
+    def insert_product_list(self, df):
+        # If i need to add this, we need to check if produt is corrent or not.
+        tracking_list = []
+        database = None
+
+        database = Database(self.def_database_name)
+        database.connect()
+
+        for _, row in df.iterrows():
+            try:
+                database.add_product(
+                    productid=row["code"],
+                    producttype=row["type"],
+                    name=row["name"],
+                    start=row["start"],
+                    market=row["market"],
+                    country=row["country"],
+                    category=row["category"],
+                    tracking=False
+                )
+            except Exception as e:
+                dbg_debug(row["code"], " Add failed.")
+                # dbg_debug(e)
+                #
+                # traceback_output = traceback.format_exc()
+                # dbg_debug(traceback_output)
+                continue
+
+        # self.add_product('2330', 'stock', '台積電', start='1993-09-05', market='listed', country='TW', Category='半導體業', tracking=True)  
+        # database.update_tracking_product(productid, tracking)
         database.close()
 
         return tracking_list
@@ -101,17 +135,37 @@ class Core:
         # TODO, change it to real life settings.
         service_interval_time=5
         # TODO, Impl it in more general way.
-        market = Yahoo()
+        # market = Yahoo()
+        market = TWSE()
 
-        # Add this for temp add product.
+        # init list.
         if False:
-            product_list = ['2454.TW', '2330.TW', '2603.TW', '2379.TW', '2303.TW', '3293.TWO', '00731.TW', '00713.TW', '00888.TWO', '8069.TWO' ]
+            df = market.get_data_list()
+            self.insert_product_list(df)
+        # Add this for temp add product.
+
+        # Adjust list.
+        if False:
+            # product_list = ['2454.TW', '2330.TW', '2603.TW', '2379.TW', '2303.TW', '3293.TWO', '00731.TW', '00713.TW', '00888.TWO', '8069.TWO' ]
             # product_list = ['2646.TW', '00888.TWO']
             # product_list = ['2454.TW', '2330.TW', '2603.TW', '2379.TW', '2303.TW', '2412.TW']
-            for each_ticker in product_list:
-                self.update_tracking_list(each_ticker)
+            # print('df: ', df)
+            df = market.get_data_list()
+            cnt = 50
+            for _, each_product in df.iterrows():
+                dbg_debug(each_product["code"])
+                self.update_tracking_list(each_product.code, False)
+                # self.update_tracking_list(each_product.code, True)
+                if cnt == 0:
+                    break
+                else:
+                    cnt -= 1
 
-        # self.update_tracking_list('2646.TW', False)
+        self.update_tracking_list('2330', True)
+        self.update_tracking_list('2454', True)
+        self.update_tracking_list('2303', True)
+        self.update_tracking_list('2379', True)
+        self.update_tracking_list('2603', False)
         # self.update_tracking_list('00888.TWO', False)
         # self.update_tracking_list('00713.TW', True)
         # self.update_tracking_list('00731.TW', True)
@@ -126,20 +180,20 @@ class Core:
                 cerebro = bt.Cerebro()
 
                 tracking_list = self.get_tracking_list()
-                for each_ticker in tracking_list:
-                    dbg_info("Product List: ", each_ticker.__str__())
+                for each_product in tracking_list:
+                    dbg_info("Product List: ", each_product.__str__())
                     try:
-                        # df = market.get_ticker(each_ticker, start_date = "2020-01-01", end_date = "2025-01-01")
-                        df = market.get_ticker(each_ticker)
+                        # df = market.get_ticker(each_product, start_date = "2020-01-01", end_date = "2025-01-01")
+                        df = market.get_data(each_product)
                         # dbg_debug('{}'.format(df.head()))
                         data = bt.feeds.PandasData(dataname=df, fromdate=datetime(2020, 1, 1), todate=datetime(2025, 1, 1))
                         # bt.feeds.PandasData(dataname=df, fromdate=datetime.datetime(2022, 1, 1), todate=datetime.datetime(2024, 1, 1))
 
                         # Add data to enginee
-                        cerebro.adddata(data, name=each_ticker)
+                        cerebro.adddata(data, name=each_product)
                     except Exception as e:
-                        dbg_error("Disable ticker: ", each_ticker)
-                        self.update_tracking_list(each_ticker, False)
+                        dbg_error("Disable ticker: ", each_product)
+                        self.update_tracking_list(each_product, False)
                         dbg_error(e)
 
                         traceback_output = traceback.format_exc()
@@ -180,10 +234,10 @@ class Core:
 
                 # Sharpe Ratio
                 sharpe_ratio = strat.analyzers.sharpe.get_analysis().get("sharperatio", None)
-                dbg_info(f"Sharpe Ratio: {sharpe_ratio:.2f}" if sharpe_ratio else "📈 夏普比率: 無法計算")
+                dbg_info(f"Sharpe Ratio: {sharpe_ratio:.2f}" if sharpe_ratio else "📈 sharpe_ratio: Can't calculate")
 
                 vwr = strat.analyzers.vwr.get_analysis().get("vwr", None)
-                dbg_info(f"VW Ratio: {vwr:.2f}" if vwr else "📈 比率: 無法計算")
+                dbg_info(f"VW Ratio: {vwr:.2f}" if vwr else "📈 VWR: sharpe_ratio: Can't calculate")
 
                 # Drawdown
                 drawdown = strat.analyzers.drawdown.get_analysis()
@@ -233,7 +287,7 @@ class Core:
             self.database = Database(self.def_database_name)
             self.database.connect()
             self.database.setup()
-            self.database.dump_all()
+            # self.database.dump_all()
             self.database.close()
         except Exception as e:
             dbg_error(e)
