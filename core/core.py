@@ -149,9 +149,9 @@ class Core:
 
                 dbg_info("Start running Strategy.")
                 # Load strategy
-                # cerebro.addstrategy(MovingAverageCrossover)
+                cerebro.addstrategy(MovingAverageCrossover)
                 # cerebro.addstrategy(BreakoutMomentum)
-                cerebro.addstrategy(BreakoutMomentumEn)
+                # cerebro.addstrategy(BreakoutMomentumEn)
 
                 # Setup init cash
                 cerebro.broker.set_cash(init_cash)
@@ -163,6 +163,11 @@ class Core:
                 cerebro.addanalyzer(bt.analyzers.AnnualReturn, _name="annual_return")
                 cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe", riskfreerate=0.02)
                 cerebro.addanalyzer(bt.analyzers.DrawDown, _name="drawdown")
+                cerebro.addanalyzer(bt.analyzers.SQN, _name="sqn")
+                cerebro.addanalyzer(bt.analyzers.VWR, _name="vwr")
+
+
+                # cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="TradeAnalyzer")
                 # Do backtesting
                 results = cerebro.run()
                 strat = results[0]  # Get strategy result.
@@ -177,9 +182,20 @@ class Core:
                 sharpe_ratio = strat.analyzers.sharpe.get_analysis().get("sharperatio", None)
                 dbg_info(f"Sharpe Ratio: {sharpe_ratio:.2f}" if sharpe_ratio else "📈 夏普比率: 無法計算")
 
+                vwr = strat.analyzers.vwr.get_analysis().get("vwr", None)
+                dbg_info(f"VW Ratio: {vwr:.2f}" if vwr else "📈 比率: 無法計算")
+
                 # Drawdown
                 drawdown = strat.analyzers.drawdown.get_analysis()
                 dbg_info(f"Drawdown: {drawdown['max']['drawdown']:.2f}%")
+
+                # Drawdown
+                # tradeanalyzer = strat.analyzers.TradeAnalyzer.get_analysis()
+                # dbg_info(f"TradeAnalyzer: {tradeanalyzer}")
+
+                # SQN
+                sqn = strat.analyzers.sqn.get_analysis()
+                dbg_info(f"SQN: {sqn['sqn']:.2f}, Trad: {sqn['trades']}")
 
                 # Do ploting
                 # cerebro.plot()

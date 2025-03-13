@@ -47,7 +47,8 @@ class BreakoutMomentum(bt.Strategy):
     params = (
         ("breakout_period", 20),  # 突破區間 (20日高點)
         ("stop_loss_pct", 0.03),  # 3% 止損
-        ("take_profit_pct", 0.08),  # 8% 止盈
+        # ("take_profit_pct", 0.08),  # 8% 止盈
+        ("take_profit_pct", 0.15),  # 8% 止盈
         ("risk_per_trade", 0.05),  # 風險控制 (5% 資金)
     )
 
