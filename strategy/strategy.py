@@ -1,5 +1,6 @@
 import backtrader as bt
 import pandas as pd
+from utility.debug import *
 
 # Test Strategy
 class MovingAverageCrossover(bt.Strategy):
@@ -31,17 +32,17 @@ class MovingAverageCrossover(bt.Strategy):
                 self.buy(data=data, size=size)
                 self.stop_loss[data] = price * 0.95  # 設定止損 (5%)
                 self.take_profit[data] = price * 1.2  # 設定止盈 (20%)
-                print(f"📈 {data._name} 買入 @ {price:.2f}, 止損: {self.stop_loss[data]:.2f}, 止盈: {self.take_profit[data]:.2f}")
+                dbg_log(f"📈 {data._name} 買入 @ {price:.2f}, 止損: {self.stop_loss[data]:.2f}, 止盈: {self.take_profit[data]:.2f}")
 
             # 出場：短均線下穿長均線 或 達到止盈/止損
             elif pos:
                 if self.sma_short[data][0] < self.sma_long[data][0] or price < self.stop_loss[data]:
                     self.sell(data=data, size=pos.size)
-                    print(f"📉 {data._name} 止損出場 @ {price:.2f}")
+                    dbg_log(f"📉 {data._name} 止損出場 @ {price:.2f}")
 
                 elif price > self.take_profit[data]:
                     self.sell(data=data, size=pos.size)
-                    print(f"🏆 {data._name} 止盈出場 @ {price:.2f}")
+                    dbg_log(f"🏆 {data._name} 止盈出場 @ {price:.2f}")
 
 class BreakoutMomentum(bt.Strategy):
     params = (
@@ -68,17 +69,17 @@ class BreakoutMomentum(bt.Strategy):
                 self.buy(data=data, size=size)
                 self.stop_loss[data] = price * (1 - self.params.stop_loss_pct)  # 設定止損
                 self.take_profit[data] = price * (1 + self.params.take_profit_pct)  # 設定止盈
-                print(f"🚀 [{self.data.datetime.date(0)}]{data._name} 突破買入 @ {price:.2f}, 止損: {self.stop_loss[data]:.2f}, 止盈: {self.take_profit[data]:.2f}")
+                dbg_log(f"🚀 [{self.data.datetime.date(0)}]{data._name} 突破買入 @ {price:.2f}, 止損: {self.stop_loss[data]:.2f}, 止盈: {self.take_profit[data]:.2f}")
 
             # 出場：跌破止損 或 達到止盈
             elif pos:
                 if price < self.stop_loss[data]:
                     self.sell(data=data, size=pos.size)
-                    print(f"⚠️ [{self.data.datetime.date(0)}]{data._name} 止損出場 @ {price:.2f}")
+                    dbg_log(f"⚠️ [{self.data.datetime.date(0)}]{data._name} 止損出場 @ {price:.2f}")
 
                 elif price > self.take_profit[data]:
                     self.sell(data=data, size=pos.size)
-                    print(f"🏆 [{self.data.datetime.date(0)}]{data._name} 止盈出場 @ {price:.2f}")
+                    dbg_log(f"🏆 [{self.data.datetime.date(0)}]{data._name} 止盈出場 @ {price:.2f}")
 
 class BreakoutMomentumEn(bt.Strategy):
     params = {
