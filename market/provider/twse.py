@@ -29,7 +29,7 @@ from twstock import Stock
 
 class TWSE(DataProvider):
     def __init__(self):
-        self.ticker_local_path='./data/twse'
+        self.cache_data_name='twse'
 
     # def __download_data_list(self, product_id: str, period: str = None):
     #     # print(twstock.codes)                # 列印台股全部證券編碼資料
@@ -102,9 +102,9 @@ class TWSE(DataProvider):
     # 1. Get history data
     def download_data(self, ticker: str, period: int = 5):
         #
-        # ticker_local_path = './data_twse'
+        # cache_data_name = './data_twse'
         # ticker_local_file = stock_id + ".csv"
-        # df = load_from_csv(ticker_local_file, 'Date', folder=ticker_local_path)
+        # df = load_from_csv(ticker_local_file, 'Date', folder=cache_data_name)
         # if df is not None:
         #     return df
 
@@ -177,5 +177,5 @@ class TWSE(DataProvider):
         # prevent been ban
         dbg_debug("Sleeping for 1 seconds.")
         time.sleep(1)
-        # save_to_csv(df, ticker_local_file, folder=ticker_local_path)
+        # save_to_csv(df, ticker_local_file, folder=cache_data_name)
         return df

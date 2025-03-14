@@ -10,7 +10,7 @@ from market.dataprovider import *
 
 class Yahoo(DataProvider):
     def __init__(self):
-        self.ticker_local_path='./data/yahoo'
+        self.cache_data_name='yahoo'
 
     def download_data(self, ticker: str, period: str = None):
 
@@ -26,11 +26,11 @@ class Yahoo(DataProvider):
     #     # ticker = "8069.TWO"  # name from Yahoo Finance
     #     # start_date = "2018-01-01"
     #     # end_date = "2025-01-01"
-    #     ticker_local_path = './data'
+    #     cache_data_name = './data'
     #     ticker_local_file = ticker.__str__() + ".csv"
     #
     #     # Download stock data
-    #     df = Yahoo.load_from_csv(ticker_local_file, 'Date', folder=ticker_local_path)
+    #     df = Yahoo.load_from_csv(ticker_local_file, 'Date', folder=cache_data_name)
     #     if df is None and force_update:
     #         if period is not None:
     #             df = yf.Ticker(ticker).history(period=period)
@@ -38,7 +38,7 @@ class Yahoo(DataProvider):
     #             df = yf.download(ticker, start=start_date, end=end_date, multi_level_index=False)
     #         else:
     #             df = yf.Ticker(ticker).history(period="max")
-    #         Yahoo.save_to_csv(df, ticker_local_file, folder=ticker_local_path)
+    #         Yahoo.save_to_csv(df, ticker_local_file, folder=cache_data_name)
     #     else:
     #         dbg_debug(f"DataFrame loaded from {ticker_local_file}")
     #

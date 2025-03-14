@@ -86,7 +86,7 @@ def get_data(symbol, start_date, end_date):
     # symbol = "8069.TWO"  # Yahoo Finance 上的台股代碼
     # start_date = "2018-01-01"
     # end_date = "2025-01-01"
-    ticker_local_path = './data'
+    ticker_local_path = './.data/yahoo'
     ticker_local_file = symbol + ".csv"
 
     # 下載股票數據

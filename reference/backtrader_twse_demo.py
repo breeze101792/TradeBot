@@ -53,8 +53,7 @@ def load_from_csv(filename: str, date_column: str = None, folder: str = './') ->
 
 # 1. 取得股票歷史數據，並驗證數據
 def get_stock_data(stock_id, years=1):
-
-    ticker_local_path = './data_twse'
+    ticker_local_path = './.data/twse'
     ticker_local_file = stock_id + ".csv"
     df = load_from_csv(ticker_local_file, 'Date', folder=ticker_local_path)
     if df is not None:

@@ -55,7 +55,7 @@ def get_ticker_from_yfinance(ticker):
     # ticker = "8069.TWO"  # Yahoo Finance 上的台股代碼
     # start_date = "2018-01-01"
     # end_date = "2025-01-01"
-    ticker_local_path = './data'
+    ticker_local_path = './.data/yahoo'
     ticker_local_file = ticker + ".csv"
 
     # 下載股票數據

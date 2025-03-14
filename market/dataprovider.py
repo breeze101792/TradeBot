@@ -7,7 +7,8 @@ from datetime import datetime
 from utility.debug import *
 
 class DataProvider:
-    ticker_local_path = './data'
+    cache_data_name = './market'
+    cache_data_root_path = './.data'
     def __init__(self):
         pass
     @staticmethod
@@ -58,24 +59,25 @@ class DataProvider:
 
     def download_data(self, product_id: str, period: str = None):
         dbg_error("Function not impl.")
-        pass
+        raise
 
     def download_data_list(self, market: str = None, country: str = None):
         dbg_error("Function not impl.")
-        pass
+        raise
 
     def get_data_list(self, market: str = None, country: str = None, force_update: bool = False):
         return self.download_data_list(market = market, country = country)
 
     def get_data(self, product_id: str, period: str = None, force_update: bool = False):
         ticker_local_file = product_id.__str__() + ".csv"
+        ticker_local_path = f"{self.cache_data_root_path}/{self.cache_data_name}"
 
         # Download stock data
-        df = self.load_from_csv(ticker_local_file, 'Date', folder=self.ticker_local_path)
+        df = self.load_from_csv(ticker_local_file, 'Date', folder=ticker_local_path)
         if df is None or force_update:
             df = self.download_data(product_id)
             if not df.empty:
-                self.save_to_csv(df, ticker_local_file, folder=self.ticker_local_path)
+                self.save_to_csv(df, ticker_local_file, folder=ticker_local_path)
         else:
             dbg_debug(f"DataFrame loaded from {ticker_local_file}")
 
