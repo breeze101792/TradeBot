@@ -32,7 +32,7 @@ class Core:
         self.var_threading_delay = 0.1
 
         # Threading
-        self.service_thread = None
+        self.trading_service_thread = None
         self.heatbeat_thread = None
 
         # class
@@ -76,7 +76,7 @@ class Core:
 
         self.flag_heatbeat_running = False
         dbg_warning('Heatbeat End.')
-    def __service(self):
+    def __trading_service(self):
 
         dbg_info('Service Start.')
         self.flag_service_running = True
@@ -86,18 +86,18 @@ class Core:
         # do the evaluation on every service_interval_time.
         while True:
             try:
-                dbg_trace('Service running in every {}s'.format(service_interval_time))
+                dbg_trace('Trading Service running in every {}s'.format(service_interval_time))
 
-                backtest = Backtest()
-                # backtest.testSingle(strategy=MovingAverageCrossover)
-                # backtest.testSingle(strategy=BreakoutMomentum)
-                # backtest.testSingle(strategy=BreakoutMomentumEn)
-                # strategy_list = [MovingAverageCrossover, BreakoutMomentum, BreakoutMomentumEn]
-                strategy_list = [MovingAverageCrossover]
-                backtest.testBatch(strategy_list = strategy_list)
+                # TODO, Add broker trading here.
+                # backtest = Backtest()
+                # # backtest.testSingle(strategy=MovingAverageCrossover)
+                # # backtest.testSingle(strategy=BreakoutMomentum)
+                # # backtest.testSingle(strategy=BreakoutMomentumEn)
+                # # strategy_list = [MovingAverageCrossover, BreakoutMomentum, BreakoutMomentumEn]
+                # strategy_list = [MovingAverageCrossover]
+                # backtest.testBatch(strategy_list = strategy_list)
 
-                # TODO, Current only one shot test.
-                break
+                # break
                 ###############################################################
 
                 # dbg_info("Tracking List: " + tracking_list.__str__())
@@ -150,9 +150,9 @@ class Core:
 
         self.flag_core_running = True
         try:
-            self.service_thread = threading.Thread(target=self.__service)
-            self.service_thread.start()
-            thread_list.append(self.service_thread)
+            self.trading_service_thread = threading.Thread(target=self.__trading_service)
+            self.trading_service_thread.start()
+            thread_list.append(self.trading_service_thread)
 
             # Monitor Thread
             # self.heatbeat_thread = threading.Thread(target=self.__heatbeat, daemon=True)
@@ -174,10 +174,10 @@ class Core:
             self.flag_core_running = False
 
         finally:
-            if self.flag_service_running and self.service_thread is not None:
+            if self.flag_service_running and self.trading_service_thread is not None:
                 self.flag_service_running = False
-                self.service_thread.join()
-                self.service_thread = None
+                self.trading_service_thread.join()
+                self.trading_service_thread = None
 
             if self.flag_heatbeat_running and self.heatbeat_thread is not None:
                 self.flag_heatbeat_running = False

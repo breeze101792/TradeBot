@@ -45,20 +45,25 @@ class Backtest:
 
         dbg_info(f"Init cash({init_cash}), Profit: {(cerebro.broker.getvalue() - init_cash):.2f}/({(cerebro.broker.getvalue() - init_cash)/init_cash*100:.2f}%)")
         # Annual return
-        dbg_info("Annual return:")
+        ann_message = ""
         for year, ret in strat.analyzers.annual_return.get_analysis().items():
-            dbg_info(f"  {year}: {ret:.2%}")
+            ann_message += f"{year}: {ret:.2%}, "
+        dbg_info(f"Annual return:{ann_message}")
 
+        other_info = ""
         # Sharpe Ratio
         sharpe_ratio = strat.analyzers.sharpe.get_analysis().get("sharperatio", None)
-        dbg_info(f"Sharpe Ratio: {sharpe_ratio:.2f}" if sharpe_ratio else "📈 sharpe_ratio: Can't calculate")
+        # dbg_info(f"Sharpe Ratio: {sharpe_ratio:.2f}" if sharpe_ratio else "📈 sharpe_ratio: Can't calculate")
+        other_info += f"Sharpe Ratio: {sharpe_ratio:.2f}" if sharpe_ratio else "📈 sharpe_ratio: Can't calculate"
 
         vwr = strat.analyzers.vwr.get_analysis().get("vwr", None)
-        dbg_info(f"VW Ratio: {vwr:.2f}" if vwr else "📈 VWR: sharpe_ratio: Can't calculate")
+        # dbg_info(f"VW Ratio: {vwr:.2f}" if vwr else "📈 VWR: sharpe_ratio: Can't calculate")
+        other_info += f", VWR: {vwr:.2f}" if vwr else "📈 VWR: sharpe_ratio: Can't calculate"
 
         # Drawdown
         drawdown = strat.analyzers.drawdown.get_analysis()
-        dbg_info(f"Drawdown: {drawdown['max']['drawdown']:.2f}%")
+        # dbg_info(f"Drawdown: {drawdown['max']['drawdown']:.2f}%")
+        other_info += f", Drawdown: {drawdown['max']['drawdown']:.2f}%"
 
         # Drawdown
         # tradeanalyzer = strat.analyzers.TradeAnalyzer.get_analysis()
@@ -66,8 +71,10 @@ class Backtest:
 
         # SQN
         sqn = strat.analyzers.sqn.get_analysis()
-        dbg_info(f"SQN: {sqn['sqn']:.2f}, Trad: {sqn['trades']}")
+        # dbg_info(f"SQN: {sqn['sqn']:.2f}, Trad: {sqn['trades']}")
+        other_info += f", SQN: {sqn['sqn']:.2f}, Trad: {sqn['trades']}" 
 
+        dbg_info(f"{other_info}")
         # Do ploting
         # cerebro.plot()
         ###############################################################
@@ -75,31 +82,32 @@ class Backtest:
         # dbg_info("Tracking List: " + product_list.__str__())
         return results
 
-    def testSingle(self, productid = None, strategy = None, from_date=datetime(2020, 1, 1), to_date=datetime(2025, 1, 1)):
+    def testSingle(self, product_list = None, strategy = None, from_date=datetime(2020, 1, 1), to_date=datetime(2025, 1, 1)):
         # Default testing.
         if strategy is None:
             strategy = self.default_strategy
 
-        if productid is None:
-            productid = self.default_product_list[0]
+        if product_list is None:
+            product_list = self.default_product_list
+
         # TODO Impl Test
         ###############################################################
-        # Init Backtrader
-        cerebro = bt.Cerebro()
+        for each_product in product_list:
+            # Init Backtrader
+            cerebro = bt.Cerebro()
 
-        df = self.market.get_data(productid)
-        data = bt.feeds.PandasData(dataname=df, fromdate=from_date, todate=to_date)
+            df = self.market.get_data(each_product)
+            data = bt.feeds.PandasData(dataname=df, fromdate=from_date, todate=to_date)
 
-        # Add data to enginee
-        cerebro.adddata(data, name=productid)
+            # Add data to enginee
+            cerebro.adddata(data, name=each_product)
 
+            dbg_info(f"Start running {each_product} with {strategy}.")
 
-        dbg_info("Start running Strategy.")
+            # Load strategy
+            cerebro.addstrategy(strategy)
 
-        # Load strategy
-        cerebro.addstrategy(strategy)
-
-        self.__backtrading(cerebro)
+            self.__backtrading(cerebro)
     def testBatch(self, product_list = None, strategy_list = None, from_date=datetime(2020, 1, 1), to_date=datetime(2025, 1, 1)):
         dbg_info('Tset Start.')
 

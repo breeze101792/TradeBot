@@ -13,3 +13,8 @@ pip install yfinance backtrader
 * impl buy/sell api from Broker.
 * impl cli interface.
 * disable buy stock, only sell mode.
+
+## Package
+```
+pip instasll backtrader pandas yfinance twstock lxml
+```

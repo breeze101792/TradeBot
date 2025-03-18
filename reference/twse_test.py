@@ -40,10 +40,24 @@ def show_stock_info():
     stock = Stock('2330')
     print(stock)
     print(stock.fetch_from(2024, 3))
+def show_stock_realtime():
+    stock = Stock('2330')
+    stock = twstock.realtime.get('2330')
+    # 檢查是否成功取得資料
+    if stock['success']:
+        print(f"股票代號: {stock['info']['code']}")
+        print(f"股票名稱: {stock['info']['name']}")
+        print(f"時間: {stock['info']['time']}")
+        print(f"成交價格: {stock['realtime']['latest_trade_price']}")
+        print(f"開盤價: {stock['realtime']['open']}")
+        print(f"最高價: {stock['realtime']['high']}")
+        print(f"最低價: {stock['realtime']['low']}")
+        print(f"成交量: {stock['realtime']['accumulate_trade_volume']}")
 
 def main():
     # show_stock_list()
-    show_stock_info()
+    # show_stock_info()
+    show_stock_realtime()
 
 
 if __name__ == "__main__":
