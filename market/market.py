@@ -40,3 +40,16 @@ class Market(DataProvider):
         ]
         return top_tw_stocks
 
+    def update_data(self):
+        product_frame_list = self.instance.get_data_list()
+        for _, each_product_row in product_frame_list.iterrows():
+            dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
+            try:
+                self.instance.get_data(product_id = each_product_row['code'], force_update = True)
+                # self.instance.get_data(product_id = '2330', force_update = True)
+            except Exception as e:
+                dbg_error(f"Error updateing stock: {each_product_row['code']}")
+                dbg_error(e)
+                time.sleep(1)
+                continue
+

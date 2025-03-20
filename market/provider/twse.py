@@ -54,6 +54,8 @@ class TWSE(DataProvider):
             try:
                 if each_stock.type != '股票':
                     continue
+                if each_stock.market != '上市':
+                    continue
                 
                 # 整理資料
                 product_data = {
@@ -100,7 +102,7 @@ class TWSE(DataProvider):
         return market_map.get(market_str, "unknown")
 
     # 1. Get history data
-    def download_data(self, ticker: str, period: int = 5):
+    def download_data(self, ticker: str, period: int = 0):
         #
         # cache_data_name = './data_twse'
         # ticker_local_file = stock_id + ".csv"
@@ -114,6 +116,21 @@ class TWSE(DataProvider):
         # stock = Stock(ticker)
         # print(stock)
         # print(stock.fetch_from(2024, 3))
+        # print(twstock.codes['2330'].start)  # 列印 2330 證券上市日期
+
+        if period == 0:
+            # print(twstock.codes[ticker].start)  # 列印 2330 證券上市日期
+            # fetch_start_year = datetime(twstock.codes[ticker].start).year
+            fetch_start_year = datetime.strptime(twstock.codes[ticker].start, "%Y/%m/%d").year
+            fetch_start_month = datetime.strptime(twstock.codes[ticker].start, "%Y/%m/%d").month + 1
+        else:
+            fetch_start_year = datetime.now().year - period
+            fetch_start_month = 1
+
+        if fetch_start_year < 2000:
+            fetch_start_year = 2000
+            fetch_start_month = 1
+        dbg_debug(f"Ticker {ticker} start from {fetch_start_year} to {datetime.now().year - period}")
 
         # dbg_debug(f"get {ticker} from TWSE")
         stock = Stock(ticker)
@@ -121,7 +138,9 @@ class TWSE(DataProvider):
         data_list = []
 
         # 取得歷史資料
-        for d in stock.fetch_from(datetime.now().year - period, 1):
+        # for d in stock.fetch_from(fetch_start_year, fetch_start_month):
+        # for d in stock.fetch_from(fetch_start_year, fetch_start_month):
+        for d in stock.fetch_from(datetime.now().year - 5, 1):
             # 確保日期是 datetime 格式
             date = pd.to_datetime(str(d.date))  # 轉換成 datetime
 

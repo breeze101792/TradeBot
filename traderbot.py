@@ -5,6 +5,7 @@ import argparse
 # Local file
 from utility.debug import *
 from core.core import *
+from market.market import *
 
 def main():
 
@@ -17,6 +18,11 @@ def main():
         dest="test_type", default="single",
         choices=['single', 'batch'],
         help="Backtesting for with different way to input data. ['single', 'batch']")
+
+    parser.add_argument("-u", "--update-data", action="store",
+        dest="update_data", default=None,
+        choices=[None, 'stock'],
+        help="Pulling data from data provider. ['stock']")
 
     # parser.add_argument("-D", "--data-set", action="store",
     #     dest="test_type", default="default",
@@ -35,7 +41,7 @@ def main():
 
     # trading mode
     parser.add_argument("-m", "--trade-mode", action="store",
-        dest="tradeing_mode", default="backtest",
+        dest="trading_mode", default="backtest",
         choices=['backtest', 'faketrade', 'realtrade'],
         help="Trading mode")
 
@@ -49,8 +55,14 @@ def main():
         # DebugSetting.setDbgLevel("all")
         # dbg_info('Enable Debug mode')
 
+    # update data
+    if args.update_data is not None:
+        dbg_info("Update data")
+        market = Market()
+        market.update_data()
+
     # Start core.
-    if args.tradeing_mode == "faketrade":
+    elif args.trading_mode == "faketrade":
         dbg_info("Fake Trade starting .")
         core = Core()
         try:
@@ -62,7 +74,7 @@ def main():
             raise
         finally:
             core.quit()
-    elif args.tradeing_mode == "realtrade":
+    elif args.trading_mode == "realtrade":
         dbg_info("Real Trade Not support yet.")
         core = Core()
         try:
