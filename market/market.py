@@ -29,6 +29,7 @@ class Market(DataProvider):
         self.instance = instance
         self.cache_data_name = self.instance.cache_data_name
         self.download_data_list = self.instance.download_data_list
+        self.download_data = self.instance.download_data
 
     def __filter_by_start_date(self, df: pd.DataFrame, start_date: str, date_column: str = 'Date') -> pd.DataFrame:
         """
