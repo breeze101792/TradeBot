@@ -31,21 +31,6 @@ class TWSE(DataProvider):
     def __init__(self):
         self.cache_data_name='twse'
 
-    # def __download_data_list(self, product_id: str, period: str = None):
-    #     # print(twstock.codes)                # 列印台股全部證券編碼資料
-    #     for each_id in twstock.codes.keys():
-    #         each_stock = twstock.codes[each_id]
-    #         try:
-    #             if each_stock.type != '股票':
-    #                 continue
-    #             # StockCodeInfo(type='股票', code='2330', name='台積電', ISIN='TW0002330008', start='1994/09/05', market='上市', group='半導體業', CFI='ESVUFR')
-    #             print(f"Type{each_stock.type}, code={each_stock.code}, name={each_stock.name}, start={each_stock.start}, market={each_stock.market}, group={each_stock.group}")
-    #         except Exception as e:
-    #             print(each_stock)
-    #             print(e)
-    #             break
-    #     return 
-
     def download_data_list(self, market: str = None, country: str = None):
         product_list = []
 
@@ -56,7 +41,7 @@ class TWSE(DataProvider):
                     continue
                 if each_stock.market != '上市':
                     continue
-                
+
                 # 整理資料
                 product_data = {
                     "code": each_stock.code,

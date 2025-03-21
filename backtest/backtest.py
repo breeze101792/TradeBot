@@ -135,8 +135,8 @@ class Backtest:
                         # Add data to enginee
                         cerebro.adddata(data, name=each_product)
                     except Exception as e:
-                        dbg_error("Disable ticker: ", each_product)
-                        self.update_tracking_list(each_product, False)
+                        dbg_error("Error ticker: ", each_product)
+                        # self.update_tracking_list(each_product, False)
                         dbg_error(e)
 
                         traceback_output = traceback.format_exc()

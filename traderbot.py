@@ -6,6 +6,7 @@ import argparse
 from utility.debug import *
 from core.core import *
 from market.market import *
+from backtest.btcli import *
 
 def main():
 
@@ -85,6 +86,9 @@ def main():
             raise
         finally:
             core.quit()
+    elif args.trading_mode == "backtest":
+        btcli = BTCLI()
+        btcli.run()
     else:
         backtest = Backtest()
         if args.product_list is not None:

@@ -65,6 +65,9 @@ class DataProvider:
         dbg_error("Function not impl.")
         raise
 
+    def get_data_list_filtered(self, market: str = None, country: str = None, force_update: bool = False, start_date = ""):
+        return self.download_data_list(market = market, country = country)
+
     def get_data_list(self, market: str = None, country: str = None, force_update: bool = False):
         return self.download_data_list(market = market, country = country)
 
