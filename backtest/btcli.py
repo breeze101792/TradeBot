@@ -32,7 +32,7 @@ class BTCLI(CommandLineInterface):
         self.regist_cmd("evaluate", self.cmd_evaluate, description="excute backtesting.")
 
         # Settings
-        self.regist_cmd("update", self.cmd_update_database, description="Update local database.")
+        self.regist_cmd("update", self.cmd_update_database, description="Update local database.", arg_list = ['all'])
         self.regist_cmd("add_data", self.cmd_add_data, description="Add product to data list.")
         self.total_database_list = ['t20', 'y20', 'y10', 'y05', 'y00']
         self.regist_cmd("dataset", self.cmd_dataset, description=f"Change database, test list stored. {self.total_database_list}", arg_list = self.total_database_list)
@@ -52,7 +52,7 @@ class BTCLI(CommandLineInterface):
                 self.print("!!! Are you really sure about updating local database.(YES/No, Defaul No. Please enter full word.) !!!")
                 ans = input()
                 if ans == 'YES':
-                    market.update_data()
+                    self.market.update_data()
             else:
                 self.print(f"!!! Update {args['1']} on local database.(Yes/No, Defaul No.) !!!")
                 ans = input()

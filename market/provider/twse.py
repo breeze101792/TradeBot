@@ -107,6 +107,7 @@ class TWSE(DataProvider):
             # print(twstock.codes[ticker].start)  # 列印 2330 證券上市日期
             # fetch_start_year = datetime(twstock.codes[ticker].start).year
             fetch_start_year = datetime.strptime(twstock.codes[ticker].start, "%Y/%m/%d").year
+            # NOTE, so we wont have the full data of it. but at least we will have near full data of it.
             fetch_start_month = datetime.strptime(twstock.codes[ticker].start, "%Y/%m/%d").month + 1
         else:
             fetch_start_year = datetime.now().year - period
@@ -123,9 +124,7 @@ class TWSE(DataProvider):
         data_list = []
 
         # 取得歷史資料
-        # for d in stock.fetch_from(fetch_start_year, fetch_start_month):
-        # for d in stock.fetch_from(fetch_start_year, fetch_start_month):
-        for d in stock.fetch_from(datetime.now().year - 5, 1):
+        for d in stock.fetch_from(fetch_start_year, fetch_start_month):
             # 確保日期是 datetime 格式
             date = pd.to_datetime(str(d.date))  # 轉換成 datetime
 

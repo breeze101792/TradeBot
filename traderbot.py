@@ -20,11 +20,6 @@ def main():
         choices=['single', 'batch'],
         help="Backtesting for with different way to input data. ['single', 'batch']")
 
-    parser.add_argument("-u", "--update-data", action="store",
-        dest="update_data", default=None,
-        choices=[None, 'stock'],
-        help="Pulling data from data provider. ['stock']")
-
     # parser.add_argument("-D", "--data-set", action="store",
     #     dest="test_type", default="default",
     #     choices=['default'],
@@ -56,14 +51,8 @@ def main():
         # DebugSetting.setDbgLevel("all")
         # dbg_info('Enable Debug mode')
 
-    # update data
-    if args.update_data is not None:
-        dbg_info("Update data")
-        market = Market()
-        market.update_data()
-
     # Start core.
-    elif args.trading_mode == "faketrade":
+    if args.trading_mode == "faketrade":
         dbg_info("Fake Trade starting .")
         core = Core()
         try:
@@ -89,19 +78,6 @@ def main():
     elif args.trading_mode == "backtest":
         btcli = BTCLI()
         btcli.run()
-    else:
-        backtest = Backtest()
-        if args.product_list is not None:
-            product_list = args.product_list
-        else:
-            product_list = backtest.default_product_list
-
-        # strategy_list = [MovingAverageCrossover, BreakoutMomentum, BreakoutMomentumEn]
-        strategy_list = [MovingAverageCrossover]
-        if args.test_type == "single":
-            backtest.testSingle(strategy=strategy_list[0], product_list=product_list)
-        elif args.test_type == "batch":
-            backtest.testBatch(strategy_list = strategy_list, product_list = product_list)
 
     dbg_info("Trade Bot finished.")
 
