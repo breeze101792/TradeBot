@@ -23,8 +23,8 @@ class BTCLI(CommandLineInterface):
 
         self.product_list = ['2330']
         self.strategy_list = [MovingAverageCrossover]
-        self.mode = 'single'
-        self.report = None
+        self.mode = 'default'
+        self.backtest = Backtest()
 
         ## cmds
         ########################################################################
@@ -40,10 +40,14 @@ class BTCLI(CommandLineInterface):
         self.total_strategy_list = ['MovingAverageCrossover', 'BreakoutMomentum']
         self.regist_cmd("add_strategy", self.cmd_add_strategy, description=f"Add strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list)
         self.regist_cmd("strategy", self.cmd_strategy, description=f"Set strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list)
+        self.set_date_list = ['to', 'from']
+        self.regist_cmd("date", self.cmd_date, description=f"Set date. ex. 20200101", arg_list = self.set_date_list)
 
-        self.total_mode_list = ['single', 'batch']
+
+        self.total_mode_list = ['default', 'single', 'mix']
         self.regist_cmd("mode", self.cmd_mode, description=f"Set test mode. {self.total_mode_list}", arg_list = self.total_mode_list)
-        self.regist_cmd("report", self.cmd_report, description=f"Show report of backtest. {self.total_mode_list}", arg_list = self.total_mode_list)
+        self.regist_cmd("report", self.cmd_report, description=f"Show report of backtest.")
+        self.regist_cmd("clean", self.cmd_clean, description=f"Clean report of backtest.")
 
     def cmd_update_database(self, args):
         self.print("Update local database.")
@@ -71,10 +75,13 @@ class BTCLI(CommandLineInterface):
         return True
 
     def cmd_info(self, args = None):
-        self.print("Info")
+        self.print("## Info")
+        self.print("############################################################")
         self.print(f"product_list  : {self.product_list}")
         self.print(f"strategy_list : {self.strategy_list}")
         self.print(f"mode          : {self.mode}")
+        self.print(f"fromdate      : {self.backtest.FROM_DATE}")
+        self.print(f"todate        : {self.backtest.TO_DATE}")
         return True
 
     def cmd_dataset(self, args):
@@ -141,21 +148,62 @@ class BTCLI(CommandLineInterface):
                 self.print(f"mode          : {self.mode}")
                 return True
         return False
+    def cmd_date(self, args):
+        setting_list = self.set_date_list
+        if args['#'] == 2:
+            try:
+                if args['1'] == 'from':
+                    self.backtest.FROM_DATE = datetime.strptime(args['2'], "%Y%m%d")
+                    self.print(f"Set from date to {self.backtest.FROM_DATE}.")
+                elif args['1'] == 'to':
+                    self.backtest.TO_DATE = datetime.strptime(args['2'], "%Y%m%d")
+                    self.print(f"Set from date to {self.backtest.TO_DATE}.")
+            except Exception as e:
+                dbg_error(e)
+                dbg_error("date should be like 20200101.")
+                return False
+        return True
 
     def cmd_report(self, args):
-        if self.report is None:
-            self.print("No report found.")
-            return False
-        return False
+        setting_list = ['all']
+        if args['#'] == 1:
+            if args['1'] == 'all':
+                self.backtest.show_result(annual_return=True)
+        else:
+            self.backtest.show_result(annual_return=True)
+        return True
+
+    def cmd_clean(self, args):
+        self.backtest.clean_result()
+        return True
 
     def cmd_evaluate(self, args):
         self.cmd_info()
-        backtest = Backtest()
         try:
-            if self.mode == 'single':
-                backtest.testSingle(strategy=self.strategy_list[0], product_list=self.product_list)
-            elif self.mode == 'batch':
-                backtest.testBatch(strategy_list = self.strategy_list, product_list = self.product_list)
+            # self.backtest.clean_result()
+            if self.mode == 'default':
+                for each_strategy in self.strategy_list:
+                    for each_product in self.product_list:
+                        self.backtest.setup()
+                        self.backtest.add_data([each_product])
+                        self.backtest.add_strategy([each_strategy])
+                        self.backtest.eval()
+                self.backtest.show_result()
+            elif self.mode == 'single':
+                # self.backtest.testSingle(strategy=self.strategy_list[0], product_list=self.product_list)
+                for each_product in self.product_list:
+                    self.backtest.setup()
+                    self.backtest.add_data([each_product])
+                    self.backtest.add_strategy(self.strategy_list)
+                    self.backtest.eval()
+                self.backtest.show_result()
+            elif self.mode == 'mix':
+                # self.backtest.testBatch(strategy_list = self.strategy_list, product_list = self.product_list)
+                self.backtest.setup()
+                self.backtest.add_data(self.product_list)
+                self.backtest.add_strategy(self.strategy_list)
+                self.backtest.eval()
+                self.backtest.show_result()
             else:
                 dbg_error(f'Unknown test mode.{self.mode}')
                 return False

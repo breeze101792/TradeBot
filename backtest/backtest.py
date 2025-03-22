@@ -5,6 +5,7 @@ import time
 import backtrader as bt
 import pandas as pd
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 # Local file
 from utility.debug import *
@@ -16,71 +17,201 @@ from backtest.backtest import *
 from strategy.strategy import *
 
 class Backtest:
+    INIT_CASH = 1000000
+    COMMISSION = 0.001
+    SLIPPAGE_PREC = 0.001
+    TO_DATE=datetime.today()
+    FROM_DATE=TO_DATE - relativedelta(years=10)
+
     def __init__(self):
         self.market = Market()
         self.default_strategy = MovingAverageCrossover
         self.default_product_list = self.market.get_top_product_list()
 
-    def __backtrading(self, cerebro):
-        init_cash = 1000000 
+        self.cerebro = None
+        self.data_list = []
+        self.strategy_list = []
+        self.result_list = []
+
+    def __setup_broker(self, cerebro = None):
+        if cerebro is None:
+            cerebro = self.cerebro
 
         # Setup init cash
-        cerebro.broker.set_cash(init_cash)
+        cerebro.broker.set_cash(self.INIT_CASH)
         # Set commission
-        cerebro.broker.setcommission(commission=0.001)
+        cerebro.broker.setcommission(commission=self.COMMISSION)
         # set perc
-        cerebro.broker.set_slippage_perc(perc=0.001)
+        cerebro.broker.set_slippage_perc(perc=self.SLIPPAGE_PREC)
+    def __setup_analyzer(self, cerebro = None):
+        if cerebro is None:
+            cerebro = self.cerebro
         # Add analyzer
+        dbg_trace('Add analyzer.')
         cerebro.addanalyzer(bt.analyzers.AnnualReturn, _name="annual_return")
         cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe", riskfreerate=0.02)
         cerebro.addanalyzer(bt.analyzers.DrawDown, _name="drawdown")
         cerebro.addanalyzer(bt.analyzers.SQN, _name="sqn")
         cerebro.addanalyzer(bt.analyzers.VWR, _name="vwr")
-
-
         # cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="TradeAnalyzer")
+    def __analyze(self, strategy_list, cerebro = None):
+        invalid_number = 101
+        if cerebro is None:
+            cerebro = self.cerebro
+        # result_list = []
+
+        for each_strategy in strategy_list:
+            result_item = {}
+            result_item['data'] = self.data_list
+            result_item['strategy'] = self.strategy_list
+            result_item['init_cash'] = self.INIT_CASH
+            result_item['cash'] = cerebro.broker.getvalue()
+
+            # ann_returN
+            result_item['annual_return'] = {}
+            for year, ret in each_strategy.analyzers.annual_return.get_analysis().items():
+                # print(f"{year}: {ret:.2%}, ")
+                # ann_message += f"{year}: {ret:.2%}, "
+                result_item['annual_return'][year] = ret * 100
+
+            result_item['sharpe'] = each_strategy.analyzers.sharpe.get_analysis().get("sharperatio", invalid_number)
+            result_item['vwr'] = each_strategy.analyzers.vwr.get_analysis().get("vwr", invalid_number)
+
+            result_item['drawdown'] = each_strategy.analyzers.drawdown.get_analysis()
+            result_item['sqn'] = each_strategy.analyzers.sqn.get_analysis()
+
+            self.result_list.append(result_item)
+
+    def setup(self, cerebro = None):
+        if cerebro is None:
+            self.cerebro = bt.Cerebro()
+        else:
+            self.cerebro = cerebro
+        self.data_list = []
+        self.strategy_list = []
+        self.__setup_broker()
+        self.__setup_analyzer()
+
+    def clean_result(self):
+        self.result_list = []
+
+    def show_result(self, annual_return = False):
+        if len(self.result_list) == 0:
+            dbg_info("Not result found.")
+            return False
+        table_mode = True
+        if table_mode:
+            print(f"{'symbol':>8} | {'Profit':>8} | "
+                  f"{'Sharpe':>8} | {'VWR':>8} | {'Drawdown':>8} | "
+                  f"{'SQN':>8} | {'Trades':>8} | ", end = "")
+            if annual_return:
+                print(f"{'Annual Return -> '} ", end = '')
+            print("")
+        for each_result in self.result_list:
+            dbg_trace(each_result)
+            invalid_ratio = 101
+            try:
+                # symbol = ",".join(each_result.get('data', [''])[0] if isinstance(each_result.get('data'), list) else each_result.get('data', ''))
+                symbol = ",".join(each_result.get('data', ['']))
+                # FIXME, use straegy name.
+                strategy = each_result.get('strategy', [''])
+                init_cash = each_result.get('init_cash', 0)
+                final_cash = each_result.get('cash', 0)
+                profit = final_cash - init_cash
+                profit_pct = ((final_cash / init_cash - 1) * 100) if init_cash != 0 else 0
+
+                annual_returns = each_result.get('annual_return', {})
+                sharpe = each_result.get('sharpe', invalid_ratio)
+                vwr = each_result.get('vwr', invalid_ratio)
+                drawdown = each_result.get('drawdown', {}).get('max', {}).get('drawdown', None)
+                sqn = each_result.get('sqn', {}).get('sqn', None)
+                trades = each_result.get('sqn', {}).get('trades', None)
+
+                table_mode = True
+                if table_mode:
+                    if len(symbol) > 5:
+                        symbol = 'multi'
+                    print(f"{symbol:>8} | {profit_pct:>8.2f} | {sharpe:>8.2f} | "
+                          f"{vwr:>8.2f} | {drawdown:>8.2f} | "
+                          f"{sqn:>8.2f} | {trades:>8} | ", end="")
+                    if annual_return:
+                        print(", ".join([f"{year}:{ret:>6.2f}%" for year, ret in annual_returns.items()]), end = '')
+                else:
+                    print(f"[{symbol:<6}] | Profit: {profit_pct:>6.2f}% ({profit:>12,.2f}) | "
+                        f"Sharpe: {sharpe:>6.2f} | VWR: {vwr:>6.2f} | Drawdown: {drawdown:>6.2f}% | "
+                        f"SQN: {sqn:>6.2f} | Trades: {trades:<4}", end="")
+                    if annual_return:
+                        print("Annual Return: ", end = '')
+                        print(", ".join([f"{year}:{ret:.2f}%" for year, ret in annual_returns.items()]), end = '')
+                print("")
+            except Exception as e:
+                dbg_error(e)
+                traceback_output = traceback.format_exc()
+                dbg_error(traceback_output)
+
+    def add_data(self,product_list , cerebro = None):
+        if cerebro is None:
+            cerebro = self.cerebro
+
+        for each_product in product_list:
+            try:
+                df = self.market.get_data(each_product)
+                data = bt.feeds.PandasData(dataname=df, fromdate=self.FROM_DATE, todate=self.TO_DATE)
+
+                dbg_trace(f"Add product {each_product}.")
+
+                # Add data to enginee
+                cerebro.adddata(data, name=each_product)
+
+                self.data_list.append(each_product)
+            except Exception as e:
+                dbg_error("Error ticker: ", each_product)
+                # self.update_tracking_list(each_product, False)
+                dbg_error(e)
+
+                traceback_output = traceback.format_exc()
+                dbg_error(traceback_output)
+                continue
+    def eval(self, cerebro = None):
+        if cerebro is None:
+            cerebro = self.cerebro
+            stra_list = cerebro.run()
+            self.__analyze(stra_list)
+
+
+    def add_strategy(self, strategy_list, cerebro = None):
+        if cerebro is None:
+            cerebro = self.cerebro
+
+        for each_stra in strategy_list:
+            dbg_trace(f"Add Straegy: {each_stra}")
+            cerebro.addstrategy(each_stra)
+            self.strategy_list.append(each_stra)
+
+    # FIXME, remvoe me, it's Legacy API.
+    ############################################################################
+    def __backtrading(self, cerebro = None):
+        if cerebro is None:
+            cerebro = self.cerebro
+
+        self.clean_result()
+        self.setup(cerebro)
+
+        # # Broker setup
+        # self.__setup_broker(cerebro)
+        #
+        # Add analyzer
+        self.__setup_analyzer(cerebro)
+
         # Do backtesting
-        results = cerebro.run()
-        strat = results[0]  # Get strategy result.
+        strategy_list = cerebro.run()
+        sharpe_ratio = strategy_list[0].analyzers.sharpe.get_analysis().get("sharperatio", None)
 
-        dbg_info(f"Init cash({init_cash}), Profit: {(cerebro.broker.getvalue() - init_cash):.2f}/({(cerebro.broker.getvalue() - init_cash)/init_cash*100:.2f}%)")
-        # Annual return
-        ann_message = ""
-        for year, ret in strat.analyzers.annual_return.get_analysis().items():
-            ann_message += f"{year}: {ret:.2%}, "
-        dbg_info(f"Annual return:{ann_message}")
+        dbg_error("Sharp", sharpe_ratio)
+        self.__analyze(strategy_list)
+        self.show_result()
 
-        other_info = ""
-        # Sharpe Ratio
-        sharpe_ratio = strat.analyzers.sharpe.get_analysis().get("sharperatio", None)
-        # dbg_info(f"Sharpe Ratio: {sharpe_ratio:.2f}" if sharpe_ratio else "📈 sharpe_ratio: Can't calculate")
-        other_info += f"Sharpe Ratio: {sharpe_ratio:.2f}" if sharpe_ratio else "📈 sharpe_ratio: Can't calculate"
-
-        vwr = strat.analyzers.vwr.get_analysis().get("vwr", None)
-        # dbg_info(f"VW Ratio: {vwr:.2f}" if vwr else "📈 VWR: sharpe_ratio: Can't calculate")
-        other_info += f", VWR: {vwr:.2f}" if vwr else "📈 VWR: sharpe_ratio: Can't calculate"
-
-        # Drawdown
-        drawdown = strat.analyzers.drawdown.get_analysis()
-        # dbg_info(f"Drawdown: {drawdown['max']['drawdown']:.2f}%")
-        other_info += f", Drawdown: {drawdown['max']['drawdown']:.2f}%"
-
-        # Drawdown
-        # tradeanalyzer = strat.analyzers.TradeAnalyzer.get_analysis()
-        # dbg_info(f"TradeAnalyzer: {tradeanalyzer}")
-
-        # SQN
-        sqn = strat.analyzers.sqn.get_analysis()
-        # dbg_info(f"SQN: {sqn['sqn']:.2f}, Trad: {sqn['trades']}")
-        other_info += f", SQN: {sqn['sqn']:.2f}, Trad: {sqn['trades']}" 
-
-        dbg_info(f"{other_info}")
-        # Do ploting
-        # cerebro.plot()
-        ###############################################################
-
-        # dbg_info("Tracking List: " + product_list.__str__())
-        return results
+        return strategy_list
 
     def testSingle(self, product_list = None, strategy = None, from_date=datetime(2020, 1, 1), to_date=datetime(2025, 1, 1)):
         # Default testing.
