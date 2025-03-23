@@ -2,8 +2,13 @@ import backtrader as bt
 import pandas as pd
 from utility.debug import *
 
+class BasicStrategy(bt.Strategy):
+    NAME="BasicStrategy"
+
+
 # Test Strategy
-class MovingAverageCrossover(bt.Strategy):
+class MovingAverageCrossover(BasicStrategy):
+    NAME="MAC"
     # params = (
     #     ("short_period", 50),  # 短期均線 (50日)
     #     ("long_period", 200),  # 長期均線 (200日)
@@ -45,6 +50,7 @@ class MovingAverageCrossover(bt.Strategy):
                     dbg_log(f"🏆 {data._name} 止盈出場 @ {price:.2f}")
 
 class BreakoutMomentum(bt.Strategy):
+    NAME="BM"
     params = (
         ("breakout_period", 20),  # 突破區間 (20日高點)
         ("stop_loss_pct", 0.03),  # 3% 止損
@@ -82,6 +88,7 @@ class BreakoutMomentum(bt.Strategy):
                     dbg_log(f"🏆 [{self.data.datetime.date(0)}]{data._name} 止盈出場 @ {price:.2f}")
 
 class BreakoutMomentumEn(bt.Strategy):
+    NAME="BME"
     params = {
         "breakout_period": 20,  # 突破期間
         "trailing_stop_pct": 0.05,  # 移動止損 5%

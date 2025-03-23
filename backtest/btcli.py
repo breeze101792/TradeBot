@@ -5,6 +5,7 @@ import time
 import backtrader as bt
 import pandas as pd
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 # Local file
 from utility.debug import *
@@ -35,7 +36,7 @@ class BTCLI(CommandLineInterface):
         self.regist_cmd("update", self.cmd_update_database, description="Update local database.", arg_list = ['all'])
         self.regist_cmd("add_data", self.cmd_add_data, description="Add product to data list.")
         self.total_database_list = ['t20', 'y20', 'y10', 'y05', 'y00']
-        self.regist_cmd("dataset", self.cmd_dataset, description=f"Change database, test list stored. {self.total_database_list}", arg_list = self.total_database_list)
+        self.regist_cmd("data", self.cmd_data, description=f"Change database, test list stored. {self.total_database_list}", arg_list = self.total_database_list)
 
         self.total_strategy_list = ['MovingAverageCrossover', 'BreakoutMomentum']
         self.regist_cmd("add_strategy", self.cmd_add_strategy, description=f"Add strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list)
@@ -82,9 +83,10 @@ class BTCLI(CommandLineInterface):
         self.print(f"mode          : {self.mode}")
         self.print(f"fromdate      : {self.backtest.FROM_DATE}")
         self.print(f"todate        : {self.backtest.TO_DATE}")
+        self.print("############################################################")
         return True
 
-    def cmd_dataset(self, args):
+    def cmd_data(self, args):
         if args['#'] == 1:
             if args['1'] == 't20':
                 self.product_list = self.market.get_top_product_list(20)
@@ -109,7 +111,7 @@ class BTCLI(CommandLineInterface):
 
     def cmd_add_data(self, args):
         for each_arg in range(1, args['#'] + 1):
-            self.product_list.append(each_arg)
+            self.product_list.append(args[each_arg.__str__()])
         self.print(f"product_list  : {self.product_list}")
         return True
 
@@ -150,18 +152,27 @@ class BTCLI(CommandLineInterface):
         return False
     def cmd_date(self, args):
         setting_list = self.set_date_list
-        if args['#'] == 2:
-            try:
+        try:
+            if args['#'] == 1:
+                if int(args['1']) < 100:
+                    self.backtest.TO_DATE = datetime.today()
+                    self.backtest.FROM_DATE = datetime.today() - relativedelta(years=int(args['1']))
+            elif args['#'] == 2:
                 if args['1'] == 'from':
-                    self.backtest.FROM_DATE = datetime.strptime(args['2'], "%Y%m%d")
-                    self.print(f"Set from date to {self.backtest.FROM_DATE}.")
+                    if int(args['2']) < 100:
+                        self.backtest.FROM_DATE = datetime.today() - relativedelta(years=int(args['2']))
+                    else:
+                        self.backtest.FROM_DATE = datetime.strptime(args['2'], "%Y%m%d")
                 elif args['1'] == 'to':
-                    self.backtest.TO_DATE = datetime.strptime(args['2'], "%Y%m%d")
-                    self.print(f"Set from date to {self.backtest.TO_DATE}.")
-            except Exception as e:
-                dbg_error(e)
-                dbg_error("date should be like 20200101.")
-                return False
+                    if int(args['2']) < 100:
+                        self.backtest.TO_DATE = datetime.today() - relativedelta(years=int(args['2']))
+                    else:
+                        self.backtest.TO_DATE = datetime.strptime(args['2'], "%Y%m%d")
+            self.print(f"Set from date {self.backtest.FROM_DATE}, to date {self.backtest.TO_DATE}.")
+        except Exception as e:
+            dbg_error(e)
+            dbg_error("date should be like 20200101.")
+            return False
         return True
 
     def cmd_report(self, args):

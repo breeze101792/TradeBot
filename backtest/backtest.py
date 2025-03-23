@@ -9,6 +9,7 @@ from dateutil.relativedelta import relativedelta
 
 # Local file
 from utility.debug import *
+from utility.utils import *
 from core.database import *
 from market.market import *
 from market.provider.yahoo import *
@@ -21,7 +22,7 @@ class Backtest:
     COMMISSION = 0.001
     SLIPPAGE_PREC = 0.001
     TO_DATE=datetime.today()
-    FROM_DATE=TO_DATE - relativedelta(years=10)
+    FROM_DATE=TO_DATE - relativedelta(years=5)
 
     def __init__(self):
         self.market = Market()
@@ -63,7 +64,7 @@ class Backtest:
         for each_strategy in strategy_list:
             result_item = {}
             result_item['data'] = self.data_list
-            result_item['strategy'] = self.strategy_list
+            result_item['strategy'] = [each_stra.NAME for each_stra in self.strategy_list]
             result_item['init_cash'] = self.INIT_CASH
             result_item['cash'] = cerebro.broker.getvalue()
 
@@ -99,22 +100,18 @@ class Backtest:
         if len(self.result_list) == 0:
             dbg_info("Not result found.")
             return False
-        table_mode = True
-        if table_mode:
-            print(f"{'symbol':>8} | {'Profit':>8} | "
-                  f"{'Sharpe':>8} | {'VWR':>8} | {'Drawdown':>8} | "
-                  f"{'SQN':>8} | {'Trades':>8} | ", end = "")
-            if annual_return:
-                print(f"{'Annual Return -> '} ", end = '')
-            print("")
+        print(f"{'Symbol':>8} | {'Strategy':>8} | {'Profit':>6} | "
+                f"{'Sharpe':>6} | {'VWR':>6} | {'DD':>6} | "
+                f"{'SQN':>6} | {'Trades':>6} | ", end = "")
+        if annual_return:
+            print(f"{'Annual Return -> '} ", end = '')
+        print("")
         for each_result in self.result_list:
             dbg_trace(each_result)
             invalid_ratio = 101
             try:
-                # symbol = ",".join(each_result.get('data', [''])[0] if isinstance(each_result.get('data'), list) else each_result.get('data', ''))
                 symbol = ",".join(each_result.get('data', ['']))
-                # FIXME, use straegy name.
-                strategy = each_result.get('strategy', [''])
+                strategy = ",".join(each_result.get('strategy', ['']))
                 init_cash = each_result.get('init_cash', 0)
                 final_cash = each_result.get('cash', 0)
                 profit = final_cash - init_cash
@@ -127,22 +124,19 @@ class Backtest:
                 sqn = each_result.get('sqn', {}).get('sqn', None)
                 trades = each_result.get('sqn', {}).get('trades', None)
 
-                table_mode = True
-                if table_mode:
-                    if len(symbol) > 5:
-                        symbol = 'multi'
-                    print(f"{symbol:>8} | {profit_pct:>8.2f} | {sharpe:>8.2f} | "
-                          f"{vwr:>8.2f} | {drawdown:>8.2f} | "
-                          f"{sqn:>8.2f} | {trades:>8} | ", end="")
-                    if annual_return:
-                        print(", ".join([f"{year}:{ret:>6.2f}%" for year, ret in annual_returns.items()]), end = '')
-                else:
-                    print(f"[{symbol:<6}] | Profit: {profit_pct:>6.2f}% ({profit:>12,.2f}) | "
-                        f"Sharpe: {sharpe:>6.2f} | VWR: {vwr:>6.2f} | Drawdown: {drawdown:>6.2f}% | "
-                        f"SQN: {sqn:>6.2f} | Trades: {trades:<4}", end="")
-                    if annual_return:
-                        print("Annual Return: ", end = '')
-                        print(", ".join([f"{year}:{ret:.2f}%" for year, ret in annual_returns.items()]), end = '')
+                if len(symbol) > 5:
+                    symbol = 'multi'
+                print(f"{symbol:>8} | "
+                        f"{strategy:>8} | "
+                        f"{safe_format(profit_pct,6,2)} | "
+                        f"{safe_format(sharpe,6,2)} | "
+                        f"{safe_format(vwr,6,2)} | "
+                        f"{safe_format(drawdown,6,2)} | "
+                        f"{safe_format(sqn,6,2)} | "
+                        f"{trades:>6} | "
+                        , end="")
+                if annual_return:
+                    print(", ".join([f"{year}:{ret:>6.2f}%" for year, ret in annual_returns.items()]), end = '')
                 print("")
             except Exception as e:
                 dbg_error(e)
