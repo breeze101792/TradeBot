@@ -13,17 +13,19 @@ from utility.cli import *
 from market.market import *
 
 from backtest.backtest import *
+from strategy.strategy import StrategyManager
 
 class BTCLI(CommandLineInterface):
     def __init__(self):
-        # super().__init__(*args, **kwargs)
         super().__init__(promote='backtest')
 
         ## Vars
         self.market = Market()
+        self.strategyMgr = StrategyManager(test = 5)
 
         self.product_list = ['2330']
-        self.strategy_list = [MovingAverageCrossover]
+        # self.strategy_list = [MovingAverageCrossover]
+        self.strategy_list=[self.strategyMgr.get_strategy_list()[0].NAME]
         self.mode = 'default'
         self.backtest = Backtest()
 
@@ -38,7 +40,8 @@ class BTCLI(CommandLineInterface):
         self.total_database_list = ['t20', 'y20', 'y10', 'y05', 'y00']
         self.regist_cmd("data", self.cmd_data, description=f"Change database, test list stored. {self.total_database_list}", arg_list = self.total_database_list)
 
-        self.total_strategy_list = ['MovingAverageCrossover', 'BreakoutMomentum']
+        # self.total_strategy_list = ['MovingAverageCrossover', 'BreakoutMomentum']
+        self.total_strategy_list = [each_stra.NAME for each_stra in self.strategyMgr.get_strategy_list()]
         self.regist_cmd("add_strategy", self.cmd_add_strategy, description=f"Add strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list)
         self.regist_cmd("strategy", self.cmd_strategy, description=f"Set strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list)
         self.set_date_list = ['to', 'from']
@@ -116,30 +119,19 @@ class BTCLI(CommandLineInterface):
         return True
 
     def cmd_strategy(self, args):
-        # self.total_strategy_list = ['MovingAverageCrossover', 'BreakoutMomentum']
         setting_list = self.total_strategy_list
-        if args['#'] == 1:
-            if args['1'] == 'MovingAverageCrossover':
-                self.strategy_list=[MovingAverageCrossover]
-                self.print(f"strategy_list : {self.strategy_list}")
-                return True
-            elif args['1'] == 'BreakoutMomentum':
-                self.strategy_list=[BreakoutMomentum]
-                self.print(f"strategy_list : {self.strategy_list}")
-                return True
+        if args['#'] == 1 and args['1'] in setting_list:
+            self.strategy_list=[args['1']]
+            self.print(f"strategy_list : {self.strategy_list}")
+            return True
         return False
 
     def cmd_add_strategy(self, args):
         setting_list = self.total_strategy_list
-        if args['#'] == 1:
-            if args['1'] == 'MovingAverageCrossover':
-                self.strategy_list.append(MovingAverageCrossover)
-                self.print(f"strategy_list : {self.strategy_list}")
-                return True
-            elif args['1'] == 'BreakoutMomentum':
-                self.strategy_list.append(BreakoutMomentum)
-                self.print(f"strategy_list : {self.strategy_list}")
-                return True
+        if args['#'] == 1 and args['1'] in setting_list:
+            self.strategy_list.append(args['1'])
+            self.print(f"strategy_list : {self.strategy_list}")
+            return True
         return False
 
     def cmd_mode(self, args):
@@ -197,7 +189,7 @@ class BTCLI(CommandLineInterface):
                     for each_product in self.product_list:
                         self.backtest.setup()
                         self.backtest.add_data([each_product])
-                        self.backtest.add_strategy([each_strategy])
+                        self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy)])
                         self.backtest.eval()
                 self.backtest.show_result()
             elif self.mode == 'single':
@@ -205,14 +197,14 @@ class BTCLI(CommandLineInterface):
                 for each_product in self.product_list:
                     self.backtest.setup()
                     self.backtest.add_data([each_product])
-                    self.backtest.add_strategy(self.strategy_list)
+                    self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
                     self.backtest.eval()
                 self.backtest.show_result()
             elif self.mode == 'mix':
                 # self.backtest.testBatch(strategy_list = self.strategy_list, product_list = self.product_list)
                 self.backtest.setup()
                 self.backtest.add_data(self.product_list)
-                self.backtest.add_strategy(self.strategy_list)
+                self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
                 self.backtest.eval()
                 self.backtest.show_result()
             else:
