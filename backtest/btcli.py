@@ -31,27 +31,27 @@ class BTCLI(CommandLineInterface):
 
         ## cmds
         ########################################################################
-        self.regist_cmd("info", self.cmd_info, description="Show infos.")
-        self.regist_cmd("evaluate", self.cmd_evaluate, description="excute backtesting.")
+        # Tools
+        self.regist_cmd("info", self.cmd_info, description="Show infos.", group='tools')
+        self.regist_cmd("evaluate", self.cmd_evaluate, description="excute backtesting.", group='tools')
+        self.regist_cmd("update", self.cmd_update_database, description="Update local database.", arg_list = ['all'], group='tools')
+        self.regist_cmd("report", self.cmd_report, description=f"Show report of backtest.", group='tools')
+        self.regist_cmd("clean", self.cmd_clean, description=f"Clean report of backtest.", group='tools')
 
         # Settings
-        self.regist_cmd("update", self.cmd_update_database, description="Update local database.", arg_list = ['all'])
-        self.regist_cmd("add_data", self.cmd_add_data, description="Add product to data list.")
+        self.regist_cmd("add_data", self.cmd_add_data, description="Add product to data list.", group='setting')
         self.total_database_list = ['t20', 'y20', 'y10', 'y05', 'y00']
-        self.regist_cmd("data", self.cmd_data, description=f"Change database, test list stored. {self.total_database_list}", arg_list = self.total_database_list)
+        self.regist_cmd("data", self.cmd_data, description=f"Change database, test list stored. {self.total_database_list}", arg_list = self.total_database_list, group='setting')
 
         # self.total_strategy_list = ['MovingAverageCrossover', 'BreakoutMomentum']
         self.total_strategy_list = [each_stra.NAME for each_stra in self.strategyMgr.get_strategy_list()]
-        self.regist_cmd("add_strategy", self.cmd_add_strategy, description=f"Add strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list)
-        self.regist_cmd("strategy", self.cmd_strategy, description=f"Set strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list)
+        self.regist_cmd("add_strategy", self.cmd_add_strategy, description=f"Add strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list, group='setting')
+        self.regist_cmd("strategy", self.cmd_strategy, description=f"Set strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list, group='setting')
         self.set_date_list = ['to', 'from']
-        self.regist_cmd("date", self.cmd_date, description=f"Set date. ex. 20200101", arg_list = self.set_date_list)
-
-
+        self.regist_cmd("date", self.cmd_date, description=f"Set date. ex. 20200101", arg_list = self.set_date_list, group='setting')
         self.total_mode_list = ['default', 'single', 'mix']
-        self.regist_cmd("mode", self.cmd_mode, description=f"Set test mode. {self.total_mode_list}", arg_list = self.total_mode_list)
-        self.regist_cmd("report", self.cmd_report, description=f"Show report of backtest.")
-        self.regist_cmd("clean", self.cmd_clean, description=f"Clean report of backtest.")
+        self.regist_cmd("mode", self.cmd_mode, description=f"Set test mode. {self.total_mode_list}", arg_list = self.total_mode_list, group='setting')
+
 
     def cmd_update_database(self, args):
         self.print("Update local database.")
