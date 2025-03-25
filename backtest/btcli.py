@@ -39,14 +39,15 @@ class BTCLI(CommandLineInterface):
         self.regist_cmd("clean", self.cmd_clean, description=f"Clean report of backtest.", group='tools')
 
         # Settings
-        self.regist_cmd("add_data", self.cmd_add_data, description="Add product to data list.", group='setting')
-        self.total_database_list = ['t20', 'y20', 'y10', 'y05', 'y00']
-        self.regist_cmd("data", self.cmd_data, description=f"Change database, test list stored. {self.total_database_list}", arg_list = self.total_database_list, group='setting')
+        self.total_data_list = ['t20', 'y20', 'y10', 'y05', 'y00']
+        self.total_data_op_list = ['set', 'add', 'list', 'del']
+        self.regist_cmd("data", self.cmd_data, description=f"Change database, test list stored. Ops: {self.total_data_op_list}, Data:{self.total_data_list}", arg_list = self.total_data_list +self.total_data_op_list, group='setting')
 
         # self.total_strategy_list = ['MovingAverageCrossover', 'BreakoutMomentum']
         self.total_strategy_list = [each_stra.NAME for each_stra in self.strategyMgr.get_strategy_list()]
-        self.regist_cmd("add_strategy", self.cmd_add_strategy, description=f"Add strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list, group='setting')
-        self.regist_cmd("strategy", self.cmd_strategy, description=f"Set strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list, group='setting')
+        self.total_strategy_op_list = ['set', 'add', 'modify', 'list', 'del', 'all']
+        # self.regist_cmd("add_strategy", self.cmd_add_strategy, description=f"Add strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list, group='setting')
+        self.regist_cmd("strategy", self.cmd_strategy, description=f"Set strategy. Ops: {self.total_strategy_op_list}, Stra:{self.total_strategy_list}", arg_list = self.total_strategy_list + self.total_strategy_op_list, group='setting')
         self.set_date_list = ['to', 'from']
         self.regist_cmd("date", self.cmd_date, description=f"Set date. ex. 20200101", arg_list = self.set_date_list, group='setting')
         self.total_mode_list = ['default', 'single', 'mix']
@@ -90,6 +91,8 @@ class BTCLI(CommandLineInterface):
         return True
 
     def cmd_data(self, args):
+        # total_data_list = self.total_data_list
+        operation_list = self.total_data_op_list
         if args['#'] == 1:
             if args['1'] == 't20':
                 self.product_list = self.market.get_top_product_list(20)
@@ -105,33 +108,75 @@ class BTCLI(CommandLineInterface):
                 self.product_list = [args['1']]
             self.print(f"product_list  : {self.product_list}")
             return True
-        else:
-            for each_arg in range(1, args['#'] + 1):
-                self.product_list.append(each_arg)
-            self.print(f"product_list  : {self.product_list}")
-            return True
-        return False
-
-    def cmd_add_data(self, args):
-        for each_arg in range(1, args['#'] + 1):
-            self.product_list.append(args[each_arg.__str__()])
+        elif args['#'] >= 2 and args['1'] in operation_list:
+            if args['1'] == 'set' or args['1'] == 'add':
+                if args['1'] == 'set':
+                    self.product_list = []
+                for each_arg in range(2, args['#'] + 1):
+                    product_code = args[each_arg.__str__()]
+                    if product_code not in self.product_list:
+                        self.product_list.append(product_code)
+                self.print(f"product_list  : {self.product_list}")
+                return True
+            elif args['1'] == 'del':
+                for each_arg in range(2, args['#'] + 1):
+                    product_code = args[each_arg.__str__()]
+                    if product_code in self.product_list:
+                        self.product_list.remove(product_code)
+                self.print(f"product_list  : {self.product_list}")
+                return True
+            elif args['1'] == 'list':
+                self.print(f"product_list  : {self.product_list}")
+                return True
         self.print(f"product_list  : {self.product_list}")
-        return True
+        return False
 
     def cmd_strategy(self, args):
-        setting_list = self.total_strategy_list
-        if args['#'] == 1 and args['1'] in setting_list:
-            self.strategy_list=[args['1']]
-            self.print(f"strategy_list : {self.strategy_list}")
-            return True
-        return False
-
-    def cmd_add_strategy(self, args):
-        setting_list = self.total_strategy_list
-        if args['#'] == 1 and args['1'] in setting_list:
-            self.strategy_list.append(args['1'])
-            self.print(f"strategy_list : {self.strategy_list}")
-            return True
+        total_strategy_list = self.total_strategy_list
+        operation_list = self.total_strategy_op_list
+        if args['#'] == 1 and args['1'] in total_strategy_list:
+            # this is dfault action to set strategy
+            if args['#'] == 1 and args['1'] in total_strategy_list:
+                self.strategy_list=[args['1']]
+                self.print(f"strategy_list : {self.strategy_list}")
+                return True
+            else:
+                self.print(f"strategy not found. {args['1']}")
+                return True
+        elif args['#'] == 1 and args['1'] in operation_list:
+            if args['1'] == 'all':
+                self.strategy_list = total_strategy_list
+                self.print(f"strategy_list : {self.strategy_list}")
+                return True
+        elif args['#'] >= 2 and args['1'] in operation_list:
+            if args['1'] == 'set' or args['1'] == 'add':
+                if args['1'] == 'set':
+                    self.strategy_list = []
+                for each_arg in range(2, args['#'] + 1):
+                    each_strategy = args[each_arg.__str__()]
+                    if each_strategy not in self.strategy_list and each_strategy in total_strategy_list:
+                        self.strategy_list.append(each_strategy)
+                    else:
+                        self.print(f"Setting fail, Ignore : {each_strategy}")
+                self.print(f"strategy_list : {self.strategy_list}")
+                return True
+            elif args['1'] == 'del':
+                for each_arg in range(2, args['#'] + 1):
+                    each_strategy = args[each_arg.__str__()]
+                    if each_strategy in self.strategy_list and each_strategy in total_strategy_list:
+                        self.strategy_list.remove(each_strategy)
+                    else:
+                        self.print(f"Del fail, Ignore : {each_strategy}")
+                self.print(f"strategy_list : {self.strategy_list}")
+                return True
+            elif args['1'] == 'list':
+                self.print(f"Supported strategy : {total_strategy_list}")
+                self.print(f"Current strategy : {self.strategy_list}")
+                return True
+            elif args['1'] == 'modify':
+                self.print(f"Function impling.")
+                # self.print(f"strategy_list : {self.strategy_list}")
+                return True
         return False
 
     def cmd_mode(self, args):
@@ -183,7 +228,7 @@ class BTCLI(CommandLineInterface):
     def cmd_evaluate(self, args):
         self.cmd_info()
         try:
-            # self.backtest.clean_result()
+            self.backtest.clean_result()
             if self.mode == 'default':
                 for each_strategy in self.strategy_list:
                     for each_product in self.product_list:
