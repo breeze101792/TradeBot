@@ -7,10 +7,10 @@ from datetime import datetime
 from utility.debug import *
 
 class DataProvider:
-    cache_data_name = './market'
-    cache_data_root_path = './.data'
+    NAME = 'provider'
     def __init__(self):
-        pass
+        self.cache_data_name = f'./{self.NAME}'
+        self.cache_data_root_path = './.data'
     @staticmethod
     def save_to_csv(df: pd.DataFrame, filename: str, folder: str = './'):
         """

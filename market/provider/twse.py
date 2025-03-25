@@ -28,8 +28,9 @@ from twstock import Stock
 #     )
 
 class TWSE(DataProvider):
+    NAME='twse'
     def __init__(self):
-        self.cache_data_name='twse'
+        super().__init__()
 
     def download_data_list(self, market: str = None, country: str = None):
         product_list = []
@@ -116,7 +117,7 @@ class TWSE(DataProvider):
         if fetch_start_year < 2000:
             fetch_start_year = 2000
             fetch_start_month = 1
-        dbg_debug(f"Ticker {ticker} start from {fetch_start_year} to {datetime.now().year - period}")
+        dbg_info(f"Download {ticker} start from {fetch_start_year}/{fetch_start_month} to {datetime.now().year}/{datetime.now().month}")
 
         # dbg_debug(f"get {ticker} from TWSE")
         stock = Stock(ticker)

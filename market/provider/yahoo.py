@@ -9,17 +9,25 @@ from utility.debug import *
 from market.dataprovider import *
 
 class Yahoo(DataProvider):
+    NAME='yahoo'
     def __init__(self):
-        self.cache_data_name='yahoo'
+        super().__init__()
 
-    def download_data(self, ticker: str, period: str = None):
+    def download_data(self, ticker: str, period: int = 0):
+        yf_code = ticker + '.TW'
+        if period == 0:
+            period = 'max'
+        else:
+            period = period.__str__()
 
         if period is not None:
-            df = yf.Ticker(ticker).history(period=period)
+            dbg_info(f"Download {yf_code} period:{period}")
+            df = yf.Ticker(yf_code).history(period=period)
         # elif start_date is not None and end_date is not None:
-        #     df = yf.download(ticker, start=start_date, end=end_date, multi_level_index=False)
+        #     df = yf.download(yf_code, start=start_date, end=end_date, multi_level_index=False)
         else:
-            df = yf.Ticker(ticker).history(period="max")
+            dbg_info(f"Download {yf_code} period:max")
+            df = yf.Ticker(yf_code).history(period="max")
 
         return df
     # def get_ticker(self, ticker: str, start_date: str = None, end_date: str = None, period: str = None, force_update: bool = False):

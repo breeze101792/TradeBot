@@ -16,20 +16,23 @@ from market.dataprovider import *
 from market.provider.yahoo import *
 from market.provider.twse import *
 
-# from backtest.backtest import *
-# from strategy.strategy import *
-
-class Market(DataProvider):
-    def __init__(self):
+class Market:
+    def __init__(self, market = None):
+        self.__market_list = [ TWSE, Yahoo ]
         self.instance = None
-        # self.instance = Yahoo()
-        self.__set_market__(TWSE())
 
-    def __set_market__(self, instance):
-        self.instance = instance
-        self.cache_data_name = self.instance.cache_data_name
-        self.download_data_list = self.instance.download_data_list
-        self.download_data = self.instance.download_data
+        if market is not None:
+            self.switch_market(market)
+        else:
+            self.switch_market(self.__market_list[0].NAME)
+
+        dbg_debug(f'Init market to {self.instance.NAME}')
+    # def __set_market(self, instance):
+    #     self.NAME = instance.NAME
+    #     self.instance = instance
+    #     self.cache_data_name = self.instance.cache_data_name
+    #     self.download_data_list = self.instance.download_data_list
+    #     self.download_data = self.instance.download_data
 
     def __filter_by_start_date(self, df: pd.DataFrame, start_date: str, date_column: str = 'Date') -> pd.DataFrame:
         """
@@ -50,6 +53,15 @@ class Market(DataProvider):
         # Apply filtering
         filtered_df = df[df[date_column] <= start_date].reset_index(drop=True)
         return filtered_df
+    ## API From other files.
+    def get_provider(self):
+        return self.instance.NAME
+    def get_markget_list(self):
+        return [ each_market.NAME for each_market in self.__market_list]
+    def switch_market(self, market):
+        for each_market in self.__market_list:
+            if market == each_market.NAME:
+                self.instance = each_market()
 
     def get_product_list_by_date(self, start_date = "2020-01-01"):
         product_frame_list = self.instance.get_data_list()
@@ -81,4 +93,16 @@ class Market(DataProvider):
                 dbg_error(e)
                 time.sleep(1)
                 continue
+
+    def get_data_list_filtered(self, market: str = None, country: str = None, force_update: bool = False, start_date = ""):
+        # return self.instance.download_data_list(market = market, country = country)
+        return self.instance(market = market, conuntry = conuntry, force_update = force_update, start_date = start_date)
+
+    def get_data_list(self, market: str = None, country: str = None, force_update: bool = False):
+        # return self.instance.download_data_list(market = market, country = country)
+        return self.instance.get_data_list(market = market, conuntry = conuntry, force_update = force_update)
+
+    def get_data(self, product_id: str, period: str = None, force_update: bool = False):
+        return self.instance.get_data(product_id=product_id, period=period, force_update=force_update)
+
 

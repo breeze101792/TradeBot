@@ -24,8 +24,8 @@ class Backtest:
     TO_DATE=datetime.today()
     FROM_DATE=TO_DATE - relativedelta(years=5)
 
-    def __init__(self):
-        self.market = Market()
+    def __init__(self, market):
+        self.market = market
         self.default_strategy = MovingAverageCrossover
         self.default_product_list = self.market.get_top_product_list()
 

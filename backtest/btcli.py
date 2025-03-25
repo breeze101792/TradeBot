@@ -27,7 +27,7 @@ class BTCLI(CommandLineInterface):
         # self.strategy_list = [MovingAverageCrossover]
         self.strategy_list=[self.strategyMgr.get_strategy_list()[0].NAME]
         self.mode = 'default'
-        self.backtest = Backtest()
+        self.backtest = Backtest(self.market)
 
         ## cmds
         ########################################################################
@@ -39,6 +39,10 @@ class BTCLI(CommandLineInterface):
         self.regist_cmd("clean", self.cmd_clean, description=f"Clean report of backtest.", group='tools')
 
         # Settings
+        self.total_mkt_op_list = ['set']
+        self.total_mkt_type_list = self.market.get_markget_list()
+        self.regist_cmd("market", self.cmd_market, description=f"Change market(data provider). Ops: {self.total_mkt_op_list}, Data:{self.total_mkt_type_list}", arg_list = self.total_mkt_op_list +self.total_mkt_type_list, group='setting')
+
         self.total_data_list = ['t20', 'y20', 'y10', 'y05', 'y00']
         self.total_data_op_list = ['set', 'add', 'list', 'del']
         self.regist_cmd("data", self.cmd_data, description=f"Change database, test list stored. Ops: {self.total_data_op_list}, Data:{self.total_data_list}", arg_list = self.total_data_list +self.total_data_op_list, group='setting')
@@ -54,6 +58,17 @@ class BTCLI(CommandLineInterface):
         self.regist_cmd("mode", self.cmd_mode, description=f"Set test mode. {self.total_mode_list}", arg_list = self.total_mode_list, group='setting')
 
 
+    def cmd_market(self, args):
+        operation_list = ['set']
+        # market_list = ['twse', 'yahoo']
+        market_list = self.total_mkt_type_list
+        if args['#'] >= 2 and args['1'] in operation_list:
+            if args['1'] == 'set' and args['2'] in market_list:
+                self.market.switch_market(args['2'])
+                dbg_info(f'switch market to {self.market.get_provider()}')
+                return True
+        dbg_info(f'market use to {self.market.get_provider()}')
+        return False
     def cmd_update_database(self, args):
         self.print("Update local database.")
         if args['#'] == 1:
@@ -82,6 +97,7 @@ class BTCLI(CommandLineInterface):
     def cmd_info(self, args = None):
         self.print("## Info")
         self.print("############################################################")
+        self.print(f"market        : {self.market.get_provider()}")
         self.print(f"product_list  : {self.product_list}")
         self.print(f"strategy_list : {self.strategy_list}")
         self.print(f"mode          : {self.mode}")
