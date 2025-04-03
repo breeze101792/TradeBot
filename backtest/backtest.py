@@ -83,14 +83,17 @@ class Backtest:
 
             self.result_list.append(result_item)
 
-    def setup(self, cerebro = None):
+    def setup(self, cerebro = None, broker = None):
         if cerebro is None:
             self.cerebro = bt.Cerebro()
         else:
             self.cerebro = cerebro
         self.data_list = []
         self.strategy_list = []
-        self.__setup_broker()
+        if broker is not None:
+            self.cerebro.setbroker(broker())
+        else:
+            self.__setup_broker()
         self.__setup_analyzer()
 
     def clean_result(self):
@@ -181,112 +184,3 @@ class Backtest:
             dbg_trace(f"Add Straegy: {each_stra}")
             cerebro.addstrategy(each_stra)
             self.strategy_list.append(each_stra)
-
-    # FIXME, remvoe me, it's Legacy API.
-    ############################################################################
-    def __backtrading(self, cerebro = None):
-        if cerebro is None:
-            cerebro = self.cerebro
-
-        self.clean_result()
-        self.setup(cerebro)
-
-        # # Broker setup
-        # self.__setup_broker(cerebro)
-        #
-        # Add analyzer
-        self.__setup_analyzer(cerebro)
-
-        # Do backtesting
-        strategy_list = cerebro.run()
-        sharpe_ratio = strategy_list[0].analyzers.sharpe.get_analysis().get("sharperatio", None)
-
-        dbg_error("Sharp", sharpe_ratio)
-        self.__analyze(strategy_list)
-        self.show_result()
-
-        return strategy_list
-
-    def testSingle(self, product_list = None, strategy = None, from_date=datetime(2020, 1, 1), to_date=datetime(2025, 1, 1)):
-        # Default testing.
-        if strategy is None:
-            strategy = self.default_strategy
-
-        if product_list is None:
-            product_list = self.default_product_list
-
-        # TODO Impl Test
-        ###############################################################
-        for each_product in product_list:
-            # Init Backtrader
-            cerebro = bt.Cerebro()
-
-            df = self.market.get_data(each_product)
-            data = bt.feeds.PandasData(dataname=df, fromdate=from_date, todate=to_date)
-
-            # Add data to enginee
-            cerebro.adddata(data, name=each_product)
-
-            dbg_info(f"Start running {each_product} with {strategy}.")
-
-            # Load strategy
-            cerebro.addstrategy(strategy)
-
-            self.__backtrading(cerebro)
-    def testBatch(self, product_list = None, strategy_list = None, from_date=datetime(2020, 1, 1), to_date=datetime(2025, 1, 1)):
-        dbg_info('Tset Start.')
-
-        # Default testing.
-        if strategy_list is None:
-            strategy_list = [self.default_strategy]
-
-        if product_list is None:
-            product_list = self.default_product_list
-
-        for each_strategy in strategy_list:
-            dbg_trace('Test run with '.format(each_strategy))
-            try:
-                # TODO Impl Test
-                ###############################################################
-                # Init Backtrader
-                cerebro = bt.Cerebro()
-
-                for each_product in product_list:
-                    dbg_info("Product List: ", each_product.__str__())
-                    try:
-                        df = self.market.get_data(each_product)
-                        data = bt.feeds.PandasData(dataname=df, fromdate=from_date, todate=to_date)
-
-                        # Add data to enginee
-                        cerebro.adddata(data, name=each_product)
-                    except Exception as e:
-                        dbg_error("Error ticker: ", each_product)
-                        # self.update_tracking_list(each_product, False)
-                        dbg_error(e)
-
-                        traceback_output = traceback.format_exc()
-                        dbg_error(traceback_output)
-                        continue
-
-
-                dbg_info("Start running Strategy.")
-                # Load strategy
-                cerebro.addstrategy(each_strategy)
-
-                self.__backtrading(cerebro)
-
-                # Do ploting
-                # cerebro.plot()
-                ###############################################################
-
-
-                # dbg_info("Tracking List: " + product_list.__str__())
-
-            except KeyboardInterrupt:
-                dbg_warning("Keyboard Interupt.")
-            except Exception as e:
-                dbg_error(e)
-
-                traceback_output = traceback.format_exc()
-                dbg_error(traceback_output)
-

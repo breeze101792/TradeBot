@@ -1,0 +1,5 @@
+backtrader
+pandas
+yfinance
+twstock
+lxml

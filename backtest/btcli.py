@@ -14,6 +14,7 @@ from market.market import *
 
 from backtest.backtest import *
 from strategy.strategy import StrategyManager
+from broker.shioajibroker import ShioajiBroker
 
 class BTCLI(CommandLineInterface):
     def __init__(self):
@@ -27,6 +28,7 @@ class BTCLI(CommandLineInterface):
         # self.strategy_list = [MovingAverageCrossover]
         self.strategy_list=[self.strategyMgr.get_strategy_list()[0].NAME]
         self.mode = 'default'
+        self.broker = None
         self.backtest = Backtest(self.market)
 
         ## cmds
@@ -57,7 +59,26 @@ class BTCLI(CommandLineInterface):
         self.total_mode_list = ['default', 'single', 'mix']
         self.regist_cmd("mode", self.cmd_mode, description=f"Set test mode. {self.total_mode_list}", arg_list = self.total_mode_list, group='setting')
 
+        self.total_test_cmd_list = ['strategy', 'shioajifake']
+        self.regist_cmd("test", self.cmd_test, description=f"Set test commands. cmd:{self.total_test_cmd_list}", arg_list = self.total_test_cmd_list, group='setting')
 
+
+    def cmd_test(self, args):
+        operation_list = self.total_test_cmd_list
+
+        if args['#'] == 1 and args['1'] in operation_list:
+            if args['1'] == 'strategy':
+                # for easy to trace, set to two month
+                self.backtest.TO_DATE = datetime.today()
+                self.backtest.FROM_DATE = datetime.today() - relativedelta(months=2)
+                dbg_info(f"{datetime.today()},{relativedelta(month=3)}")
+                self.strategy_list=['TEST']
+                self.cmd_info()
+                return True
+            elif args['1'] == 'shioajifake':
+                self.broker = ShioajiBroker
+                return True
+        return False
     def cmd_market(self, args):
         operation_list = ['set']
         # market_list = ['twse', 'yahoo']
@@ -248,7 +269,7 @@ class BTCLI(CommandLineInterface):
             if self.mode == 'default':
                 for each_strategy in self.strategy_list:
                     for each_product in self.product_list:
-                        self.backtest.setup()
+                        self.backtest.setup(broker=self.broker)
                         self.backtest.add_data([each_product])
                         self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy)])
                         self.backtest.eval()
@@ -256,14 +277,14 @@ class BTCLI(CommandLineInterface):
             elif self.mode == 'single':
                 # self.backtest.testSingle(strategy=self.strategy_list[0], product_list=self.product_list)
                 for each_product in self.product_list:
-                    self.backtest.setup()
+                    self.backtest.setup(broker=self.broker)
                     self.backtest.add_data([each_product])
                     self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
                     self.backtest.eval()
                 self.backtest.show_result()
             elif self.mode == 'mix':
                 # self.backtest.testBatch(strategy_list = self.strategy_list, product_list = self.product_list)
-                self.backtest.setup()
+                self.backtest.setup(broker=self.broker)
                 self.backtest.add_data(self.product_list)
                 self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
                 self.backtest.eval()

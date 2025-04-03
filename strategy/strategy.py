@@ -2,6 +2,7 @@ import backtrader as bt
 import pandas as pd
 from utility.debug import *
 from strategy.experiment import *
+from strategy.test import TestStrategy
 
 class py_prop:
         pass
@@ -14,6 +15,7 @@ class StrategyManager:
         self.register_strategy(MovingAverageCrossover)
         self.register_strategy(BreakoutMomentum)
         self.register_strategy(BreakoutMomentumEn)
+        self.register_strategy(TestStrategy)
         # print(f'Init StrategyManager {self.strategy_dict}, {test}', )
 
     def register_strategy(self, new_strategy):

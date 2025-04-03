@@ -14,6 +14,9 @@ pip install yfinance backtrader
 * impl cli interface.
 * disable buy stock, only sell mode.
 
+* Add sizer to manager cash
+* Add working strateg
+
 ## Package
 ```
 pip instasll backtrader pandas yfinance twstock lxml
