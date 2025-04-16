@@ -83,26 +83,24 @@ class Market:
 
     def update_data(self):
         product_frame_list = self.instance.get_data_list()
-        for _, each_product_row in product_frame_list.iterrows():
-            dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
+        product_amount = len(product_frame_list)
+        for idx, each_product_row in product_frame_list.iterrows():
+            dbg_info(f"[{idx}/{product_amount}] Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
             try:
-                self.instance.get_data(product_id = each_product_row['code'], force_update = True)
-                # self.instance.get_data(product_id = '2330', force_update = True)
+                self.instance.get_data(product_id = each_product_row['code'])
             except Exception as e:
                 dbg_error(f"Error updateing stock: {each_product_row['code']}")
                 dbg_error(e)
                 time.sleep(1)
                 continue
 
-    def get_data_list_filtered(self, market: str = None, country: str = None, force_update: bool = False, start_date = ""):
-        # return self.instance.download_data_list(market = market, country = country)
-        return self.instance(market = market, conuntry = conuntry, force_update = force_update, start_date = start_date)
+    def get_data_list_filtered(self, market: str = None, country: str = None):
+        return self.instance(market = market, conuntry = conuntry)
 
-    def get_data_list(self, market: str = None, country: str = None, force_update: bool = False):
-        # return self.instance.download_data_list(market = market, country = country)
-        return self.instance.get_data_list(market = market, conuntry = conuntry, force_update = force_update)
+    def get_data_list(self, market: str = None, country: str = None):
+        return self.instance.get_data_list(market = market, conuntry = conuntry)
 
-    def get_data(self, product_id: str, period: str = None, force_update: bool = False):
-        return self.instance.get_data(product_id=product_id, period=period, force_update=force_update)
+    def get_data(self, product_id: str, period: str = None):
+        return self.instance.get_data(product_id=product_id, period=period)
 
 

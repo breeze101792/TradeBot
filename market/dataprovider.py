@@ -57,7 +57,7 @@ class DataProvider:
         # print(f"DataFrame loaded from {file_path}")
         return df
 
-    def download_data(self, product_id: str, period: str = None):
+    def download_data(self, product_id: str, start_date: str = None, period: str = None):
         dbg_error("Function not impl.")
         raise
 
@@ -65,29 +65,58 @@ class DataProvider:
         dbg_error("Function not impl.")
         raise
 
-    def get_data_list_filtered(self, market: str = None, country: str = None, force_update: bool = False, start_date = ""):
+    def get_data_list_filtered(self, market: str = None, country: str = None):
         return self.download_data_list(market = market, country = country)
 
-    def get_data_list(self, market: str = None, country: str = None, force_update: bool = False):
+    def get_data_list(self, market: str = None, country: str = None):
         return self.download_data_list(market = market, country = country)
 
     def get_data(self, product_id: str, period: str = None, force_update: bool = False):
         ticker_local_file = product_id.__str__() + ".csv"
         ticker_local_path = f"{self.cache_data_root_path}/{self.cache_data_name}"
+        today = datetime.now().date()
 
-        # Download stock data
+        # Load existing data
         df = self.load_from_csv(ticker_local_file, 'Date', folder=ticker_local_path)
-        if df is None or force_update:
-            df = self.download_data(product_id)
-            if not df.empty:
+        
+        # Check if we need to update (missing data or forced update)
+        needs_update = force_update or df is None
+        last_date = None
+        if df is not None:
+            if not df.empty: # Check if DataFrame is not empty
+                try:
+                    # Attempt to get the latest date from the index
+                    last_date = df.index.max().date()
+                    # Check if the last recorded date is before today
+                    needs_update = needs_update or (last_date < today)
+                except Exception as e:
+                    dbg_error(f"Error getting max date from index for {product_id}: {e}")
+                    # If we can't get the last date, assume an update is needed
+                    needs_update = True
+            else:
+                # DataFrame loaded but is empty, definitely needs update
+                dbg_info(f"Loaded DataFrame for {product_id} is empty.")
+                needs_update = True
+
+        if needs_update:
+            dbg_info(f'Update {product_id} info, last recorded date: {last_date}')
+            # Download new data
+            new_df = self.download_data(product_id, start_date = last_date)
+            if not new_df.empty:
+                if df is not None:
+                    # Merge old and new data, keeping the most recent
+                    df = pd.concat([df, new_df]).drop_duplicates(keep='last')
+                else:
+                    df = new_df
                 self.save_to_csv(df, ticker_local_file, folder=ticker_local_path)
         else:
             dbg_debug(f"DataFrame loaded from {ticker_local_file}")
 
-        # Check if data download ok
-        if df.empty:
-            raise ValueError("Fail to download data, Please check your sotkc id or network connection.")
-        # else:
-        #     print("Data download successfully！Showing first few lines：")
-        #     print(df.head())
+        # Ensure df is not None before checking if it's empty
+        if df is None or df.empty:
+             dbg_error(f"No data available for {product_id} after attempting load/download.")
+             # Optionally raise an error or return an empty DataFrame
+             # raise ValueError(f"No data available for {product_id}.")
+             return pd.DataFrame() # Return empty DataFrame instead of raising error immediately
+
         return df

@@ -13,47 +13,26 @@ class Yahoo(DataProvider):
     def __init__(self):
         super().__init__()
 
-    def download_data(self, ticker: str, period: int = 0):
+    def download_data(self, ticker: str, start_date: datetime = None, period: str = None):
         yf_code = ticker + '.TW'
-        if period == 0:
-            period = 'max'
+        # Prioritize start_date if provided
+        if start_date is not None:
+            # Ensure start_date is in a format yfinance understands (YYYY-MM-DD string or datetime object)
+            start_date_str = start_date.strftime('%Y-%m-%d') if isinstance(start_date, datetime) else start_date
+            dbg_info(f"Download {yf_code} starting from: {start_date_str}")
+            df = yf.Ticker(yf_code).history(start=start_date_str)
+        # Fallback to period if start_date is not provided
+        elif period is not None:
+            if period == 0:
+                period_str = 'max'
+            else:
+                # Ensure period is a string like '1d', '5d', '1mo', '1y', 'max' etc.
+                period_str = str(period) # Assuming period is passed correctly formatted
+            dbg_info(f"Download {yf_code} period: {period_str}")
+            df = yf.Ticker(yf_code).history(period=period_str)
+        # Default to 'max' period if neither start_date nor period is specified
         else:
-            period = period.__str__()
-
-        if period is not None:
-            dbg_info(f"Download {yf_code} period:{period}")
-            df = yf.Ticker(yf_code).history(period=period)
-        # elif start_date is not None and end_date is not None:
-        #     df = yf.download(yf_code, start=start_date, end=end_date, multi_level_index=False)
-        else:
-            dbg_info(f"Download {yf_code} period:max")
+            dbg_info(f"Download {yf_code} period: max (default)")
             df = yf.Ticker(yf_code).history(period="max")
 
         return df
-    # def get_ticker(self, ticker: str, start_date: str = None, end_date: str = None, period: str = None, force_update: bool = False):
-    #     # ticker = "8069.TWO"  # name from Yahoo Finance
-    #     # start_date = "2018-01-01"
-    #     # end_date = "2025-01-01"
-    #     cache_data_name = './data'
-    #     ticker_local_file = ticker.__str__() + ".csv"
-    #
-    #     # Download stock data
-    #     df = Yahoo.load_from_csv(ticker_local_file, 'Date', folder=cache_data_name)
-    #     if df is None and force_update:
-    #         if period is not None:
-    #             df = yf.Ticker(ticker).history(period=period)
-    #         elif start_date is not None and end_date is not None:
-    #             df = yf.download(ticker, start=start_date, end=end_date, multi_level_index=False)
-    #         else:
-    #             df = yf.Ticker(ticker).history(period="max")
-    #         Yahoo.save_to_csv(df, ticker_local_file, folder=cache_data_name)
-    #     else:
-    #         dbg_debug(f"DataFrame loaded from {ticker_local_file}")
-    #
-    #     # Check if data download ok
-    #     if df.empty:
-    #         raise ValueError("Fail to download data from Yahoo Finance, Please check your sotkc id or net work connection.")
-    #     # else:
-    #     #     print("Data download successfully！Showing first few lines：")
-    #     #     print(df.head())
-    #     return df

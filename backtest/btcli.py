@@ -99,20 +99,13 @@ class BTCLI(CommandLineInterface):
                 if ans == 'YES':
                     self.market.update_data()
             else:
-                self.print(f"!!! Update {args['1']} on local database.(Yes/No, Defaul No.) !!!")
-                ans = input()
-                if ans == 'YES' or ans == 'Y' or ans == 'y':
-                    self.print(f"Update product {args['1']}")
-                    self.market.get_data(product_id = args['1'], force_update = True)
+                self.print(f"Update product {args['1']}")
+                self.market.get_data(product_id = args['1'])
             return True
         else:
-            self.print(f"product_list  : {self.product_list}")
-            self.print("!!! Update above products on local database.(Yes/No, Defaul No.) !!!")
-            ans = input()
-            if ans == 'YES' or ans == 'Y' or ans == 'y':
-                for each_product in self.product_list:
-                    self.print(f"Update product {each_product}")
-                    self.market.get_data(product_id = each_product, force_update = True)
+            for each_product in self.product_list:
+                self.print(f"Update product {each_product}")
+                self.market.get_data(product_id = each_product)
         return True
 
     def cmd_info(self, args = None):

@@ -38,7 +38,7 @@ def main():
     # trading mode
     parser.add_argument("-m", "--trade-mode", action="store",
         dest="trading_mode", default="backtest",
-        choices=['backtest', 'faketrade', 'realtrade'],
+        choices=['backtest', 'trade'],
         help="Trading mode")
 
     args = parser.parse_args()
@@ -52,23 +52,12 @@ def main():
         # dbg_info('Enable Debug mode')
 
     # Start core.
-    if args.trading_mode == "faketrade":
-        dbg_info("Fake Trade starting .")
+    if args.trading_mode == "trade":
+        dbg_info("Real Trade Not support yet.")
         core = Core()
         try:
             core.initialize()
             core.start()
-        except KeyboardInterrupt:
-            dbg_error("Keyboard Interupt.")
-        except:
-            raise
-        finally:
-            core.quit()
-    elif args.trading_mode == "realtrade":
-        dbg_info("Real Trade Not support yet.")
-        core = Core()
-        try:
-            pass
         except KeyboardInterrupt:
             dbg_error("Keyboard Interupt.")
         except:

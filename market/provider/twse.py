@@ -88,31 +88,28 @@ class TWSE(DataProvider):
         return market_map.get(market_str, "unknown")
 
     # 1. Get history data
-    def download_data(self, ticker: str, period: int = 0):
-        #
-        # cache_data_name = './data_twse'
-        # ticker_local_file = stock_id + ".csv"
-        # df = load_from_csv(ticker_local_file, 'Date', folder=cache_data_name)
-        # if df is not None:
-        #     return df
-
-        # print(twstock.codes[ticker].name)   # 列印 2330 證券名稱
-        # print(twstock.codes[ticker].start)  # 列印 2330 證券上市日期
-        #
-        # stock = Stock(ticker)
-        # print(stock)
-        # print(stock.fetch_from(2024, 3))
-        # print(twstock.codes['2330'].start)  # 列印 2330 證券上市日期
-
-        if period == 0:
-            # print(twstock.codes[ticker].start)  # 列印 2330 證券上市日期
+    def download_data(self, ticker: str, start_date: datetime = None, period: str = None):
+        if start_date is not None:
+            # fetch_start_year = datetime.strptime(start_date, "%Y/%m/%d").year
+            # fetch_start_month = datetime.strptime(start_date, "%Y/%m/%d").month
+            fetch_start_year = start_date.year
+            fetch_start_month = start_date.month
+        elif period is not None:
+            fetch_start_year = datetime.now().year - period
+            fetch_start_month = 1
+        # elif period == 0:
+        elif period == 0:
+            # print(twstock.codes[ticker].start)
             # fetch_start_year = datetime(twstock.codes[ticker].start).year
             fetch_start_year = datetime.strptime(twstock.codes[ticker].start, "%Y/%m/%d").year
             # NOTE, so we wont have the full data of it. but at least we will have near full data of it.
             fetch_start_month = datetime.strptime(twstock.codes[ticker].start, "%Y/%m/%d").month + 1
         else:
-            fetch_start_year = datetime.now().year - period
-            fetch_start_month = 1
+            # print(twstock.codes[ticker].start)
+            # fetch_start_year = datetime(twstock.codes[ticker].start).year
+            fetch_start_year = datetime.strptime(twstock.codes[ticker].start, "%Y/%m/%d").year
+            # NOTE, so we wont have the full data of it. but at least we will have near full data of it.
+            fetch_start_month = datetime.strptime(twstock.codes[ticker].start, "%Y/%m/%d").month + 1
 
         if fetch_start_year < 2000:
             fetch_start_year = 2000
