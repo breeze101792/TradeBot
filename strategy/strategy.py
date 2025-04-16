@@ -2,6 +2,7 @@ import backtrader as bt
 import pandas as pd
 from utility.debug import *
 from strategy.experiment import *
+from strategy.volumn import *
 from strategy.test import TestStrategy
 
 class py_prop:
@@ -11,11 +12,26 @@ class StrategyManager:
         self.strategy_dict = dict()
         
         # Strategy registration.
+        # New.
+        self.register_strategy(PriceVolumeStrategy)
+        self.register_strategy(VWAPStrategy)
+
+        # self.register_strategy(OBVStrategy)
+        # self.register_strategy(ADLineStrategy)
+        # self.register_strategy(PriceVolumeBreakoutStrategy)
+        # self.register_strategy(CMFStrategy)
+        # self.register_strategy(VolumeSpikeStrategy)
+
         # Experiment.
-        self.register_strategy(MovingAverageCrossover)
-        self.register_strategy(BreakoutMomentum)
+        self.register_strategy(MovingAverageCrossoverEn)
         self.register_strategy(BreakoutMomentumEn)
-        self.register_strategy(TestStrategy)
+        # self.register_strategy(MovingAverageCrossover)
+        # self.register_strategy(BreakoutMomentum)
+
+        # Test
+        # self.register_strategy(TestStrategy)
+        # self.register_strategy(HighWinRateStrategy)
+
         # print(f'Init StrategyManager {self.strategy_dict}, {test}', )
 
     def register_strategy(self, new_strategy):

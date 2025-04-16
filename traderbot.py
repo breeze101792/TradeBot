@@ -10,7 +10,7 @@ from backtest.btcli import *
 
 def main():
 
-    parser = argparse.ArgumentParser(description='Usage: aiassistant [options] ......')
+    parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--debug", dest="debug",
                     help="debug mode on!!", action="store_true")
 
