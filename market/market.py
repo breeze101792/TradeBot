@@ -6,7 +6,7 @@ import threading
 # FIXME, may be remove latter
 import backtrader as bt
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Local file
 from utility.debug import *
@@ -70,7 +70,6 @@ class Market:
         for _, each_product_row in product_frame_list.iterrows():
             # dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
             product_list.append(each_product_row['code'])
-
         return product_list
     def get_top_product_list(self, number = 20):
         top_tw_stocks = [
@@ -95,12 +94,43 @@ class Market:
                 continue
 
     def get_data_list_filtered(self, market: str = None, country: str = None):
-        return self.instance(market = market, conuntry = conuntry)
+        # return self.instance(market = market, conuntry = country)
+        product_frame_list = self.instance(market = market, conuntry = country)
+        product_list = []
+        for _, each_product_row in product_frame_list.iterrows():
+            # dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
+            product_list.append(each_product_row['code'])
+        return product_list
 
     def get_data_list(self, market: str = None, country: str = None):
-        return self.instance.get_data_list(market = market, conuntry = conuntry)
+        product_frame_list = self.instance.get_data_list(market = market, country = country)
+        product_list = []
+        for _, each_product_row in product_frame_list.iterrows():
+            # dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
+            product_list.append(each_product_row['code'])
+        return product_list
 
     def get_data(self, product_id: str, period: str = None):
         return self.instance.get_data(product_id=product_id, period=period)
+    def get_next_market_date(self):
+        current_time = datetime.now()
 
+        if current_time.weekday() < 5:  # Monday-Friday
+            # Check if before cutoff time
+            if current_time.time() < current_time.replace(hour=13, minute=40, second=0, microsecond=0).time():
+                # Use today's 13:40
+                next_update_date = current_time.replace(hour=13, minute=40, second=0, microsecond=0)
+            else:
+                # Find next market day
+                next_day = current_time + timedelta(days=1)
+                while next_day.weekday() >= 5:
+                    next_day += timedelta(days=1)
+                next_update_date = next_day.replace(hour=13, minute=40, second=0, microsecond=0)
+        else:
+            # Today is weekend, find next market day
+            next_day = current_time + timedelta(days=1)
+            while next_day.weekday() >= 5:
+                next_day += timedelta(days=1)
+            next_update_date = next_day.replace(hour=13, minute=40, second=0, microsecond=0)
+        return next_update_date
 

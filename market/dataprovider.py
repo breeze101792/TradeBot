@@ -74,7 +74,7 @@ class DataProvider:
     def get_data(self, product_id: str, period: str = None, force_update: bool = False):
         ticker_local_file = product_id.__str__() + ".csv"
         ticker_local_path = f"{self.cache_data_root_path}/{self.cache_data_name}"
-        today = datetime.now().date()
+        today = datetime.now()
 
         # Load existing data
         df = self.load_from_csv(ticker_local_file, 'Date', folder=ticker_local_path)
@@ -88,7 +88,10 @@ class DataProvider:
                     # Attempt to get the latest date from the index
                     last_date = df.index.max().date()
                     # Check if the last recorded date is before today
-                    needs_update = needs_update or (last_date < today)
+                    # needs_update = needs_update or (last_date < today.date())
+
+                    if last_date < today.date() and today.time() > today.replace(hour=13, minute=40, second=0, microsecond=0).time():
+                        needs_update = True
                 except Exception as e:
                     dbg_error(f"Error getting max date from index for {product_id}: {e}")
                     # If we can't get the last date, assume an update is needed

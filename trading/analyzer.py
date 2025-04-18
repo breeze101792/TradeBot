@@ -16,13 +16,14 @@ from market.provider.yahoo import *
 from market.provider.twse import *
 from backtest.backtest import *
 from strategy.strategy import *
+from strategy.daily import *
 
-class Backtest:
+class Analyzer:
     INIT_CASH = 5000000
     COMMISSION = 0.001
     SLIPPAGE_PREC = 0.001
     TO_DATE=datetime.today()
-    FROM_DATE=TO_DATE - relativedelta(years=5)
+    FROM_DATE=TO_DATE - relativedelta(years=1)
 
     def __init__(self, market):
         self.market = market

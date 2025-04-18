@@ -8,25 +8,24 @@ from strategy.test import TestStrategy
 class py_prop:
         pass
 class StrategyManager:
-    def __init__(self, test):
+    def __init__(self, test = 0):
         self.strategy_dict = dict()
         
         # Strategy registration.
-        # New.
+        # tested
+        self.register_strategy(MovingAverageCrossoverEn)
+        self.register_strategy(BreakoutMomentumEn)
+        # self.register_strategy(MovingAverageCrossover)
+        # self.register_strategy(BreakoutMomentum)
         self.register_strategy(PriceVolumeStrategy)
         self.register_strategy(VWAPStrategy)
+        # New.
 
         # self.register_strategy(OBVStrategy)
         # self.register_strategy(ADLineStrategy)
         # self.register_strategy(PriceVolumeBreakoutStrategy)
         # self.register_strategy(CMFStrategy)
         # self.register_strategy(VolumeSpikeStrategy)
-
-        # Experiment.
-        self.register_strategy(MovingAverageCrossoverEn)
-        self.register_strategy(BreakoutMomentumEn)
-        # self.register_strategy(MovingAverageCrossover)
-        # self.register_strategy(BreakoutMomentum)
 
         # Test
         # self.register_strategy(TestStrategy)

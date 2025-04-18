@@ -22,7 +22,7 @@ class BTCLI(CommandLineInterface):
 
         ## Vars
         self.market = Market()
-        self.strategyMgr = StrategyManager(test = 5)
+        self.strategyMgr = StrategyManager()
 
         self.product_list = ['2330']
         # self.strategy_list = [MovingAverageCrossover]

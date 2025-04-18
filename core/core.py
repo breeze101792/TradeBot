@@ -1,13 +1,13 @@
 
 # system file
 import traceback
-import time
 import threading
 
+import time
 # FIXME, may be remove latter
 import backtrader as bt
 import pandas as pd
-from datetime import datetime,timedelta
+from datetime import datetime, timedelta
 
 # Local file
 from utility.debug import *
@@ -15,9 +15,9 @@ from core.database import *
 # from market.provider.yahoo import *
 # from market.provider.twse import *
 from market.market import *
-from backtest.backtest import *
 from strategy.strategy import *
-from core.tradecli import TDCLI
+from trading.tradecli import TDCLI
+from trading.evaluate import Evaluate
 
 def sleep_until(target_time: datetime):
     now = datetime.now()
@@ -54,10 +54,26 @@ class Core:
     def __initcheck(self):
         # Check env setup is okay or not.
         return True
-    def __sanitycheck(self):
+    def __sanitycheck(self, args = None):
         # Check sanity check on heart beat okay or not.
         # dbg_info('Sanity Check.')
-        pass
+        return True
+
+    def __update_datasource(self, args = None):
+        self.market.update_data()
+        return True
+    def __trading(self, args = None):
+        trade_eval = Evaluate()
+
+        # Buyig evaluation.
+        buy_list = trade_eval.buying_evaluation()
+
+        # Selling evaluation.
+        sell_list = trade_eval.selling_evaluation()
+        
+        # Place order on real broker
+
+        return True
 
     def __heatbeat(self):
         dbg_info('Heatbeat Start.')
@@ -93,28 +109,21 @@ class Core:
 
         dbg_info('Service Start.')
         self.flag_trade_service_running = True
-        # TODO, change it to real life settings.
-        service_interval_time=5
 
-        # do the evaluation on every service_interval_time.
+        # do the evaluation daily
         while True:
             try:
-                dbg_trace('Trading Service running in every {}s'.format(service_interval_time))
-
-                # TODO, Add broker trading here.
-                # backtest = Backtest()
-                # # backtest.testSingle(strategy=MovingAverageCrossover)
-                # # backtest.testSingle(strategy=BreakoutMomentum)
-                # # backtest.testSingle(strategy=BreakoutMomentumEn)
-                # # strategy_list = [MovingAverageCrossover, BreakoutMomentum, BreakoutMomentumEn]
-                # strategy_list = [MovingAverageCrossover]
-                # backtest.testBatch(strategy_list = strategy_list)
-
-                # break
+                # sleeping control
                 ###############################################################
+                # sleep until next weekday market close time
+                # give the time to download first.
+                target = self.market.get_next_market_date().replace(hour=15, minute=0, second=0, microsecond=0)
+                sleep_until(target)
 
-                # dbg_info("Tracking List: " + tracking_list.__str__())
-                time.sleep(service_interval_time)
+                ###############################################################
+                dbg_info('Running Trading Service')
+                self.__trading()
+
             except KeyboardInterrupt:
                 dbg_warning("Keyboard Interupt.")
                 self.flag_trade_service_running = False
@@ -142,21 +151,20 @@ class Core:
         # do the evaluation on every day
         while True:
             try:
-                dbg_trace('Update stock info.')
-
+                # sleeping control
                 ###############################################################
-                # Update market info here.
-                self.market.update_data()
-                ###############################################################
-
                 # sleep until next weekday market close time
-                now = datetime.now()
-                tomorrow = now + timedelta(days=1)
-                # Skip weekends (Saturday=5, Sunday=6)
-                while tomorrow.weekday() >= 5:  # If Sat or Sun, find next Monday
-                    tomorrow += timedelta(days=1)
-                target = tomorrow.replace(hour=13, minute=40, second=0, microsecond=0)
+                # current_time = datetime.now()
+                
+                target = self.market.get_next_market_date()
                 sleep_until(target)
+                ###############################################################
+
+                dbg_trace('Updating stock info.')
+                # Update market info here.
+                self.__update_datasource()
+                ###############################################################
+
             except KeyboardInterrupt:
                 dbg_warning("Keyboard Interupt.")
                 self.flag_datasource_service_running = False
@@ -186,8 +194,11 @@ class Core:
             self.database.setup()
             # self.database.dump_all()
             self.database.close()
-            self.tdcli = TDCLI()
             self.market = Market()
+            self.tdcli = TDCLI()
+            self.tdcli.regist_cmd("sanity", self.__sanitycheck, description="Run internal health checks for the core system.", group='tools')
+            self.tdcli.regist_cmd("update", self.__update_datasource, description="Manually trigger an update of market data from configured sources.", group='tools')
+            self.tdcli.regist_cmd("trade", self.__trading, description="Do Trading analysis and buy/sell stock.", group='tools')
         except Exception as e:
             dbg_error(e)
             traceback_output = traceback.format_exc()
