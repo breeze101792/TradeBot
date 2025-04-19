@@ -4,9 +4,18 @@ from utility.debug import *
 from strategy.basicstrategy import *
 
 # Daily test MACE Strategy
+# this is for experiment on daily evaluation.
 class DailyStrategy(BasicStrategy):
     NAME="DAILY"
     trading_date = None
+    last_trade = {
+    "date"          : None,
+    "code"          : "",
+    "action"        : "none", # sell/buy/None
+    "current_price" : 0,
+    "target_price"  : 0,      # sell when price falls to this (target for short position)
+    "stop_price"    : 0       # stop-loss for short; if price rises above this, close position
+    }
     params = (
         ("short_period", 5),  # Short period for moving average (5 days)
         ("long_period", 20),  # Long period for moving average (20 days)
@@ -32,6 +41,28 @@ class DailyStrategy(BasicStrategy):
             return True
         else:
             return False
+    def reset_status(self):
+        self.trading_date = None
+        self.last_trade = {
+        "date"          : None,
+        "code"          : "",
+        "action"        : "none", # sell/buy/None
+        "current_price" : 0,
+        "target_price"  : 0,      # sell when price falls to this (target for short position)
+        "stop_price"    : 0       # stop-loss for short; if price rises above this, close position
+        }
+
+    def update_trading_info(self, date, code, action,current_price , target_price, stop_price):
+        self.last_trade['date']          = date
+        self.last_trade['code']          = code
+        self.last_trade['action']        = action
+        self.last_trade['current_price'] = current_price
+        self.last_trade['target_price']  = target_price
+        self.last_trade['stop_price']    = stop_price
+
+        # if action == 'buy':
+        #     trade_info = self.last_trade
+        #     dbg_info(f"Update Trade info {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['current_price']:.2f}, Target: {trade_info['target_price']:.2f}, Stop: {trade_info['stop_price']:.2f}")
 
     def next(self):
         if not self.__is_trading_date(self.datas[0].datetime.date(0)):
@@ -49,7 +80,16 @@ class DailyStrategy(BasicStrategy):
                 self.take_profit[data] = price * 1.2  # Set initial take profit (20% up)
                 self.trailing_stop[data] = price * 0.95  # Set initial trailing stop loss (5% down)
                 self.trailing_takeprofit[data] = price * 1.2  # Set initial trailing take profit (20% up)
-                dbg_info(f"📈 [{self.data.datetime.date(0)}]{data._name} Bought @ {price:.2f}, Stop Loss: {self.stop_loss[data]:.2f}, Take Profit: {self.take_profit[data]:.2f}")
+                dbg_log(f"📈 [{self.data.datetime.date(0)}]{data._name} Bought @ {price:.2f}, Stop Loss: {self.stop_loss[data]:.2f}, Take Profit: {self.take_profit[data]:.2f}")
+                # Update last trade info after buying
+                self.update_trading_info(
+                    date=self.data.datetime.date(0),
+                    code=data._name,
+                    action="buy",
+                    current_price=price,
+                    target_price=self.take_profit[data], # Using take_profit as target for long
+                    stop_price=self.stop_loss[data]
+                )
 
             # Exit: Short MA crosses below Long MA or hit stop loss/take profit
             elif pos:
@@ -62,16 +102,52 @@ class DailyStrategy(BasicStrategy):
                 # Exit conditions
                 if price < self.trailing_stop[data]:
                     self.sell(data=data, size=pos.size)
-                    dbg_info(f"📉 [{self.data.datetime.date(0)}]{data._name} Trailing Stop Loss hit @ {price:.2f}")
+                    dbg_log(f"📉 [{self.data.datetime.date(0)}]{data._name} Trailing Stop Loss hit @ {price:.2f}")
+                    # Update last trade info after selling (trailing stop)
+                    self.update_trading_info(
+                        date=self.data.datetime.date(0),
+                        code=data._name,
+                        action="sell",
+                        current_price=price,
+                        target_price=0, # No target after closing
+                        stop_price=0    # No stop after closing
+                    )
 
                 elif price > self.trailing_takeprofit[data]:
                     self.sell(data=data, size=pos.size)
-                    dbg_info(f"🏆 [{self.data.datetime.date(0)}]{data._name} Trailing Take Profit hit @ {price:.2f}")
+                    dbg_log(f"🏆 [{self.data.datetime.date(0)}]{data._name} Trailing Take Profit hit @ {price:.2f}")
+                    # Update last trade info after selling (trailing take profit)
+                    self.update_trading_info(
+                        date=self.data.datetime.date(0),
+                        code=data._name,
+                        action="sell",
+                        current_price=price,
+                        target_price=0, # No target after closing
+                        stop_price=0    # No stop after closing
+                    )
 
                 elif self.sma_short[data][0] < self.sma_long[data][0] or price < self.stop_loss[data]:
                     self.sell(data=data, size=pos.size)
-                    dbg_info(f"📉 [{self.data.datetime.date(0)}]{data._name} Stop Loss hit @ {price:.2f}")
+                    dbg_log(f"📉 [{self.data.datetime.date(0)}]{data._name} Exit Signal (SMA Cross/Stop Loss) @ {price:.2f}") # Improved log message
+                    # Update last trade info after selling (SMA cross or initial stop)
+                    self.update_trading_info(
+                        date=self.data.datetime.date(0),
+                        code=data._name,
+                        action="sell",
+                        current_price=price,
+                        target_price=0, # No target after closing
+                        stop_price=0    # No stop after closing
+                    )
             else:
-                stop_loss = price * 0.95  # Set initial stop loss (5% down)
-                take_profit = price * 1.2  # Set initial take profit (20% up)
-                dbg_info(f"- [{self.data.datetime.date(0)}]{data._name} NONE @ {price:.2f}, Stop Loss: {stop_loss:.2f}, Take Profit: {take_profit:.2f}")
+                # No position held
+                dbg_log(f"- [{self.data.datetime.date(0)}]{data._name} No Position @ {price:.2f}")
+
+                # Update last trade info when no position is held
+                self.update_trading_info(
+                    date=self.data.datetime.date(0),
+                    code=data._name,
+                    action="none",
+                    current_price=price,
+                    target_price=0, # No target
+                    stop_price=0    # No stop
+                )

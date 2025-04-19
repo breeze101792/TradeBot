@@ -146,6 +146,9 @@ class Analyzer:
                 dbg_error(e)
                 traceback_output = traceback.format_exc()
                 dbg_error(traceback_output)
+    def get_analysis(self):
+        return self.result_list
+
 
     def add_data(self,product_list , cerebro = None):
         if cerebro is None:

@@ -2,7 +2,7 @@ import pandas as pd
 import traceback
 import os
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from utility.debug import *
 
@@ -87,10 +87,13 @@ class DataProvider:
                 try:
                     # Attempt to get the latest date from the index
                     last_date = df.index.max().date()
-                    # Check if the last recorded date is before today
-                    # needs_update = needs_update or (last_date < today.date())
+                    # Check if there is new data on the market.
+                    last_trading_day = datetime.now().replace(hour=13, minute=40, second=0, microsecond=0)
 
-                    if last_date < today.date() and today.time() > today.replace(hour=13, minute=40, second=0, microsecond=0).time():
+                    while last_trading_day.weekday() >= 5:
+                        last_trading_day -= timedelta(days=1)
+
+                    if last_date < last_trading_day.date():
                         needs_update = True
                 except Exception as e:
                     dbg_error(f"Error getting max date from index for {product_id}: {e}")
