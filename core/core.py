@@ -117,7 +117,7 @@ class Core:
                 ###############################################################
                 # sleep until next weekday market close time
                 # give the time to download first.
-                target = self.market.get_next_market_date().replace(hour=15, minute=0, second=0, microsecond=0)
+                target = MarketTime.get_next_market_update_time().replace(hour=15, minute=0, second=0, microsecond=0)
                 sleep_until(target)
 
                 ###############################################################
@@ -155,14 +155,14 @@ class Core:
                 ###############################################################
                 # sleep until next weekday market close time
                 # current_time = datetime.now()
-                
-                target = self.market.get_next_market_date()
+                target = MarketTime.get_next_market_update_time()
                 sleep_until(target)
                 ###############################################################
 
-                dbg_trace('Updating stock info.')
+                dbg_info('Updating stock info.')
                 # Update market info here.
                 self.__update_datasource()
+                dbg_info('Stock info updated.')
                 ###############################################################
 
             except KeyboardInterrupt:

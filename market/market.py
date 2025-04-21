@@ -15,11 +15,129 @@ from market.dataprovider import *
 
 from market.provider.yahoo import *
 from market.provider.twse import *
+from datetime import time as dt_time # Alias to avoid conflict with time module
+
+class MarketTime:
+    # Standard market times (e.g., for TWSE)
+    # TODO: Make these market-specific if needed
+    MARKET_OPEN_TIME = dt_time(9, 0, 0)
+    MARKET_CLOSE_TIME = dt_time(13, 30, 0)
+    MARKET_UPDATE_TIME = dt_time(13, 40, 0) # Time when daily data is usually finalized
+
+    @staticmethod
+    def get_market_open_time() -> dt_time:
+        """Returns the standard market opening time."""
+        return MarketTime.MARKET_OPEN_TIME
+
+    @staticmethod
+    def get_market_close_time() -> dt_time:
+        """Returns the standard market closing time."""
+        return MarketTime.MARKET_CLOSE_TIME
+
+    @staticmethod
+    def _get_next_trading_day_time(target_time: dt_time) -> datetime:
+        """
+        Helper method to find the next datetime for a specific time on a trading day.
+        """
+        current_time = datetime.now()
+        target_datetime_today = current_time.replace(
+            hour=target_time.hour,
+            minute=target_time.minute,
+            second=0,
+            microsecond=0
+        )
+
+        if current_time.weekday() < 5:  # Monday-Friday
+            # If current time is before the target time today
+            if current_time < target_datetime_today:
+                next_target_datetime = target_datetime_today
+            else:
+                # Target time already passed today, find next trading day
+                next_day = current_time + timedelta(days=1)
+                while next_day.weekday() >= 5: # Skip weekends
+                    next_day += timedelta(days=1)
+                next_target_datetime = next_day.replace(
+                    hour=target_time.hour,
+                    minute=target_time.minute,
+                    second=0,
+                    microsecond=0
+                )
+        else: # Saturday or Sunday
+            # Find next trading day (Monday)
+            days_until_monday = 7 - current_time.weekday()
+            next_day = current_time + timedelta(days=days_until_monday)
+            next_target_datetime = next_day.replace(
+                hour=target_time.hour,
+                minute=target_time.minute,
+                second=0,
+                microsecond=0
+            )
+
+        return next_target_datetime
+
+    @staticmethod
+    def get_next_market_update_time() -> datetime:
+        """
+        Calculates the next expected market data update time using the helper method.
+        Assumes updates happen at MARKET_UPDATE_TIME on trading days (Mon-Fri).
+        """
+        return MarketTime._get_next_trading_day_time(MarketTime.MARKET_UPDATE_TIME)
+
+    @staticmethod
+    def get_next_market_open_time() -> datetime:
+        """
+        Calculates the next market opening time using the helper method.
+        Assumes the market opens at MARKET_OPEN_TIME on trading days (Mon-Fri).
+        """
+        return MarketTime._get_next_trading_day_time(MarketTime.MARKET_OPEN_TIME)
+
+    @staticmethod
+    def get_previous_market_update_time() -> datetime:
+        """
+        Calculates the previous expected market data update time.
+        Assumes updates happen at MARKET_UPDATE_TIME on trading days (Mon-Fri).
+        """
+        current_time = datetime.now()
+        update_time_today = current_time.replace(
+            hour=MarketTime.MARKET_UPDATE_TIME.hour,
+            minute=MarketTime.MARKET_UPDATE_TIME.minute,
+            second=0,
+            microsecond=0
+        )
+
+        if current_time.weekday() < 5:  # Monday-Friday
+            # If current time is after today's update time, the previous update was today.
+            if current_time >= update_time_today:
+                previous_update_date = update_time_today
+            else:
+                # Otherwise, the previous update was on the last trading day.
+                previous_day = current_time - timedelta(days=1)
+                # Skip backwards over weekend days
+                while previous_day.weekday() >= 5:
+                    previous_day -= timedelta(days=1)
+                previous_update_date = previous_day.replace(
+                    hour=MarketTime.MARKET_UPDATE_TIME.hour,
+                    minute=MarketTime.MARKET_UPDATE_TIME.minute,
+                    second=0,
+                    microsecond=0
+                )
+        else:  # Saturday or Sunday
+            # The previous update was on the last trading day (Friday).
+            previous_day = current_time - timedelta(days=(current_time.weekday() - 4)) # Days since last Friday
+            previous_update_date = previous_day.replace(
+                hour=MarketTime.MARKET_UPDATE_TIME.hour,
+                minute=MarketTime.MARKET_UPDATE_TIME.minute,
+                second=0,
+                microsecond=0
+            )
+
+        return previous_update_date
 
 class Market:
     def __init__(self, market = None):
         self.__market_list = [ TWSE, Yahoo ]
         self.instance = None
+        self.cached_stock_info_frame = None
 
         if market is not None:
             self.switch_market(market)
@@ -63,14 +181,6 @@ class Market:
             if market == each_market.NAME:
                 self.instance = each_market()
 
-    def get_product_list_by_date(self, start_date = "2020-01-01"):
-        product_frame_list = self.instance.get_data_list()
-        self.__filter_by_start_date(product_frame_list, start_date, "start")
-        product_list = []
-        for _, each_product_row in product_frame_list.iterrows():
-            # dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
-            product_list.append(each_product_row['code'])
-        return product_list
     def get_top_product_list(self, number = 20):
         top_tw_stocks = [
             "2330", "2454", "2317", "2881", "2308",
@@ -79,6 +189,50 @@ class Market:
             "2884", "6669", "2885", "5880", "3045"
         ]
         return top_tw_stocks
+
+    def get_product_list_by_date(self, start_date = "2020-01-01"):
+        product_frame_list = self.instance.get_data_list()
+        self.__filter_by_start_date(product_frame_list, start_date, "start")
+        product_list = []
+        for _, each_product_row in product_frame_list.iterrows():
+            # dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
+            product_list.append(each_product_row['code'])
+        return product_list
+    # def get_data_list_filtered(self, market: str = None, country: str = None):
+    #     # return self.instance(market = market, conuntry = country)
+    #     product_frame_list = self.instance(market = market, conuntry = country)
+    #     product_list = []
+    #     for _, each_product_row in product_frame_list.iterrows():
+    #         # dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
+    #         product_list.append(each_product_row['code'])
+    #     return product_list
+
+    def get_data_list(self, market: str = None, country: str = None):
+        product_frame_list = self.instance.get_data_list(market = market, country = country)
+        self.cached_stock_info_frame = product_frame_list
+        product_list = []
+        for _, each_product_row in product_frame_list.iterrows():
+            # dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
+            product_list.append(each_product_row['code'])
+        return product_list
+
+    def get_data(self, product_id: str, period: str = None):
+        return self.instance.get_data(product_id=product_id, period=period)
+
+    def get_data_info(self, product_id):
+        if self.cached_stock_info_frame is None:
+            # Update cached buffer
+            self.get_data_list()
+
+        try:
+            pd_info = self.cached_stock_info_frame
+            return pd_info[pd_info['code'] == product_id].iloc[0].to_dict()
+        except Exception as e:
+            dbg_error(e)
+        
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+            return None
 
     def update_data(self):
         product_frame_list = self.instance.get_data_list()
@@ -93,44 +247,8 @@ class Market:
                 time.sleep(1)
                 continue
 
-    def get_data_list_filtered(self, market: str = None, country: str = None):
-        # return self.instance(market = market, conuntry = country)
-        product_frame_list = self.instance(market = market, conuntry = country)
-        product_list = []
-        for _, each_product_row in product_frame_list.iterrows():
-            # dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
-            product_list.append(each_product_row['code'])
-        return product_list
-
-    def get_data_list(self, market: str = None, country: str = None):
-        product_frame_list = self.instance.get_data_list(market = market, country = country)
-        product_list = []
-        for _, each_product_row in product_frame_list.iterrows():
-            # dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
-            product_list.append(each_product_row['code'])
-        return product_list
-
-    def get_data(self, product_id: str, period: str = None):
-        return self.instance.get_data(product_id=product_id, period=period)
-    def get_next_market_date(self):
-        current_time = datetime.now()
-
-        if current_time.weekday() < 5:  # Monday-Friday
-            # Check if before cutoff time
-            if current_time.time() < current_time.replace(hour=13, minute=40, second=0, microsecond=0).time():
-                # Use today's 13:40
-                next_update_date = current_time.replace(hour=13, minute=40, second=0, microsecond=0)
-            else:
-                # Find next market day
-                next_day = current_time + timedelta(days=1)
-                while next_day.weekday() >= 5:
-                    next_day += timedelta(days=1)
-                next_update_date = next_day.replace(hour=13, minute=40, second=0, microsecond=0)
-        else:
-            # Today is weekend, find next market day
-            next_day = current_time + timedelta(days=1)
-            while next_day.weekday() >= 5:
-                next_day += timedelta(days=1)
-            next_update_date = next_day.replace(hour=13, minute=40, second=0, microsecond=0)
-        return next_update_date
+    # This method seems redundant now that the logic is in MarketTime.get_next_market_update_time
+    # Consider removing it or calling the MarketTime method from here if needed.
+    # def get_next_market_date(self):
+    #     return MarketTime.get_next_market_update_time()
 

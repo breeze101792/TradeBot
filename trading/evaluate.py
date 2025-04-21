@@ -2,7 +2,7 @@ from datetime import timedelta
 import traceback
 from trading.analyzer import Analyzer
 from strategy.strategy import *
-from market.market import Market
+from market.market import Market, MarketTime
 from strategy.daily import *
 
 class Evaluate:
@@ -17,16 +17,14 @@ class Evaluate:
 
         # predefine for development
         strategyMgr = StrategyManager()
-        strategy_list=[DailyStrategy]
+        strategy_list=[DailyMACStrategy]
 
         market = Market()
         product_list = market.get_data_list()
-        # product_list = ['1303', '1312']
+        # product_list = market.get_data_list()[:50]
+        # product_list = ['4949', '6183', '2330']
 
-        last_trading_day = datetime.now().date()
-
-        while last_trading_day.weekday() >= 5:
-            last_trading_day -= timedelta(days=1)
+        last_trading_day = MarketTime.get_previous_market_update_time().date()
 
         dbg_info(f"Last Trad date {last_trading_day}")
 
@@ -37,7 +35,7 @@ class Evaluate:
             for each_idx in range(0, len(product_list)):
                 each_product = product_list[each_idx]
                 try:
-                    dbg_info(f"[{each_idx:>2}/{len(product_list)}] {each_product}")
+                    dbg_info(f"[{each_idx + 1:>2}/{len(product_list)}] {each_product}")
                     trade_analyzer = Analyzer(Market())
                     trade_analyzer.setup()
                     trade_analyzer.add_data([each_product])
@@ -50,8 +48,6 @@ class Evaluate:
                         dbg_info(f"Evaluation Trade {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['current_price']:.2f}, Target: {trade_info['target_price']:.2f}, Stop: {trade_info['stop_price']:.2f}")
                         
                         candidate_dict[trade_info['code']] = {'strategy': each_strategy}
-                    # else:
-                    #     dbg_info(f"Last Trade {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['current_price']:.2f}, Target: {trade_info['target_price']:.2f}, Stop: {trade_info['stop_price']:.2f}")
                 except Exception as e:
                     dbg_warning(e)
                 
@@ -92,9 +88,10 @@ class Evaluate:
                 dbg_warning(traceback_output)
 
         if len(buying_dict) != 0:
-            dbg_info(f"Buying List:")
+            dbg_info(f"Buying List: {buying_dict.keys()}")
         for each_product in buying_dict.keys():
-            dbg_info(f"Code: {each_product}, {buying_dict[each_product]['strategy']}, profit: {buying_dict[each_product]['profit']}")
+            product_info = market.get_data_info(each_product)
+            dbg_info(f"Product: {each_product} {product_info['name']}/{product_info['category']}, {buying_dict[each_product]['strategy']}, profit: {buying_dict[each_product]['profit']}")
         return buying_dict
     def selling_evaluation(self):
         pass

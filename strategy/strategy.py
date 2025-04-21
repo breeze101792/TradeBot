@@ -4,6 +4,7 @@ from utility.debug import *
 from strategy.experiment import *
 from strategy.volumn import *
 from strategy.test import TestStrategy
+from strategy.daily import DailyMACStrategy
 
 class py_prop:
         pass
@@ -13,6 +14,7 @@ class StrategyManager:
         
         # Strategy registration.
         # tested
+        self.register_strategy(DailyMACStrategy)
         self.register_strategy(MovingAverageCrossoverEn)
         self.register_strategy(BreakoutMomentumEn)
         # self.register_strategy(MovingAverageCrossover)

@@ -261,27 +261,29 @@ class BTCLI(CommandLineInterface):
             self.backtest.clean_result()
             if self.mode == 'default':
                 for each_strategy in self.strategy_list:
+                    target_strategy = self.strategyMgr.get_strategy_by_name(each_strategy)
                     for each_product in self.product_list:
+                        target_strategy.reset_status(target_strategy)
                         self.backtest.setup(broker=self.broker)
                         self.backtest.add_data([each_product])
-                        self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy)])
+                        self.backtest.add_strategy([target_strategy])
                         self.backtest.eval()
                 self.backtest.show_result()
-            elif self.mode == 'single':
-                # self.backtest.testSingle(strategy=self.strategy_list[0], product_list=self.product_list)
-                for each_product in self.product_list:
-                    self.backtest.setup(broker=self.broker)
-                    self.backtest.add_data([each_product])
-                    self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
-                    self.backtest.eval()
-                self.backtest.show_result()
-            elif self.mode == 'mix':
-                # self.backtest.testBatch(strategy_list = self.strategy_list, product_list = self.product_list)
-                self.backtest.setup(broker=self.broker)
-                self.backtest.add_data(self.product_list)
-                self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
-                self.backtest.eval()
-                self.backtest.show_result()
+            # elif self.mode == 'single':
+            #     # self.backtest.testSingle(strategy=self.strategy_list[0], product_list=self.product_list)
+            #     for each_product in self.product_list:
+            #         self.backtest.setup(broker=self.broker)
+            #         self.backtest.add_data([each_product])
+            #         self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
+            #         self.backtest.eval()
+            #     self.backtest.show_result()
+            # elif self.mode == 'mix':
+            #     # self.backtest.testBatch(strategy_list = self.strategy_list, product_list = self.product_list)
+            #     self.backtest.setup(broker=self.broker)
+            #     self.backtest.add_data(self.product_list)
+            #     self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
+            #     self.backtest.eval()
+            #     self.backtest.show_result()
             else:
                 dbg_error(f'Unknown test mode.{self.mode}')
                 return False

@@ -93,7 +93,7 @@ class DataProvider:
                     while last_trading_day.weekday() >= 5:
                         last_trading_day -= timedelta(days=1)
 
-                    if last_date < last_trading_day.date():
+                    if last_date < last_trading_day.date() and datetime.now() >= last_trading_day:
                         needs_update = True
                 except Exception as e:
                     dbg_error(f"Error getting max date from index for {product_id}: {e}")
