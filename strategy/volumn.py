@@ -21,11 +21,11 @@ class PriceVolumeStrategy(bt.Strategy):
             if not self.position:
                 size = self.broker.get_cash() * 0.1 / self.data.close[0]
                 self.buy(size=size)
-                print(f"Buy signal: {self.data.close[0]:.2f}")
+                dbg_log(f"Buy signal: {self.data.close[0]:.2f}")
         elif self.sma_short[0] < self.sma_long[0] and self.data.close[0] < self.data.open[0] and self.data.volume[0] > self.data.volume[-1]:
             if self.position:
                 self.sell(size=self.position.size)
-                print(f"Sell signal: {self.data.close[0]:.2f}")
+                dbg_log(f"Sell signal: {self.data.close[0]:.2f}")
 
 
 class OBVStrategy(bt.Strategy):
@@ -45,13 +45,13 @@ class OBVStrategy(bt.Strategy):
                 # 當 OBV 穿越價格線向上時，買入
                 size = self.broker.get_cash() * 0.1 / self.data.close[0]  # 風險控制為 10% 的現金
                 self.buy(size=size)
-                print(f"Buy signal at {self.data.close[0]:.2f}")
+                dbg_log(f"Buy signal at {self.data.close[0]:.2f}")
         
         elif self.crossover < 0:
             if self.position:
                 # 當 OBV 穿越價格線向下時，賣出
                 self.sell(size=self.position.size)
-                print(f"Sell signal at {self.data.close[0]:.2f}")
+                dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
 
 class ADLineStrategy(bt.Strategy):
@@ -71,13 +71,13 @@ class ADLineStrategy(bt.Strategy):
                 # 當 A/D 線上穿價格線時，買入
                 size = self.broker.get_cash() * 0.1 / self.data.close[0]  # 風險控制為 10% 的現金
                 self.buy(size=size)
-                print(f"Buy signal at {self.data.close[0]:.2f}")
+                dbg_log(f"Buy signal at {self.data.close[0]:.2f}")
         
         elif self.crossover < 0:
             if self.position:
                 # 當 A/D 線下穿價格線時，賣出
                 self.sell(size=self.position.size)
-                print(f"Sell signal at {self.data.close[0]:.2f}")
+                dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
 
 class VWAPStrategy(bt.Strategy):
@@ -96,13 +96,13 @@ class VWAPStrategy(bt.Strategy):
                 # 當價格高於 VWAP 時，買入
                 size = self.broker.get_cash() * 0.1 / self.data.close[0]
                 self.buy(size=size)
-                print(f"Buy signal at {self.data.close[0]:.2f}")
+                dbg_log(f"Buy signal at {self.data.close[0]:.2f}")
 
         elif self.data.close[0] < self.vwap[0]:
             if self.position:
                 # 當價格低於 VWAP 時，賣出
                 self.sell(size=self.position.size)
-                print(f"Sell signal at {self.data.close[0]:.2f}")
+                dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
 class PriceVolumeBreakoutStrategy(bt.Strategy):
     NAME="PVBS"
@@ -122,13 +122,13 @@ class PriceVolumeBreakoutStrategy(bt.Strategy):
                 # 當價格突破區間並且成交量劇增時，買入
                 size = self.broker.get_cash() * 0.1 / self.data.close[0]
                 self.buy(size=size)
-                print(f"Breakout Buy signal at {self.data.close[0]:.2f}")
+                dbg_log(f"Breakout Buy signal at {self.data.close[0]:.2f}")
 
         elif self.data.close[0] < self.lowest_close[0] and self.data.volume[0] > self.avg_volume[0] * self.params.breakout_threshold:
             if self.position:
                 # 當價格突破最低區間並且成交量劇增時，賣出
                 self.sell(size=self.position.size)
-                print(f"Breakout Sell signal at {self.data.close[0]:.2f}")
+                dbg_log(f"Breakout Sell signal at {self.data.close[0]:.2f}")
 
 class CMFStrategy(bt.Strategy):
     NAME="CMFS"
@@ -146,13 +146,13 @@ class CMFStrategy(bt.Strategy):
                 # 當 CMF 大於 0 時，表示資金流入，買入
                 size = self.broker.get_cash() * 0.1 / self.data.close[0]
                 self.buy(size=size)
-                print(f"Buy signal at {self.data.close[0]:.2f}")
+                dbg_log(f"Buy signal at {self.data.close[0]:.2f}")
 
         elif self.cmf[0] < 0:
             if self.position:
                 # 當 CMF 小於 0 時，表示資金流出，賣出
                 self.sell(size=self.position.size)
-                print(f"Sell signal at {self.data.close[0]:.2f}")
+                dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
 class VolumeSpikeStrategy(bt.Strategy):
     NAME="VSS"
@@ -170,10 +170,10 @@ class VolumeSpikeStrategy(bt.Strategy):
                 if not self.position:
                     size = self.broker.get_cash() * 0.1 / self.data.close[0]
                     self.buy(size=size)
-                    print(f"Volume spike Buy signal at {self.data.close[0]:.2f}")
+                    dbg_log(f"Volume spike Buy signal at {self.data.close[0]:.2f}")
             elif self.data.close[0] < self.data.open[0]:
                 if self.position:
                     self.sell(size=self.position.size)
-                    print(f"Volume spike Sell signal at {self.data.close[0]:.2f}")
+                    dbg_log(f"Volume spike Sell signal at {self.data.close[0]:.2f}")
 
 

@@ -1,6 +1,9 @@
 from datetime import timedelta
 import traceback
-from trading.analyzer import Analyzer
+from dateutil.relativedelta import relativedelta
+
+# from trading.analyzer import Analyzer
+from backtest.backtest import Backtest as Analyzer
 from strategy.strategy import *
 from market.market import Market, MarketTime
 from strategy.daily import *
@@ -37,6 +40,9 @@ class Evaluate:
                 try:
                     dbg_info(f"[{each_idx + 1:>2}/{len(product_list)}] {each_product}")
                     trade_analyzer = Analyzer(Market())
+                    # test only one year for accerate performance.
+                    trade_analyzer.FROM_DATE=trade_analyzer.TO_DATE - relativedelta(years=1)
+
                     trade_analyzer.setup()
                     trade_analyzer.add_data([each_product])
                     trade_analyzer.add_strategy([each_strategy])
@@ -59,6 +65,8 @@ class Evaluate:
         for each_product in candidate_dict.keys():
             try:
                 trade_analyzer = Analyzer(Market())
+                # test only one year for accerate performance.
+                trade_analyzer.FROM_DATE=trade_analyzer.TO_DATE - relativedelta(years=1)
                 trade_analyzer.setup()
                 trade_analyzer.add_data([each_product])
 
@@ -80,7 +88,7 @@ class Evaluate:
                 dbg_info(f"[{each_product}], {profit:.2f}%")
                 if profit > candidate_profit_threshold:
                     buying_dict[each_product] = {'strategy': target_strategy, 'profit' : profit}
-                # trade_analyzer.show_result()
+                trade_analyzer.show_result()
             except Exception as e:
                 dbg_warning(e)
             

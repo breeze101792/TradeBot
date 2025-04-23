@@ -5,6 +5,7 @@ from strategy.experiment import *
 from strategy.volumn import *
 from strategy.test import TestStrategy
 from strategy.daily import DailyMACStrategy
+from strategy.bollinger import BollingerRebound
 
 class py_prop:
         pass
@@ -22,6 +23,7 @@ class StrategyManager:
         self.register_strategy(PriceVolumeStrategy)
         self.register_strategy(VWAPStrategy)
         # New.
+        # self.register_strategy(BollingerRebound)
 
         # self.register_strategy(OBVStrategy)
         # self.register_strategy(ADLineStrategy)

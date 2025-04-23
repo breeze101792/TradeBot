@@ -56,8 +56,8 @@ class TWSE(DataProvider):
                 product_list.append(product_data)
 
             except Exception as e:
-                print(f"Error processing stock: {each_stock}")
-                print(e)
+                dbg_error(f"Error processing stock: {each_stock}")
+                dbg_error(e)
                 continue
 
         # 轉換成 Pandas DataFrame
@@ -128,17 +128,17 @@ class TWSE(DataProvider):
 
             # 驗證數據是否完整
             if None in [date, d.open, d.high, d.low, d.close, d.capacity, d.turnover, d.transaction]:
-                print(f"⚠️ Ignore invalid data: {d}")
+                dbg_warning(f"⚠️ Ignore invalid data: {d}")
                 continue
 
             # 驗證價格數據
             if d.open <= 0 or d.high <= 0 or d.low <= 0 or d.close <= 0:
-                print(f"⚠️ Skip invalid price: {d}")
+                dbg_warning(f"⚠️ Skip invalid price: {d}")
                 continue
 
             # 驗證成交量數據
             if d.capacity < 0 or d.turnover < 0 or d.transaction < 0:
-                print(f"⚠️ Invalid trading data: {d}")
+                dbg_warning(f"⚠️ Invalid trading data: {d}")
                 continue
 
             # 加入清理後的數據

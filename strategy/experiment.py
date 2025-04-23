@@ -229,4 +229,3 @@ class BreakoutMomentumEn(bt.Strategy):
                     self.sell(data=data, size=pos.size)
                 elif price > self.trailing_takeprofit[data]:  # 觸發移動止盈
                     self.sell(data=data, size=pos.size)
-

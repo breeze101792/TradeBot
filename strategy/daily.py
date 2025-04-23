@@ -45,19 +45,22 @@ class DailyMACStrategy(BasicStrategy):
         self.trailing_stop = {}  # Trailing stop loss prices
         self.trailing_takeprofit = {}  # Trailing take profit prices
 
+        # reset status
+        self.reset_status(clean_all = False)
+
     def w_buy(self, data, size = 1):
         """Wrapper for buy order execution and logging."""
-        entry_date = self.data.datetime.date(0) # Use current strategy date for logging intent
-        code = data._name
-        entry_price = data.close[0] # Use current close for logging intent
-        dbg_trace(f"Initiating Buy: [{entry_date}] {code} @ {entry_price:.2f} x {size}")
+        # entry_date = self.data.datetime.date(0) # Use current strategy date for logging intent
+        # code = data._name
+        # entry_price = data.close[0] # Use current close for logging intent
+        # dbg_trace(f"Initiating Buy: [{entry_date}] {code} @ {entry_price:.2f} x {size}")
         self.buy(data=data, size=size)
     def w_sell(self, data, size = 1):
         """Wrapper for sell order execution and logging."""
-        exit_date = self.data.datetime.date(0) # Use current strategy date for logging intent
-        code = data._name
-        exit_price = data.close[0] # Use current close for logging intent
-        dbg_trace(f"Initiating Sell: [{exit_date}] {code} @ {exit_price:.2f} x {size}")
+        # exit_date = self.data.datetime.date(0) # Use current strategy date for logging intent
+        # code = data._name
+        # exit_price = data.close[0] # Use current close for logging intent
+        # dbg_trace(f"Initiating Sell: [{exit_date}] {code} @ {exit_price:.2f} x {size}")
         self.sell(data=data, size=size)
 
     def is_trading_date(self, data_date):
@@ -69,17 +72,19 @@ class DailyMACStrategy(BasicStrategy):
             return True
         else:
             return False
-    def reset_status(self):
-        self.trading_date = None
-        self.last_trade = {
-        "date"          : None,
-        "code"          : "",
-        "action"        : "none", # sell/buy/None
-        "current_price" : 0,
-        "target_price"  : 0,      # sell when price falls to this (target for short position)
-        "stop_price"    : 0       # stop-loss for short; if price rises above this, close position
-        }
+    def reset_status(self, clean_all = False):
+        if clean_all is True:
+            self.trading_date = None
+            self.last_trade = {
+            "date"          : None,
+            "code"          : "",
+            "action"        : "none", # sell/buy/None
+            "current_price" : 0,
+            "target_price"  : 0,      # sell when price falls to this (target for short position)
+            "stop_price"    : 0       # stop-loss for short; if price rises above this, close position
+            }
 
+        # this is for calc winning rate.
         self.active_trades = {}
         # Stores details of completed trade portions:
         # [{'code': str, 'entry_date': date, 'exit_date': date, 'avg_entry_price': float, 'exit_price': float, 'size': int, 'pnl': float, 'is_win': bool}]
@@ -308,6 +313,8 @@ class DailyMACStrategy(BasicStrategy):
         """
         Called at the end of the backtest. Calculate and print summary statistics.
         """
+        # since we have analyzer, we don't print this out.
+        return
         total_trades = len(self.trading_history)
         winning_trades = sum(1 for trade in self.trading_history if trade['is_win'])
         losing_trades = total_trades - winning_trades
@@ -316,19 +323,19 @@ class DailyMACStrategy(BasicStrategy):
             win_rate = (winning_trades / total_trades) * 100
             total_pnl = sum(trade['pnl'] for trade in self.trading_history)
 
-            print(f"\n--- Strategy Summary ---")
-            print(f"Strategy Name: {self.NAME}")
-            print(f"Total Trades: {total_trades}")
-            print(f"Winning Trades: {winning_trades}")
-            print(f"Losing Trades: {losing_trades}")
-            print(f"Win Rate: {win_rate:.2f}%")
-            print(f"Total PNL: {total_pnl:.2f}")
-            print(f"------------------------\n")
+            dbg_info(f"--- Strategy Summary ---")
+            dbg_info(f"Strategy Name: {self.NAME}")
+            dbg_info(f"Total Trades: {total_trades}")
+            dbg_info(f"Winning Trades: {winning_trades}")
+            dbg_info(f"Losing Trades: {losing_trades}")
+            dbg_info(f"Win Rate: {win_rate:.2f}%")
+            dbg_info(f"Total PNL: {total_pnl:.2f}")
+            dbg_info(f"------------------------\n")
         else:
-            print(f"\n--- Strategy Summary ---")
-            print(f"Strategy Name: {self.NAME}")
-            print("No trades were executed.")
-            print(f"------------------------\n")
+            dbg_info(f"--- Strategy Summary ---")
+            dbg_info(f"Strategy Name: {self.NAME}")
+            dbg_info("No trades were executed.")
+            dbg_info(f"------------------------\n")
 
         # You can also print the full trading history if needed
         # print("Trading History:")

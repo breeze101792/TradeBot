@@ -29,7 +29,7 @@ class DataProvider:
 
         # Save the DataFrame to CSV
         df.to_csv(file_path, index=True)
-        print(f"DataFrame saved to {file_path}")
+        dbg_trace(f"DataFrame saved to {file_path}")
 
     @staticmethod
     def load_from_csv(filename: str, date_column: str = None, folder: str = './') -> pd.DataFrame:
@@ -82,6 +82,7 @@ class DataProvider:
         # Check if we need to update (missing data or forced update)
         needs_update = force_update or df is None
         last_date = None
+        last_trading_day = None
         if df is not None:
             if not df.empty: # Check if DataFrame is not empty
                 try:
@@ -105,7 +106,7 @@ class DataProvider:
                 needs_update = True
 
         if needs_update:
-            dbg_info(f'Update {product_id} info, last recorded date: {last_date}')
+            dbg_info(f'Update {product_id} info, from {last_date} to {last_trading_day.date()}')
             # Download new data
             new_df = self.download_data(product_id, start_date = last_date)
             if not new_df.empty:
