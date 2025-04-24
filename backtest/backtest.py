@@ -35,6 +35,9 @@ class Backtest:
         self.strategy_list = []
         self.result_list = []
 
+        # every run cached.
+        self.cached_validated_history = []
+
     def __setup_broker(self, cerebro = None):
         if cerebro is None:
             cerebro = self.cerebro
@@ -107,6 +110,12 @@ class Backtest:
 
     def clean_result(self):
         self.result_list = []
+
+    def get_analysis(self):
+        if not self.result_list:
+            return None
+        else:
+            return self.result_list
 
     def show_result(self, annual_return=False):
         """
@@ -281,6 +290,53 @@ class Backtest:
                 dbg_error(traceback_output)
                 continue
 
+    def add_history(self, order_history, cerebro = None):
+        if cerebro is None:
+            cerebro = self.cerebro
+
+        # --- Input Validation ---
+        if not hasattr(order_history, '__iter__'):
+            raise TypeError("Input 'order_history' must be an iterable (e.g., list or tuple).")
+
+        self.cached_validated_history = []
+        for i, order in enumerate(order_history):
+            if not hasattr(order, '__len__') or len(order) != 4:
+                raise ValueError(f"Order at index {i} is not a valid 4-element tuple/list: {order}")
+
+            dt, size, price, data_name = order
+
+            # Basic date check (not None or empty)
+            if not dt:
+                 raise ValueError(f"Order at index {i} has an invalid datetime: {dt}")
+            # Could add more specific date checks if needed, e.g., isinstance(dt, (datetime, str))
+
+            # Size check (non-zero integer)
+            if not isinstance(size, int) or size == 0:
+                raise ValueError(f"Order at index {i} has an invalid size (must be non-zero integer): {size}")
+
+            # Price check (positive number)
+            if not isinstance(price, (int, float)) or price <= 0:
+                 raise ValueError(f"Order at index {i} has an invalid price (must be positive number): {price}")
+
+            # Data name check (non-empty string)
+            if not isinstance(data_name, str) or not data_name:
+                 raise ValueError(f"Order at index {i} has an invalid data name (must be non-empty string): {data_name}")
+
+            # Optional: Check if data_name exists in added data feeds
+            # if data_name not in self.data_list:
+            #     dbg_warning(f"Order at index {i} refers to data '{data_name}' which has not been added via add_data().")
+            #     # Depending on requirements, you might raise ValueError here instead of just warning.
+
+            self.cached_validated_history.append(order) # Add validated order
+
+        # --- End Validation ---
+
+        # must be sorted ascending (Backtrader expects this)
+        # (datetime, size, price, data_name)
+        # Example: order_history = (('2012-04-11', 10, 100.50, 'AAPL'), ('2012-05-01', -10, 105.20, 'AAPL'))
+        dbg_trace(f"Adding {len(self.cached_validated_history)} validated historical orders.")
+        cerebro.add_order_history(self.cached_validated_history)
+
     def add_strategy(self, strategy_list, cerebro = None):
         if cerebro is None:
             cerebro = self.cerebro
@@ -291,6 +347,12 @@ class Backtest:
             self.strategy_list.append(each_stra)
 
     def eval(self, cerebro = None):
+        if len(self.cached_validated_history) != 0:
+            # dbg_info('Set order history.')
+            for each_stra in self.strategy_list:
+                each_stra.initial_order_history = self.cached_validated_history
+            self.cached_validated_history = []
+
         if cerebro is None:
             cerebro = self.cerebro
             stra_list = cerebro.run()

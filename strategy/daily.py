@@ -17,6 +17,8 @@ class DailyMACStrategy(BasicStrategy):
     "stop_price"    : 0       # stop-loss for short; if price rises above this, close position
     }
 
+    initial_order_history = None
+
     # recorder
     # Stores details of active buy positions:
     # {data: {'entry_date': date, 'avg_entry_price': float, 'remaining_size': int, 'total_cost': float}}
@@ -83,6 +85,7 @@ class DailyMACStrategy(BasicStrategy):
             "target_price"  : 0,      # sell when price falls to this (target for short position)
             "stop_price"    : 0       # stop-loss for short; if price rises above this, close position
             }
+            initial_order_history = None
 
         # this is for calc winning rate.
         self.active_trades = {}
@@ -101,6 +104,37 @@ class DailyMACStrategy(BasicStrategy):
         # if action == 'buy':
         #     trade_info = self.last_trade
         #     dbg_info(f"Update Trade info {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['current_price']:.2f}, Target: {trade_info['target_price']:.2f}, Stop: {trade_info['stop_price']:.2f}")
+
+    def start(self):
+        # Format: tuple of tuples -> ((datetime, size, price, data_name),)
+        data_pos_idx = 1
+        data_price_idx = 2
+        data_name_idx = 3
+
+        if self.initial_order_history is None:
+            dbg_debug('No order history found.')
+            return
+        for data in self.datas:
+            for each_record in self.initial_order_history:
+                if each_record[data_name_idx] == data._name:
+                    price = each_record[data_price_idx]
+
+                    # [--
+                    self.stop_loss[data] = price * (1 - self.params.trailing_stop_pct)  # Set initial stop loss (5% down)
+                    self.take_profit[data] = price * (1 + self.params.trailing_takeprofit_pct)  # Set initial take profit (20% up)
+
+                    self.trailing_stop[data] = price * (1 - self.params.trailing_stop_pct)  # Set initial trailing stop loss (5% down)
+                    self.trailing_takeprofit[data] = price * (1 + self.params.trailing_takeprofit_pct)  # Set initial trailing take profit (20% up)
+                    # --]
+
+                    dbg_info(f"Add order history of {data._name}, pos:{each_record[data_pos_idx]}/price:{each_record[data_price_idx]}")
+
+                    self.initial_order_history.remove(each_record)
+        if len(self.initial_order_history) != 0:
+            dbg_error(f"initial_order_history init fail {self.initial_order_history}.")
+            raise
+        else:
+            self.initial_order_history = None
 
     def next(self):
         if not self.is_trading_date(self.datas[0].datetime.date(0)):
