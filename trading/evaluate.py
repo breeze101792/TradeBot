@@ -9,14 +9,19 @@ from market.market import Market, MarketTime
 from strategy.daily import *
 
 class Evaluate:
-    def buying_evaluation(self):
-        # threshold
-        candidate_profit_threshold = 1
+    # threshold
+    BUY_CANDIDATE_PROFIT_THRESHOLD = 1
+    def __init__(self):
+        # dev config
+        self.flag_development = False
+        if self.flag_development:
+            dbg_warning('Enable debug mode.')
+            self.test_buy_list = ['1213', '1439', '2516', '3029', '3622', '8438']
+            self.test_sell_list = [{'code':'2330', 'date':'2012-04-11', 'position':5, 'price':2000, 'strategy': DailyMACStrategy.NAME}] 
+            self.test_sell_list.append({'code':'2454', 'date':'2012-04-11', 'position':5, 'price':1500, 'strategy': DailyMACStrategy.NAME})
+    def __buy_find_candidate(self):
 
         candidate_dict = dict()
-        buying_dict = dict()
-
-        # TODO, Add broker trading here.
 
         # predefine for development
         strategyMgr = StrategyManager()
@@ -24,8 +29,9 @@ class Evaluate:
 
         market = Market()
         product_list = market.get_data_list()
-        # product_list = market.get_data_list()[:50]
-        # product_list = ['1213', '1319', '1468', '1783', '2368', '2408', '2424', '2477', '3209', '3528', '5234', '6426', '6431']
+        if self.flag_development:
+            # product_list = market.get_data_list()[:50]
+            product_list = self.test_buy_list
 
         last_trading_day = MarketTime.get_previous_market_update_time().date()
 
@@ -65,9 +71,15 @@ class Evaluate:
                 
                     traceback_output = traceback.format_exc()
                     dbg_warning(traceback_output)
-
+        return candidate_dict
+    def __buy_filering_profitable_product(self, candidate_dict):
         if len(candidate_dict) != 0:
             dbg_info(f"Candidate Checking:{candidate_dict.keys()}")
+        buying_dict = dict()
+
+        strategyMgr = StrategyManager()
+        strategy_list=[DailyMACStrategy]
+        market = Market()
 
         candidate_analyzer = Analyzer(market)
         candidate_analyzer.clean_result()
@@ -94,7 +106,7 @@ class Evaluate:
                 profit = (final_cash - init_cash) / init_cash * 100
 
                 dbg_info(f"[{each_product}], {profit:.2f}%")
-                if profit > candidate_profit_threshold:
+                if profit > self.BUY_CANDIDATE_PROFIT_THRESHOLD:
                     buying_dict[each_product] = {'strategy': target_strategy, 'profit' : profit}
             except Exception as e:
                 dbg_warning(e)
@@ -103,21 +115,31 @@ class Evaluate:
                 dbg_warning(traceback_output)
         candidate_analyzer.show_result()
 
+        return buying_dict
+    def buying_evaluation(self):
+        market = Market()
+
+        candidate_dict = self.__buy_find_candidate()
+
+        buying_dict = self.__buy_filering_profitable_product(candidate_dict)
+
+        # dump buying data list.
         if len(buying_dict) != 0:
             dbg_info(f"Buying List: {buying_dict.keys()}")
         for each_product in buying_dict.keys():
             product_info = market.get_data_info(each_product)
             dbg_info(f"Product: {each_product} {product_info['name']}/{product_info['category']}, {buying_dict[each_product]['strategy']}, profit: {buying_dict[each_product]['profit']:.2f}")
+
         return buying_dict
-    def selling_evaluation(self, pos_list):
+    def __sell_find_candidate(self, position_dict):
         # faking data, example input data.
-        pos_list = [{'code':'2330', 'date':'2012-04-11', 'position':5, 'price':2000, 'strategy': DailyMACStrategy.NAME}] 
-        pos_list.append({'code':'2454', 'date':'2012-04-11', 'position':5, 'price':1500, 'strategy': DailyMACStrategy.NAME})
+        if self.flag_development:
+            position_dict = self.test_sell_list
 
         selling_list = []
         # selling_list = [{'code':'2330', 'position':5, 'price':1000, 'strategy': DailyMACStrategy.NAME}] 
 
-        if len(pos_list) == 0:
+        if len(position_dict) == 0:
             dbg_info(f"No position.")
             return []
         strategyMgr = StrategyManager()
@@ -130,7 +152,7 @@ class Evaluate:
         dbg_info(f"Last Trad date {last_trading_day}")
 
         # for each_product in candidate_dict.keys():
-        for each_product in pos_list:
+        for each_product in position_dict:
             try:
                 code = each_product['code']
                 position_size = each_product['position'] # Size of the original buy order
@@ -178,6 +200,10 @@ class Evaluate:
                 traceback_output = traceback.format_exc()
                 dbg_warning(traceback_output)
         # selling_analyzer.show_result()
+        return selling_list
+    def selling_evaluation(self, position_dict):
+        market = Market()
+        selling_list = self.__sell_find_candidate(position_dict)
 
         if len(selling_list) != 0:
             dbg_info(f"Selling List: {selling_list}")
