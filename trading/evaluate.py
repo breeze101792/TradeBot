@@ -25,7 +25,7 @@ class Evaluate:
         market = Market()
         product_list = market.get_data_list()
         # product_list = market.get_data_list()[:50]
-        # product_list = ['2330', '1319', '1468', '1783', '2368', '2408', '2424', '2477', '3209', '3528', '5234', '6426', '6431']
+        # product_list = ['1213', '1319', '1468', '1783', '2368', '2408', '2424', '2477', '3209', '3528', '5234', '6426', '6431']
 
         last_trading_day = MarketTime.get_previous_market_update_time().date()
 
@@ -34,7 +34,6 @@ class Evaluate:
         trade_analyzer = Analyzer(market)
         trade_analyzer.clean_result()
         for each_strategy in strategy_list:
-            each_strategy.trading_date = last_trading_day
 
             # for each_product in product_list:
             for each_idx in range(0, len(product_list)):
@@ -47,14 +46,20 @@ class Evaluate:
                     trade_analyzer.setup()
                     trade_analyzer.add_data([each_product])
                     trade_analyzer.add_strategy([each_strategy])
+
+                    # FIXME, it's kindle of a weird workaround. just need to fix it.
+                    each_strategy.reset_status(each_strategy, clean_all = True)
+                    each_strategy.trading_date = last_trading_day
+
                     trade_analyzer.eval()
                     # Print detailed last trade information
                     trade_info = each_strategy.last_trade
 
                     if trade_info['action'] == 'buy':
                         dbg_info(f"Evaluation Trade {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
-                        
                         candidate_dict[trade_info['code']] = {'strategy': each_strategy}
+                    else:
+                        dbg_info(f"Evaluation Trade {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
                 except Exception as e:
                     dbg_warning(e)
                 
@@ -62,7 +67,7 @@ class Evaluate:
                     dbg_warning(traceback_output)
 
         if len(candidate_dict) != 0:
-            dbg_info(f"Candidate Checking:")
+            dbg_info(f"Candidate Checking:{candidate_dict.keys()}")
 
         candidate_analyzer = Analyzer(market)
         candidate_analyzer.clean_result()
@@ -106,7 +111,8 @@ class Evaluate:
         return buying_dict
     def selling_evaluation(self, pos_list):
         # faking data, example input data.
-        # pos_list = [{'code':'2330', 'date':'2012-04-11', 'position':5, 'price':2000, 'strategy': DailyMACStrategy.NAME}] 
+        pos_list = [{'code':'2330', 'date':'2012-04-11', 'position':5, 'price':2000, 'strategy': DailyMACStrategy.NAME}] 
+        pos_list.append({'code':'2454', 'date':'2012-04-11', 'position':5, 'price':1500, 'strategy': DailyMACStrategy.NAME})
 
         selling_list = []
         # selling_list = [{'code':'2330', 'position':5, 'price':1000, 'strategy': DailyMACStrategy.NAME}] 

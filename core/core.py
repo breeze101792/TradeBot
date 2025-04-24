@@ -128,7 +128,7 @@ class Core:
                 ###############################################################
                 # sleep until next weekday market close time
                 # give the time to download first.
-                target = MarketTime.get_next_market_update_time().replace(hour=15, minute=0, second=0, microsecond=0)
+                target = MarketTime.get_next_market_update_time().replace(hour=14, minute=30, second=0, microsecond=0)
                 dbg_info(f'Trading Service will wake up at {target}')
                 sleep_until(target)
 

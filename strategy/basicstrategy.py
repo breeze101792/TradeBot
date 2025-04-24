@@ -41,9 +41,12 @@ class BasicStrategy(bt.Strategy):
         else:
             return False
     def reset_status(self, clean_all = False):
+        dbg_trace(f"Reset strategy.{clean_all}")
         if clean_all is True:
             # this is for servive over cerebro.run()
             self.trading_date = None
+            initial_order_history = None
+
             self.last_trade = {
                 "date"          : None,
                 "code"          : "",
@@ -51,8 +54,6 @@ class BasicStrategy(bt.Strategy):
                 "price"         : 0,
                 "size"      : 0,
             }
-            initial_order_history = None
-
         # this is for calc winning rate.
         self.active_trades = {}
         # Stores details of completed trade portions:
