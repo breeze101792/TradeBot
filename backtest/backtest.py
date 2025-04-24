@@ -164,7 +164,7 @@ class Backtest:
         na_string = 'N/A'
 
         for i, each_result in enumerate(self.result_list):
-            dbg_trace(f"Processing result item {i}: {each_result}")
+            # dbg_trace(f"Processing result item {i}: {each_result}")
             try:
                 # --- Extract Data ---
                 symbol_list = each_result.get('data', [na_string])
@@ -335,7 +335,7 @@ class Backtest:
         # (datetime, size, price, data_name)
         # Example: order_history = (('2012-04-11', 10, 100.50, 'AAPL'), ('2012-05-01', -10, 105.20, 'AAPL'))
         dbg_trace(f"Adding {len(self.cached_validated_history)} validated historical orders.")
-        cerebro.add_order_history(self.cached_validated_history)
+        cerebro.add_order_history(self.cached_validated_history, notify = False)
 
     def add_strategy(self, strategy_list, cerebro = None):
         if cerebro is None:

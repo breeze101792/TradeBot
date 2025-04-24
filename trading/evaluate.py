@@ -52,7 +52,7 @@ class Evaluate:
                     trade_info = each_strategy.last_trade
 
                     if trade_info['action'] == 'buy':
-                        dbg_info(f"Evaluation Trade {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['current_price']:.2f}, Target: {trade_info['target_price']:.2f}, Stop: {trade_info['stop_price']:.2f}")
+                        dbg_info(f"Evaluation Trade {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
                         
                         candidate_dict[trade_info['code']] = {'strategy': each_strategy}
                 except Exception as e:
@@ -106,11 +106,10 @@ class Evaluate:
         return buying_dict
     def selling_evaluation(self, pos_list):
         # faking data, example input data.
-        pos_list = [{'code':'2330', 'date':'2012-04-11', 'position':5, 'price':2000, 'strategy': DailyMACStrategy.NAME}] 
+        # pos_list = [{'code':'2330', 'date':'2012-04-11', 'position':5, 'price':2000, 'strategy': DailyMACStrategy.NAME}] 
 
         selling_list = []
         # selling_list = [{'code':'2330', 'position':5, 'price':1000, 'strategy': DailyMACStrategy.NAME}] 
-        
 
         if len(pos_list) == 0:
             dbg_info(f"No position.")
@@ -166,7 +165,7 @@ class Evaluate:
                 trade_info = target_strategy.last_trade
 
                 if trade_info['action'] == 'sell':
-                    selling_list.append({'code':trade_info['code'], 'position':0, 'price':trade_info['current_price'], 'strategy': target_strategy})
+                    selling_list.append({'code':trade_info['code'], 'size':trade_info['size'], 'price':trade_info['price'], 'strategy': target_strategy})
             except Exception as e:
                 dbg_warning(e)
             
@@ -178,5 +177,5 @@ class Evaluate:
             dbg_info(f"Selling List: {selling_list}")
         for each_product in selling_list:
             product_info = market.get_data_info(each_product['code'])
-            dbg_info(f"Product: {each_product['code']} {product_info['name']}/{product_info['category']}, {each_product['strategy']}, pos: {each_product['position']:.2f}, price: {each_product['price']:.2f}")
+            dbg_info(f"Product: {each_product['code']} {product_info['name']}/{product_info['category']}, {each_product['strategy']}, size: {each_product['size']:.2f}, price: {each_product['price']:.2f}")
 
