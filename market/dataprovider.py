@@ -8,9 +8,10 @@ from utility.debug import *
 
 class DataProvider:
     NAME = 'provider'
+    CACHED_DATA_PATH = './.data'
     def __init__(self):
         self.cache_data_name = f'./{self.NAME}'
-        self.cache_data_root_path = './.data'
+        self.cache_data_root_path = self.CACHED_DATA_PATH
     @staticmethod
     def save_to_csv(df: pd.DataFrame, filename: str, folder: str = './'):
         """

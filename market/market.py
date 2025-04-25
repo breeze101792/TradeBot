@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 # Local file
 from utility.debug import *
 from core.database import *
+from core.config import *
 from market.dataprovider import *
 
 from market.provider.yahoo import *
@@ -139,18 +140,30 @@ class Market:
         self.instance = None
         self.cached_stock_info_frame = None
 
+        # config
+        self.cm = AppConfigManager()
+        self.set_cached_path(self.cm.get_path('data'))
+
+        # post init
         if market is not None:
             self.switch_market(market)
         else:
             self.switch_market(self.__market_list[0].NAME)
 
         dbg_debug(f'Init market to {self.instance.NAME}')
+
+
     # def __set_market(self, instance):
     #     self.NAME = instance.NAME
     #     self.instance = instance
     #     self.cache_data_name = self.instance.cache_data_name
     #     self.download_data_list = self.instance.download_data_list
     #     self.download_data = self.instance.download_data
+
+    def set_cached_path(self, data_path):
+        dbg_trace(f'set data path to {data_path}')
+        for each_market in self.__market_list:
+            each_market.CACHED_DATA_PATH = data_path
 
     def __filter_by_start_date(self, df: pd.DataFrame, start_date: str, date_column: str = 'Date') -> pd.DataFrame:
         """

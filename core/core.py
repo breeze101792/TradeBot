@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 # Local file
 from utility.debug import *
 from core.database import *
+from core.config import *
 # from market.provider.yahoo import *
 # from market.provider.twse import *
 from market.market import *
@@ -30,9 +31,6 @@ def sleep_until(target_time: datetime):
 
 class Core:
     def __init__(self):
-        # Defines
-        self.def_database_name = "trader.db"
-
         # Flags
         self.flag_core_running = False
         self.flag_heatbeat_running = False
@@ -52,6 +50,7 @@ class Core:
         self.database = None
         self.tdcli = None
         self.market = None
+        self.cm = None
 
     def __initcheck(self):
         # Check env setup is okay or not.
@@ -241,8 +240,9 @@ class Core:
     def initialize(self):
         dbg_info('Core start initialize.')
         try:
+            self.cm = AppConfigManager()
             # Checking & init database
-            self.database = Database(self.def_database_name)
+            self.database = Database(self.cm.get_path('tarding_database'))
             self.database.connect()
             self.database.setup()
             # self.database.dump_all()

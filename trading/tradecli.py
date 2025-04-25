@@ -14,6 +14,7 @@ from utility.cli import *
 from market.market import *
 
 from backtest.backtest import *
+from backtest.commands import *
 from strategy.strategy import StrategyManager
 from broker.shioajibroker import ShioajiBroker
 
@@ -32,11 +33,9 @@ class TDCLI(CommandLineInterface):
         self.broker = None
         self.backtest = Backtest(self.market)
 
+        self.cm = AppConfigManager()
+        self.history_path = self.cm.get_path('trade_cmd_history')
+
         ## cmds
         ########################################################################
-        # Tools
-        # self.regist_cmd("info", self.cmd_info, description="Show infos.", group='tools')
-        # self.regist_cmd("evaluate", self.cmd_evaluate, description="excute backtesting.", group='tools')
-        # self.regist_cmd("update", self.cmd_update_database, description="Update local database.", arg_list = ['all'], group='tools')
-        # self.regist_cmd("report", self.cmd_report, description=f"Show report of backtest.", group='tools')
-        # self.regist_cmd("clean", self.cmd_clean, description=f"Clean report of backtest.", group='tools')
+        register_commands(self)

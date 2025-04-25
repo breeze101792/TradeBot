@@ -8,6 +8,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
 # Local file
+from core.config import *
 from utility.debug import *
 from utility.cli import *
 from market.market import *
@@ -15,12 +16,14 @@ from market.market import *
 from backtest.backtest import *
 from strategy.strategy import StrategyManager
 from broker.shioajibroker import ShioajiBroker
+from backtest.commands import *
 
 class BTCLI(CommandLineInterface):
     def __init__(self):
         super().__init__(promote='backtest')
 
         ## Vars
+        self.cm = AppConfigManager()
         self.market = Market()
         self.strategyMgr = StrategyManager()
 
@@ -30,6 +33,8 @@ class BTCLI(CommandLineInterface):
         self.mode = 'default'
         self.broker = None
         self.backtest = Backtest(self.market)
+
+        self.history_path = self.cm.get_path('bt_cmd_history')
 
         ## cmds
         ########################################################################
@@ -62,6 +67,8 @@ class BTCLI(CommandLineInterface):
         self.total_test_cmd_list = ['strategy', 'shioajifake']
         self.regist_cmd("test", self.cmd_test, description=f"Set test commands. cmd:{self.total_test_cmd_list}", arg_list = self.total_test_cmd_list, group='setting')
 
+        ## utility
+        register_commands(self)
 
     def cmd_test(self, args):
         operation_list = self.total_test_cmd_list

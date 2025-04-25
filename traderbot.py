@@ -5,6 +5,7 @@ import argparse
 # Local file
 from utility.debug import *
 from core.core import *
+from core.config import *
 from market.market import *
 from backtest.btcli import *
 
@@ -41,15 +42,18 @@ def main():
         choices=['backtest', 'trade'],
         help="Trading mode")
 
-    args = parser.parse_args()
+    # Start config
+    cm = AppConfigManager()
+    cm.load()
 
+    # presetting config
+    DebugSetting.setDbgPath(cm.get_path('log'))
+
+    # Start parsing args.
+    args = parser.parse_args()
     if args.debug:
         DebugSetting.setDbgLevel("all")
         dbg_info('Enable Debug mode')
-    else:
-        DebugSetting.setDbgLevel("information")
-        # DebugSetting.setDbgLevel("all")
-        # dbg_info('Enable Debug mode')
 
     # Start core.
     if args.trading_mode == "trade":
@@ -69,6 +73,7 @@ def main():
         btcli.run()
 
     dbg_info("Trade Bot finished.")
+    cm.save()
 
 if __name__ == '__main__':
     main()
