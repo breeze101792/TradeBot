@@ -15,8 +15,8 @@ from market.market import *
 from market.provider.yahoo import *
 from market.provider.twse import *
 from backtest.backtest import *
+from backtest.analyzer.partialtrade import *
 from strategy.strategy import *
-from analyzer.partialtrade import *
 
 class Backtest:
     INIT_CASH = 1000000

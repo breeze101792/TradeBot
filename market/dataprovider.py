@@ -103,11 +103,11 @@ class DataProvider:
                     needs_update = True
             else:
                 # DataFrame loaded but is empty, definitely needs update
-                dbg_info(f"Loaded DataFrame for {product_id} is empty.")
+                dbg_debug(f"Loaded DataFrame for {product_id} is empty.")
                 needs_update = True
 
         if needs_update:
-            dbg_info(f'Update {product_id} info, from {last_date} to {last_trading_day.date()}')
+            dbg_trace(f'Update {product_id} info, from {last_date} to {last_trading_day.date()}')
             # Download new data
             new_df = self.download_data(product_id, start_date = last_date)
             if not new_df.empty:

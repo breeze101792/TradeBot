@@ -16,7 +16,9 @@ class Evaluate:
         self.flag_development = False
         if self.flag_development:
             dbg_warning('Enable debug mode.')
-            self.test_buy_list = ['1213', '1439', '2516', '3029', '3622', '8438']
+            # Buy
+            self.test_buy_list = ['1414', '2402', '3008', '3029', '6768', '6914', '8215']
+            # Sell
             self.test_sell_list = [{'code':'2330', 'date':'2012-04-11', 'position':5, 'price':2000, 'strategy': DailyMACStrategy.NAME}] 
             self.test_sell_list.append({'code':'2454', 'date':'2012-04-11', 'position':5, 'price':1500, 'strategy': DailyMACStrategy.NAME})
     def __buy_find_candidate(self):
@@ -64,8 +66,8 @@ class Evaluate:
                     if trade_info['action'] == 'buy':
                         dbg_info(f"Evaluation Trade {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
                         candidate_dict[trade_info['code']] = {'strategy': each_strategy}
-                    else:
-                        dbg_info(f"Evaluation Trade {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
+                    # else:
+                    #     dbg_info(f"Evaluation Trade {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
                 except Exception as e:
                     dbg_warning(e)
                 

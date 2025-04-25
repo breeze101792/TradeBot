@@ -114,7 +114,7 @@ class TWSE(DataProvider):
         if fetch_start_year < 2000:
             fetch_start_year = 2000
             fetch_start_month = 1
-        dbg_info(f"Download {ticker} start from {fetch_start_year}/{fetch_start_month} to {datetime.now().year}/{datetime.now().month}")
+        dbg_trace(f"Download {ticker} start from {fetch_start_year}/{fetch_start_month} to {datetime.now().year}/{datetime.now().month}")
 
         # dbg_debug(f"get {ticker} from TWSE")
         stock = Stock(ticker)
@@ -176,7 +176,7 @@ class TWSE(DataProvider):
         })
         # print(df.head())
         # prevent been ban
-        dbg_debug("Sleeping for 1 seconds.")
+        # dbg_debug("Sleeping for 1 seconds.")
         time.sleep(1)
         # save_to_csv(df, ticker_local_file, folder=cache_data_name)
         return df
