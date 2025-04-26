@@ -230,6 +230,7 @@ class Market:
         return product_list
 
     def get_data(self, product_id: str, period: str = None):
+        # FIXME, sanity check product_id.
         return self.instance.get_data(product_id=product_id, period=period)
 
     def get_data_info(self, product_id):

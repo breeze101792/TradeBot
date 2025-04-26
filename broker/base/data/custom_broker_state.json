@@ -1,0 +1,15 @@
+{
+    "cash": 44260.15000000001,
+    "positions": {
+        "AAPL": {
+            "symbol": "AAPL",
+            "size": 5,
+            "average_entry_price": 150.0
+        },
+        "GOOG": {
+            "symbol": "GOOG",
+            "size": 2,
+            "average_entry_price": 2500.0
+        }
+    }
+}

@@ -84,16 +84,18 @@ class DataProvider:
         needs_update = force_update or df is None
         last_date = None
         last_trading_day = None
+
+        # Check if there is new data on the market.
+        last_trading_day = datetime.now().replace(hour=13, minute=40, second=0, microsecond=0)
+        while last_trading_day.weekday() >= 5:
+            last_trading_day -= timedelta(days=1)
+
+        # check df data
         if df is not None:
             if not df.empty: # Check if DataFrame is not empty
                 try:
                     # Attempt to get the latest date from the index
                     last_date = df.index.max().date()
-                    # Check if there is new data on the market.
-                    last_trading_day = datetime.now().replace(hour=13, minute=40, second=0, microsecond=0)
-
-                    while last_trading_day.weekday() >= 5:
-                        last_trading_day -= timedelta(days=1)
 
                     if last_date < last_trading_day.date() and datetime.now() >= last_trading_day:
                         needs_update = True

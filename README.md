@@ -5,6 +5,9 @@
 pip install yfinance backtrader
 ```
 
+# FIXME.
+1. Fix hang when market.get_data, symbole not exist.
+
 # Actions
 ## First milestone
 * Find way to add stock to tracking list

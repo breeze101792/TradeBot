@@ -12,8 +12,6 @@ from utility.debug import *
 from utility.utils import *
 from core.database import *
 from market.market import *
-from market.provider.yahoo import *
-from market.provider.twse import *
 from backtest.backtest import *
 from backtest.analyzer.partialtrade import *
 from strategy.strategy import *

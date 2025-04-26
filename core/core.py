@@ -13,8 +13,6 @@ from datetime import datetime, timedelta
 from utility.debug import *
 from core.database import *
 from core.config import *
-# from market.provider.yahoo import *
-# from market.provider.twse import *
 from market.market import *
 from strategy.strategy import *
 from trading.tradecli import TDCLI
