@@ -1,6 +1,7 @@
 
 from typing import Type, Dict, Any, Optional
 import os
+from tabulate import tabulate # Import tabulate for creating tables
 
 # Local file
 from utility.debug import * # Replace standard logging with custom debug system
@@ -102,27 +103,109 @@ class BrokerManager:
         """
         self.broker.set_state_filepath(filepath)
 
-    def save_state(self, filepath: Optional[str] = None):
+    def summarize_positions(self):
         """
-        Saves the managed broker's state to a file.
+        Prints a summary table of all current positions held by the managed broker,
+        including market value and unrealized profit/loss.
+        """
+        positions = self.broker.get_all_positions()
+        if not positions:
+            print("No positions currently held.")
+            return
 
-        Args:
-            filepath (Optional[str]): Path to save state. Uses broker's default if None.
-        """
-        self.broker.save_state(filepath)
+        headers = [
+            "Symbol", "Size", "Avg Entry", "Initial Entry", "Open Date",
+            "Market Price", "Market Value", "Cost Basis", "Unrealized P/L"
+        ]
+        table_data = []
+        total_market_value = 0.0
+        total_cost_basis = 0.0
+        total_unrealized_pl = 0.0
 
-    def load_state(self, filepath: Optional[str] = None):
-        """
-        Loads the managed broker's state from a file.
+        dbg_info("Summarizing positions...")
+        for symbol, pos in positions.items():
+            try:
+                current_price = self.broker.get_last_price(symbol)
+                if current_price <= 0:
+                    dbg_warning(f"Could not get valid market price for {symbol}, using 0.0 for calculations.")
+                    current_price = 0.0 # Handle case where price might be invalid
 
-        Args:
-            filepath (Optional[str]): Path to load state from. Uses broker's default if None.
+                market_value = pos.size * current_price
+                cost_basis = pos.size * pos.average_entry_price
+                unrealized_pl = market_value - cost_basis
+
+                # Add to totals
+                total_market_value += market_value
+                total_cost_basis += cost_basis
+                total_unrealized_pl += unrealized_pl
+
+                # Format data for the table row
+                row = [
+                    pos.symbol,
+                    pos.size,
+                    f"{pos.average_entry_price:,.2f}",
+                    f"{pos.initial_entry_price:,.2f}",
+                    pos.open_date.isoformat() if pos.open_date else 'N/A',
+                    f"{current_price:,.2f}",
+                    f"{market_value:,.2f}",
+                    f"{cost_basis:,.2f}",
+                    f"{unrealized_pl:,.2f}"
+                ]
+                table_data.append(row)
+                dbg_debug(f"Position Row Data for {symbol}: {row}")
+
+            except Exception as e:
+                dbg_error(f"Error processing position for {symbol}: {e}")
+                # Optionally add a row indicating an error for this symbol
+                table_data.append([symbol, pos.size, 'Error', 'Error', 'Error', 'Error', 'Error', 'Error', 'Error'])
+
+
+        # Use tabulate to create the table string
+        # Using 'grid' format for clear borders, 'floatfmt' for default float formatting (though we pre-format above)
+        try:
+            table_str = tabulate(table_data, headers=headers, tablefmt="grid", stralign="right")
+            print("\n--- Current Positions Summary ---")
+            print(table_str)
+
+            # Print Totals
+            print("\n--- Portfolio Totals ---")
+            print(f"Total Market Value: ${total_market_value:,.2f}")
+            print(f"Total Cost Basis:   ${total_cost_basis:,.2f}")
+            print(f"Total Unrealized P/L: ${total_unrealized_pl:,.2f}")
+            print("-" * 26) # Separator
+
+        except Exception as e:
+            dbg_error(f"Error generating position summary table with tabulate: {e}")
+            print("\nError: Could not generate position summary table.")
+
+
+    def connect(self):
         """
-        # Important: Loading state might overwrite the broker instance's internal state.
-        # If loading needs to re-initialize the broker based on type, this logic might
-        # need to be more complex, potentially happening in __init__ or a dedicated factory.
-        # For now, assuming load_state modifies the existing instance.
-        self.broker.load_state(filepath)
+        Connects the underlying managed broker.
+        For BaseBroker, this loads the state. For live brokers, this would establish a connection.
+        """
+        # dbg_info(f"BrokerManager: Initiating connection for {self.broker_type} broker...")
+        try:
+            self.broker.connect()
+            dbg_trace(f"BrokerManager: Connection process completed for {self.broker_type} broker.")
+        except Exception as e:
+            dbg_error(f"BrokerManager: Error during connection for {self.broker_type} broker: {e}")
+            # Optionally re-raise or handle specific connection errors
+            raise
+
+    def disconnect(self):
+        """
+        Disconnects the underlying managed broker.
+        For BaseBroker, this saves the state. For live brokers, this would close the connection.
+        """
+        # dbg_info(f"BrokerManager: Initiating disconnection for {self.broker_type} broker...")
+        try:
+            self.broker.disconnect()
+            dbg_trace(f"BrokerManager: Disconnection process completed for {self.broker_type} broker.")
+        except Exception as e:
+            dbg_error(f"BrokerManager: Error during disconnection for {self.broker_type} broker: {e}")
+            # Optionally re-raise or handle specific disconnection errors
+            raise
 
     # You might add other broker-specific methods here as needed,
     # potentially checking self.broker_type if they aren't universal.
@@ -185,23 +268,25 @@ if __name__ == "__main__":
     # Note: Portfolio value depends on the underlying broker's get_last_price implementation
     print(f"Estimated Portfolio Value: ${manager.get_portfolio_value():,.2f}")
 
+    # --- Summarize Positions ---
+    manager.summarize_positions()
 
-    # --- Save State via Manager ---
-    print("\n--- Saving State ---")
-    manager.save_state() # Saves to the default path set during init (example_state_file)
-    print(f"State saved to {manager.broker.state_filepath}")
+    # --- Disconnect Manager (Saves State) ---
+    print("\n--- Disconnecting Manager (saves state) ---")
+    manager.disconnect() # Disconnects and saves state to the default path (example_state_file)
+    print(f"State saved implicitly via disconnect to {manager.broker.state_filepath}")
 
-    # --- Create New Manager and Load State ---
-    print("\n--- Loading State into a New Manager ---")
+    # --- Create New Manager and Connect (Loads State) ---
+    print("\n--- Creating New Manager and Connecting (loads state) ---")
     manager2 = BrokerManager(
         broker_type='base',
-        initial_cash=5000.0, # Different initial cash
-        commission_per_trade=1.0, # Different commission
+        initial_cash=5000.0, # Different initial cash, will be overwritten by loaded state
+        commission_per_trade=1.0, # Different commission, will be overwritten by loaded state
         state_filepath=example_state_file # Must point to the same file to load
     )
-    print(f"Manager 2 Initial Cash: ${manager2.get_cash():,.2f}")
-    manager2.load_state() # Load state from the file
-    print("State loaded.")
+    print(f"Manager 2 Initial Cash (before connect): ${manager2.get_cash():,.2f}")
+    manager2.connect() # Connects and loads state from the file
+    print("State loaded implicitly via connect.")
 
     # --- Verify Loaded State in New Manager ---
     print("\n--- Verifying Loaded State (Manager 2) ---")
@@ -211,7 +296,14 @@ if __name__ == "__main__":
     if not loaded_positions:
         print("  No positions loaded.")
     for symbol, pos in loaded_positions.items():
-        print(f"  {pos}")
+        print(f"  {pos}") # Keep simple print for basic verification
+
+    # --- Summarize Positions for Manager 2 ---
+    manager2.summarize_positions()
+
+    # Disconnect manager2 (optional, saves state again)
+    print("\n--- Disconnecting Manager 2 ---")
+    manager2.disconnect()
 
     # --- Clean up the example state file ---
     try:

@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, date
 import traceback
 from dateutil.relativedelta import relativedelta
 
@@ -14,20 +14,24 @@ class Evaluate:
     def __init__(self):
         # dev config
         self.flag_development = False
+        # TODO, add multiple strategy support.
+        self.default_strategy = DailyMACStrategy
+
         if self.flag_development:
             dbg_warning('Enable debug mode.')
             # Buy
-            self.test_buy_list = ['1414', '2402', '3008', '3029', '6768', '6914', '8215']
+            self.test_buy_list = ['1474', '1536', '1539', '1540', '2031', '2233', '2345', '2467', '3019', '3022', '3031', '3049', '4137', '4581', '6405', '6674', '6781', '6863', '6937', '8101', '8104', '8114', '8467', '8499']
             # Sell
-            self.test_sell_list = [{'code':'2330', 'date':'2012-04-11', 'position':5, 'price':2000, 'strategy': DailyMACStrategy.NAME}] 
-            self.test_sell_list.append({'code':'2454', 'date':'2012-04-11', 'position':5, 'price':1500, 'strategy': DailyMACStrategy.NAME})
+            self.test_sell_list = []
+            # self.test_sell_list.append({'symbol':'2330', 'open_date':date.today().isoformat(), 'size':5, 'initial_entry_price':2000, 'strategy': self.default_strategy.NAME})
+            # self.test_sell_list.append({'symbol':'2454', 'open_date':date.today().isoformat(), 'size':5, 'initial_entry_price':1500, 'strategy': self.default_strategy.NAME})
     def __buy_find_candidate(self):
 
         candidate_dict = dict()
 
         # predefine for development
         strategyMgr = StrategyManager()
-        strategy_list=[DailyMACStrategy]
+        strategy_list=[self.default_strategy]
 
         market = Market()
         product_list = market.get_data_list()
@@ -80,7 +84,7 @@ class Evaluate:
         buying_dict = dict()
 
         strategyMgr = StrategyManager()
-        strategy_list=[DailyMACStrategy]
+        strategy_list=[self.default_strategy]
         market = Market()
 
         candidate_analyzer = Analyzer(market)
@@ -135,11 +139,11 @@ class Evaluate:
         return buying_dict
     def __sell_find_candidate(self, position_dict):
         # faking data, example input data.
-        if self.flag_development:
+        if self.flag_development and len(self.test_sell_list) > 0:
             position_dict = self.test_sell_list
 
         selling_list = []
-        # selling_list = [{'code':'2330', 'position':5, 'price':1000, 'strategy': DailyMACStrategy.NAME}] 
+        # selling_list = [{'symbol':'2330', 'size':5, 'initial_entry_price':1000, 'date':date.today(), 'strategy': DailyMACStrategy.NAME}] 
 
         if len(position_dict) == 0:
             dbg_info(f"No position.")
@@ -153,16 +157,27 @@ class Evaluate:
         last_trading_day = MarketTime.get_previous_market_update_time().date()
         dbg_info(f"Last Trad date {last_trading_day}")
 
-        # for each_product in candidate_dict.keys():
-        for each_product in position_dict:
+        # Iterate through positions provided by the broker (dict: {symbol: Position_object})
+        for symbol, position_obj in position_dict.items():
             try:
-                code = each_product['code']
-                position_size = each_product['position'] # Size of the original buy order
-                strategy_name = each_product['strategy']
-                purchase_date = each_product['date']     # Date of the original buy
-                purchase_price = each_product['price']   # Price of the original buy
+                # Extract details from the Position object
+                position_size = position_obj.size # Current size of the position
+                purchase_date = position_obj.open_date     # Date the position was opened (datetime.date object)
+                purchase_price = position_obj.initial_entry_price   # Price of the first buy transaction
 
-                dbg_info(f"Evaluating selling condition for {code}, bought on {purchase_date} at {purchase_price}, size {position_size}, strategy {strategy_name}")
+                # --- Strategy Assumption ---
+                # FIXME: The Position object doesn't store the entry strategy.
+                # Currently assuming the default strategy for evaluating sell conditions for ALL positions.
+                # A better approach would be to store the strategy with the position.
+                strategy_name = self.default_strategy.NAME
+                # ---
+
+                # Ensure we have valid data to proceed
+                if not purchase_date or purchase_price <= 0 or position_size <= 0:
+                    dbg_warning(f"Skipping evaluation for {symbol}: Missing or invalid position data (Date: {purchase_date}, Price: {purchase_price}, Size: {position_size})")
+                    continue
+
+                dbg_info(f"Evaluating selling condition for {symbol}, opened on {purchase_date.isoformat()} at initial price {purchase_price:.2f}, current size {position_size}, using strategy {strategy_name}")
 
                 # test only one year for accelerate performance.
                 # TODO: Consider if FROM_DATE should be relative to purchase_date?
@@ -170,15 +185,18 @@ class Evaluate:
                 selling_analyzer.setup() # Setup Cerebro instance
 
                 # Add data for the specific stock
-                selling_analyzer.add_data([code])
+                selling_analyzer.add_data([symbol])
 
                 # --- Convert current position info to order_history format ---
                 # Format: tuple of tuples -> ((datetime, size, price, data_name),)
-                # Size is positive because it represents the historical buy order.
-                order_history = ((purchase_date, position_size, purchase_price, code),)
+                # We use the initial purchase details to represent the historical buy order.
+                # Note: Cerebro's add_history might expect datetime, but let's try with date first.
+                # Size should be the original size, but using current size might be okay if strategy logic handles it.
+                # Using initial_entry_price as the historical price.
+                order_history = ((purchase_date, position_size, purchase_price, symbol),) # Using current size here
                 # ---
 
-                # Add the historical buy order to the analyzer
+                # Add the historical buy order context to the analyzer
                 selling_analyzer.add_history(order_history)
 
                 # Setting strategy used for the original purchase
@@ -194,10 +212,26 @@ class Evaluate:
                 # Print detailed last trade information
                 trade_info = target_strategy.last_trade
 
-                if trade_info['action'] == 'sell':
-                    selling_list.append({'code':trade_info['code'], 'size':trade_info['size'], 'price':trade_info['price'], 'strategy': target_strategy})
+                # Check if the strategy generated a sell signal for the last trading day
+                if trade_info and trade_info.get('action') == 'sell' and trade_info.get('symbol') == symbol:
+                     # Ensure the sell signal corresponds to the evaluated symbol
+                    dbg_info(f"Sell signal generated for {symbol} by strategy {strategy_name}. Details: {trade_info}")
+                    # Add details needed for the actual sell order
+                    selling_list.append({
+                        'symbol': trade_info['symbol'],
+                        'size': position_size, # Sell the entire current position size
+                        'price': trade_info['price'], # Target sell price from strategy (might be indicative)
+                        'strategy': target_strategy # Keep strategy object if needed later
+                    })
+                elif trade_info:
+                    # Assuming dbg_debug exists in your system, similar to dbg_info/dbg_warning
+                    dbg_debug(f"No sell signal for {symbol} on {last_trading_day}. Last action: {trade_info.get('action')}")
+                else:
+                    # Assuming dbg_debug exists
+                    dbg_debug(f"No trade info generated for {symbol} by strategy {strategy_name} on {last_trading_day}.")
+
             except Exception as e:
-                dbg_warning(e)
+                dbg_warning(f"Error evaluating sell condition for {symbol}: {e}")
             
                 traceback_output = traceback.format_exc()
                 dbg_warning(traceback_output)
@@ -208,8 +242,16 @@ class Evaluate:
         selling_list = self.__sell_find_candidate(position_dict)
 
         if len(selling_list) != 0:
-            dbg_info(f"Selling List: {selling_list}")
-        for each_product in selling_list:
-            product_info = market.get_data_info(each_product['code'])
-            dbg_info(f"Product: {each_product['code']} {product_info['name']}/{product_info['category']}, {each_product['strategy']}, size: {each_product['size']:.2f}, price: {each_product['price']:.2f}")
+            dbg_info(f"Potential Selling List: {selling_list}") # Renamed for clarity
+        else:
+            dbg_info(f"No Potential Selling.")
+
+        for sell_candidate in selling_list:
+            # Use 'symbol' key which is consistent now
+            symbol = sell_candidate['symbol']
+            product_info = market.get_data_info(symbol)
+            strategy_name = sell_candidate['strategy'].NAME # Get name from strategy object
+            dbg_info(f"Product to Sell: {symbol} ({product_info.get('name', 'N/A')}/{product_info.get('category', 'N/A')}), Strategy: {strategy_name}, Size: {sell_candidate['size']:.2f}, Indicative Price: {sell_candidate['price']:.2f}")
+
+        return selling_list # Return the list of dictionaries
 

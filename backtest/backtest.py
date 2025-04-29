@@ -6,6 +6,7 @@ import backtrader as bt
 import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from tabulate import tabulate # Import tabulate
 
 # Local file
 from utility.debug import *
@@ -123,65 +124,34 @@ class Backtest:
             dbg_info("No results found to display.")
             return False
 
-        # Define column widths
-        col_widths = {
-            "symbol": 10,
-            "strategy": 15,
-            "profit_pct": 10,
-            "sharpe": 8,
-            "vwr": 8,
-            "max_dd": 8,
-            "sqn": 8,
-            "buys": 6,
-            "buy_win_pct": 10, # e.g., "   95.00%"
-            "sells": 6,
-            "sell_win_pct": 10, # e.g., "   95.00%"
-        }
-
-        # Create header string using defined widths
-        header = (
-            f"{'Symbol':<{col_widths['symbol']}} | "
-            f"{'Strategy':<{col_widths['strategy']}} | "
-            f"{'Profit %':>{col_widths['profit_pct']}} | "
-            f"{'Sharpe':>{col_widths['sharpe']}} | "
-            f"{'VWR':>{col_widths['vwr']}} | "
-            f"{'Max DD %':>{col_widths['max_dd']}} | "
-            f"{'SQN':>{col_widths['sqn']}} | "
-            f"{'Buys':>{col_widths['buys']}} | "
-            f"{'Buy Win %':>{col_widths['buy_win_pct']}} | "
-            f"{'Sells':>{col_widths['sells']}} | "
-            f"{'Sell Win %':>{col_widths['sell_win_pct']}}"
-        )
-        separator = "-" * len(header)
-
-        print("\n" + separator)
-        print(header)
-        print(separator)
+        headers = [
+            "Symbol", "Strategy", "Profit %", "Sharpe", "VWR",
+            "Max DD %", "SQN", "Buys", "Buy Win %", "Sells", "Sell Win %"
+        ]
+        table_data = []
+        annual_returns_data = [] # Store annual returns separately for printing after table
 
         invalid_number = float('nan') # Use NaN for missing numeric data
-        na_string = 'N/A'
+        na_string = 'N/A' # String used by tabulate for missing values
 
         for i, each_result in enumerate(self.result_list):
-            # dbg_trace(f"Processing result item {i}: {each_result}")
             try:
                 # --- Extract Data ---
-                symbol_list = each_result.get('data', [na_string])
-                strategy_list = each_result.get('strategy', [na_string])
-                symbol = ",".join(map(str, symbol_list)) # Ensure elements are strings
-                strategy = ",".join(map(str, strategy_list))
+                symbol_list = each_result.get('data', [])
+                strategy_list = each_result.get('strategy', [])
+                symbol = ",".join(map(str, symbol_list)) if symbol_list else na_string
+                strategy = ",".join(map(str, strategy_list)) if strategy_list else na_string
 
-                # Truncate if too long for the column
-                if len(symbol) > col_widths['symbol']:
-                    symbol = symbol[:col_widths['symbol']-3] + "..."
-                if len(strategy) > col_widths['strategy']:
-                    strategy = strategy[:col_widths['strategy']-3] + "..."
+                # Basic truncation (tabulate might handle wrapping better depending on format)
+                symbol = (symbol[:27] + '...') if len(symbol) > 30 else symbol
+                strategy = (strategy[:27] + '...') if len(strategy) > 30 else strategy
+
 
                 init_cash = each_result.get('init_cash', 0)
                 final_cash = each_result.get('cash', 0)
                 profit_pct = ((final_cash / init_cash - 1) * 100) if init_cash != 0 else 0.0
 
                 sharpe = each_result.get('sharpe', invalid_number)
-                # Handle cases where Sharpe might be None or non-numeric before formatting
                 if sharpe is None or not isinstance(sharpe, (int, float)): sharpe = invalid_number
 
                 vwr = each_result.get('vwr', invalid_number)
@@ -207,61 +177,71 @@ class Backtest:
 
                 annual_returns = each_result.get('annual_return', {})
 
-                # --- Format Data ---
-                profit_pct_str = f"{profit_pct:>{col_widths['profit_pct']}.2f}"
-                sharpe_str = f"{sharpe:>{col_widths['sharpe']}.2f}" if not pd.isna(sharpe) else f"{na_string:>{col_widths['sharpe']}}"
-                vwr_str = f"{vwr:>{col_widths['vwr']}.2f}" if not pd.isna(vwr) else f"{na_string:>{col_widths['vwr']}}"
-                # Drawdown is already a percentage, format it
-                drawdown_str = f"{drawdown:>{col_widths['max_dd']}.2f}" if not pd.isna(drawdown) else f"{na_string:>{col_widths['max_dd']}}"
-                sqn_str = f"{sqn:>{col_widths['sqn']}.2f}" if not pd.isna(sqn) else f"{na_string:>{col_widths['sqn']}}"
+                # --- Prepare Row Data for Tabulate ---
+                row = [
+                    symbol,
+                    strategy,
+                    profit_pct,
+                    sharpe,
+                    vwr,
+                    drawdown, # Already a percentage
+                    sqn,
+                    buy_total,
+                    buy_winning_rate,
+                    sell_total,
+                    sell_winning_rate
+                ]
+                table_data.append(row)
 
-                buy_cnt_str = f"{buy_total:>{col_widths['buys']}}"
-                buy_win_pct_str = f"{buy_winning_rate:>{col_widths['buy_win_pct']}.2f}"
-                sell_cnt_str = f"{sell_total:>{col_widths['sells']}}"
-                sell_win_pct_str = f"{sell_winning_rate:>{col_widths['sell_win_pct']}.2f}"
-
-                # --- Print Row ---
-                data_row = (
-                    f"{symbol:<{col_widths['symbol']}} | "
-                    f"{strategy:<{col_widths['strategy']}} | "
-                    f"{profit_pct_str} | "
-                    f"{sharpe_str} | "
-                    f"{vwr_str} | "
-                    f"{drawdown_str} | "
-                    f"{sqn_str} | "
-                    f"{buy_cnt_str} | "
-                    f"{buy_win_pct_str} | "
-                    f"{sell_cnt_str} | "
-                    f"{sell_win_pct_str}"
-                )
-                print(data_row)
-
-                # --- Print Annual Returns (Optional) ---
+                # Store annual returns if requested
                 if annual_return and annual_returns:
-                    # Ensure keys are strings/ints and values are numeric for sorting and formatting
                     valid_returns = {str(year): ret for year, ret in annual_returns.items() if isinstance(ret, (int, float))}
                     if valid_returns:
-                        # Sort by year before printing
-                        annual_str = ", ".join([f"{year}: {ret:.2f}%" for year, ret in sorted(valid_returns.items())])
-                        # Indent nicely under the strategy column
-                        indent = col_widths['symbol'] + 3 # Width of symbol column + " | "
-                        print(f"{' ' * indent}{'Annual Returns:':<15} {annual_str}")
+                        annual_returns_data.append((strategy, valid_returns)) # Store with strategy name for context
 
             except Exception as e:
                 dbg_error(f"Error processing result item index {i}: {e}")
-                # Print the item causing issues for easier debugging
                 dbg_error(f"Problematic result item content: {each_result}")
                 traceback_output = traceback.format_exc()
                 dbg_error(traceback_output)
-                # Print an error row in the table
-                error_row = (
-                    f"{'ERROR':<{col_widths['symbol']}} | "
-                    f"{'Check Logs':<{col_widths['strategy']}} | "
-                    + " | ".join([f"{'-':>{col_widths[k]}}" for k in list(col_widths.keys())[2:]]) # Fill remaining columns with '-'
-                )
-                print(error_row)
+                # Add an error row to the table data
+                table_data.append([
+                    'ERROR', f'Check Logs (Index {i})', None, None, None, None, None, None, None, None, None
+                ])
 
-        print(separator + "\n") # Footer separator
+        # --- Generate and Print Table ---
+        try:
+            # Use tabulate to create the table string
+            # 'grid' format provides clear borders
+            # 'floatfmt=".2f"' formats floats to 2 decimal places
+            # 'stralign="right"' aligns strings to the right (like numbers)
+            # 'missingval="N/A"' displays missing data as N/A
+            table_str = tabulate(
+                table_data,
+                headers=headers,
+                tablefmt="grid",
+                floatfmt=".2f",
+                stralign="right", # Align string columns right for consistency
+                numalign="right", # Align numeric columns right
+                missingval=na_string
+            )
+            print("\n--- Backtest Results Summary ---")
+            print(table_str)
+
+        except Exception as e:
+            dbg_error(f"Error generating results table with tabulate: {e}")
+            print("\nError: Could not generate results summary table.")
+
+        # --- Print Annual Returns (Optional) ---
+        if annual_return and annual_returns_data:
+            print("\n--- Annual Returns ---")
+            for strategy_name, returns in annual_returns_data:
+                # Sort by year before printing
+                annual_str = ", ".join([f"{year}: {ret:.2f}%" for year, ret in sorted(returns.items())])
+                print(f"{strategy_name}: {annual_str}")
+            print("-" * 20) # Separator
+
+        print() # Add a blank line at the end
         return True # Indicate successful display attempt
 
     def add_data(self,product_list , cerebro = None):

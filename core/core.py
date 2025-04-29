@@ -17,6 +17,7 @@ from market.market import *
 from strategy.strategy import *
 from trading.tradecli import TDCLI
 from trading.evaluate import Evaluate
+from broker.brokermanager import BrokerManager
 
 def sleep_until(target_time: datetime):
     now = datetime.now()
@@ -67,7 +68,22 @@ class Core:
         # Buyig evaluation.
         buy_list = trade_eval.buying_evaluation()
 
-        # TODO, Place order & save to data base for info/stop_loss price.
+        if len( buy_list) > 1:
+            # TODO, Place order & save to data base for info/stop_loss price.
+            trade_broker = BrokerManager()
+            trade_broker.connect()
+            for each_symbol in buy_list:
+                dbg_info(f'Buying product: {each_symbol}')
+                current_cash = trade_broker.get_cash()
+                current_price = trade_broker.get_last_price(each_symbol)
+                # size should be the 1000x
+                order_size = 1 * 1000
+                if current_price * order_size < current_cash:
+                    trade_broker.place_order(symbol=each_symbol, size=order_size, action='buy')
+                else:
+                    dbg_warning('Insufficient cash, ignore buying product:{each_symbol} at size:{order_size}, current:{current_price}')
+            trade_broker.summarize_positions()
+            trade_broker.disconnect()
 
         return True
     def __selling(self, args = None):
@@ -75,12 +91,16 @@ class Core:
 
         # TODO, get pos list from broker.
         # pos_list = [{'code':'2330', 'position':5}] 
-        pos_list = [] 
+        trade_broker = BrokerManager()
+        trade_broker.connect()
+        pos_list = trade_broker.get_all_positions()
+        dbg_info(f"Position: {pos_list}")
 
         # Selling evaluation.
         sell_dict = trade_eval.selling_evaluation(pos_list)
 
         # TODO, Place order on real broker
+        trade_broker.disconnect()
         return True
 
     def __heatbeat(self):
@@ -241,6 +261,7 @@ class Core:
         dbg_info('Core start initialize.')
         try:
             self.cm = AppConfigManager()
+
             # Checking & init database
             self.database = Database(self.cm.get_path('tarding_database'))
             self.database.connect()
@@ -348,60 +369,4 @@ class Core:
 
         # if self.database is not None:
         #     self.database.close()
-
-    # FIXME, wait for remove
-    def get_tracking_list(self):
-        tracking_list = []
-        database = None
-
-        database = Database(self.def_database_name)
-        database.connect()
-        tracking_list = [each_item[0].__str__() for each_item in database.get_tracking_product()]
-        database.close()
-
-        return tracking_list
-    def update_tracking_list(self, productid, tracking = True):
-        # If i need to add this, we need to check if produt is corrent or not.
-        tracking_list = []
-        database = None
-
-        database = Database(self.def_database_name)
-        database.connect()
-        database.update_tracking_product(productid, tracking)
-        database.close()
-
-        return tracking_list
-    def insert_product_list(self, df):
-        # If i need to add this, we need to check if produt is corrent or not.
-        tracking_list = []
-        database = None
-
-        database = Database(self.def_database_name)
-        database.connect()
-
-        for _, row in df.iterrows():
-            try:
-                database.add_product(
-                    productid=row["code"],
-                    producttype=row["type"],
-                    name=row["name"],
-                    start=row["start"],
-                    market=row["market"],
-                    country=row["country"],
-                    category=row["category"],
-                    tracking=False
-                )
-            except Exception as e:
-                dbg_debug(row["code"], " Add failed.")
-                # dbg_debug(e)
-                #
-                # traceback_output = traceback.format_exc()
-                # dbg_debug(traceback_output)
-                continue
-
-        # self.add_product('2330', 'stock', '台積電', start='1993-09-05', market='listed', country='TW', Category='半導體業', tracking=True)  
-        # database.update_tracking_product(productid, tracking)
-        database.close()
-
-        return tracking_list
 

@@ -17,6 +17,7 @@ from backtest.backtest import *
 from backtest.commands import *
 from strategy.strategy import StrategyManager
 from broker.shioajibroker import ShioajiBroker
+from broker.brokermanager import BrokerManager
 
 class TDCLI(CommandLineInterface):
     def __init__(self):
@@ -39,3 +40,16 @@ class TDCLI(CommandLineInterface):
         ## cmds
         ########################################################################
         register_commands(self)
+        self.regist_cmd("positons", self.cmd_positions, description=f"show positions", arg_list = ['show'], group='trade')
+    def cmd_positions(self, args):
+        trade_broker = BrokerManager()
+        trade_broker.connect()
+
+        if args['#'] == 1:
+            if args['1'] == 'show':
+                trade_broker.summarize_positions()
+        else:
+            trade_broker.summarize_positions()
+        trade_broker.disconnect()
+        return True
+

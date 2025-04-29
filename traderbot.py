@@ -38,7 +38,7 @@ def main():
 
     # trading mode
     parser.add_argument("-m", "--trade-mode", action="store",
-        dest="trading_mode", default="backtest",
+        dest="trading_mode", default="trade",
         choices=['backtest', 'trade'],
         help="Trading mode")
 
