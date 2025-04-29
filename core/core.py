@@ -131,7 +131,8 @@ class Core:
 
                 ###############################################################
                 dbg_info('Running Trading Service')
-                self.__selling()
+                # IDEA, do we need to sperate it to buy service?
+                self.__trading()
 
             except KeyboardInterrupt:
                 dbg_warning("Keyboard Interupt.")
@@ -165,13 +166,14 @@ class Core:
                 ###############################################################
                 # sleep until next weekday market close time
                 # give the time to download first.
+                # TODO, looping service on market open to close.
                 target = MarketTime.get_next_market_open_time()
                 dbg_info(f'Selling Service will wake up at {target}')
                 sleep_until(target)
 
                 ###############################################################
                 dbg_info('Running Selling Service')
-                self.__trading()
+                self.__selling()
 
             except KeyboardInterrupt:
                 dbg_warning("Keyboard Interupt.")

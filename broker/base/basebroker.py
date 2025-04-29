@@ -69,7 +69,7 @@ class BaseBroker:
         self.initial_cash = initial_cash
         self.cash = initial_cash
         self.commission_per_trade = commission_per_trade
-        self.state_filepath: str = "broker_state.json" # Default path for saving/loading state
+        self.state_filepath: str = "./broker_state.json" # Default path for saving/loading state
         # positions stores Position objects, keyed by symbol
         self.positions: dict[str, Position] = {}
         self.market = Market()
@@ -232,8 +232,21 @@ class BaseBroker:
         Args:
             filepath (str): The new default path for the state file.
         """
+        # Ensure the directory for the state file exists
+        dir_name = os.path.dirname(filepath)
+        if dir_name: # Check if directory path is not empty
+            try:
+                os.makedirs(dir_name, exist_ok=True)
+                log.debug(f"Ensured directory exists: {dir_name}")
+            except OSError as e:
+                # Log an error if directory creation fails for unexpected reasons
+                log.error(f"Could not create directory {dir_name} for state file: {e}")
+                # Decide if you want to proceed or raise an error/return here
+                # For now, we'll just log and continue setting the path
+
         self.state_filepath = filepath
         log.info(f"Broker state file path set to: {self.state_filepath}")
+
     def save_state(self, filepath: str | None = None):
         """
         Saves the current broker state (cash and positions) to a JSON file.

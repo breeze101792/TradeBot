@@ -11,6 +11,7 @@ class AppConfig(BasicConfig):
         data = "data"
         tarding_database = 'tarding.db'
         log = "log"
+        broker = "broker"
         bt_cmd_history = 'backtrade_cmd.history'
         trade_cmd_history = 'trade_cmd.history'
 
