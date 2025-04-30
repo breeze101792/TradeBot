@@ -36,6 +36,7 @@ class DailyMACStrategy(BasicStrategy):
         for data in self.datas:
             pos = self.getposition(data)
             price = data.close[0]
+            # dbg_info(f"[{self.data.datetime.date(0)}]{data._name} Last day {price:.2f}, pos:{pos.size}, stop_loss: {self.stop_loss[data]}/{self.trailing_stop[data]}")
 
             # Exit: Short MA crosses below Long MA or hit stop loss/take profit
             if pos.size > 0:

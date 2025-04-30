@@ -64,7 +64,6 @@ class Position:
             'open_date': self.open_date.isoformat() if self.open_date else None
         }
 
-
 class BaseBroker:
     """
     A basic simulated broker handling cash, positions, and simple order execution.

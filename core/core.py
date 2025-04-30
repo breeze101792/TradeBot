@@ -62,13 +62,10 @@ class Core:
     def __update_datasource(self, args = None):
         self.market.update_data()
         return True
-    def __trading(self, args = None):
-        trade_eval = Evaluate()
 
-        # Buyig evaluation.
-        buy_list = trade_eval.buying_evaluation()
-
-        if len( buy_list) > 1:
+    def __buying_exec(self, buy_list):
+        # {symbol:2330, price:1000, size:1000, }
+        if len( buy_list) >= 1:
             # TODO, Place order & save to data base for info/stop_loss price.
             trade_broker = BrokerManager()
             trade_broker.connect()
@@ -78,15 +75,60 @@ class Core:
                 current_price = trade_broker.get_last_price(each_symbol)
                 # size should be the 1000x
                 order_size = 1 * 1000
+
+                # sanity check
                 if current_price * order_size < current_cash:
                     trade_broker.place_order(symbol=each_symbol, size=order_size, action='buy')
                 else:
                     dbg_warning('Insufficient cash, ignore buying product:{each_symbol} at size:{order_size}, current:{current_price}')
             trade_broker.summarize_positions()
             trade_broker.disconnect()
+        else:
+            dbg_info('ignore buying, len is 0.')
 
-        return True
-    def __selling(self, args = None):
+    def __selling_exec(self, selling_list):
+        # selling_list.append({
+        #     'symbol': trade_info['symbol'],
+        #     'size': trade_info['size'], # Sell the position size strategy decided.
+        #     'price': trade_info['price'], # Target sell price from strategy (might be indicative)
+        #     'strategy': target_strategy # Keep strategy object if needed later
+        # })
+
+        if len( selling_list) >= 1:
+            # TODO, Place order & save to data base for info/stop_loss price.
+            trade_broker = BrokerManager()
+            trade_broker.connect()
+            for each_symbol in selling_list:
+                symbol = each_symbol['symbol']
+                # DON"T need to times 1000
+                selling_size = each_symbol['size']
+
+                dbg_info(f'Selling product: {symbol}')
+                current_cash = trade_broker.get_cash()
+                current_price = trade_broker.get_last_price(symbol)
+                holding_size = trade_broker.get_position_by_symbol(symbol).size
+                # size should be the 1000x
+
+                # sanity check
+                if selling_size <= holding_size:
+                    trade_broker.place_order(symbol=symbol, size=selling_size, action='sell')
+                else:
+                    dbg_warning(f'[{symbol}] selling size({selling_size}) is greate then hoding size({holding_size}), set to hoding size.')
+                    trade_broker.place_order(symbol=symbol, size=holding_size, action='sell')
+
+            trade_broker.summarize_positions()
+            trade_broker.disconnect()
+        else:
+            dbg_info('ignore selling, len is 0.')
+
+    def __trading_eval(self, args = None):
+        trade_eval = Evaluate()
+
+        # Buyig evaluation.
+        buy_list = trade_eval.buying_evaluation()
+
+        return buy_list
+    def __selling_eval(self, args = None):
         trade_eval = Evaluate()
 
         # TODO, get pos list from broker.
@@ -94,16 +136,16 @@ class Core:
         trade_broker = BrokerManager()
         trade_broker.connect()
         pos_list = trade_broker.get_all_positions()
-        dbg_info(f"Position: {pos_list}")
+        dbg_info(f"Position: {pos_list.keys()}")
 
         # Selling evaluation.
-        sell_dict = trade_eval.selling_evaluation(pos_list)
+        sell_list = trade_eval.selling_evaluation(pos_list)
 
-        # TODO, Place order on real broker
         trade_broker.disconnect()
-        return True
 
-    def __heatbeat(self):
+        return sell_list
+
+    def __heatbeat_service(self):
         dbg_info('Heatbeat Start.')
         self.flag_heatbeat_running = True
 
@@ -146,13 +188,18 @@ class Core:
                 # sleep until next weekday market close time
                 # give the time to download first.
                 target = MarketTime.get_next_market_update_time().replace(hour=14, minute=30, second=0, microsecond=0)
-                dbg_info(f'Trading Service will wake up at {target}')
+                dbg_info(f'Trading Service will wake up at {target} to eval.')
                 sleep_until(target)
 
                 ###############################################################
                 dbg_info('Running Trading Service')
                 # IDEA, do we need to sperate it to buy service?
-                self.__trading()
+                buy_list = self.__trading_eval()
+                if len(buy_list) > 0:
+                    target = MarketTime.get_next_market_open_time().replace(hour=8, minute=50, second=0, microsecond=0)
+                    dbg_info(f'Trading Service will wake up at {target}, to buy product.')
+                    sleep_until(target)
+                    self.__buying_exec(buy_list)
 
             except KeyboardInterrupt:
                 dbg_warning("Keyboard Interupt.")
@@ -187,13 +234,16 @@ class Core:
                 # sleep until next weekday market close time
                 # give the time to download first.
                 # TODO, looping service on market open to close.
-                target = MarketTime.get_next_market_open_time()
-                dbg_info(f'Selling Service will wake up at {target}')
+                target = MarketTime.get_next_market_open_time().replace(hour=8, minute=50, second=0, microsecond=0)
+                dbg_info(f'Selling Service will wake up at {target}, to eval.')
                 sleep_until(target)
 
                 ###############################################################
                 dbg_info('Running Selling Service')
-                self.__selling()
+                selling_list = self.__selling_eval()
+                if len(selling_list) > 0:
+                    dbg_info(f'Selling Service will do selling product')
+                    self.__selling_exec(buy_list)
 
             except KeyboardInterrupt:
                 dbg_warning("Keyboard Interupt.")
@@ -272,8 +322,8 @@ class Core:
             self.tdcli = TDCLI()
             self.tdcli.regist_cmd("sanity", self.__sanitycheck, description="Run internal health checks for the core system.", group='tools')
             self.tdcli.regist_cmd("update", self.__update_datasource, description="Manually trigger an update of market data from configured sources.", group='tools')
-            self.tdcli.regist_cmd("trade", self.__trading, description="Do Trading/buy analysis and buy stock.", group='tools')
-            self.tdcli.regist_cmd("sell", self.__selling, description="Do Selling analysis and sell stock.", group='tools')
+            self.tdcli.regist_cmd("trade", self.__trading_eval, description="Do Trading/buy analysis and buy stock.", group='tools')
+            self.tdcli.regist_cmd("sell", self.__selling_eval, description="Do Selling analysis and sell stock.", group='tools')
         except Exception as e:
             dbg_error(e)
             traceback_output = traceback.format_exc()
@@ -311,8 +361,8 @@ class Core:
 
             # Monitor Thread
             # Checking thread healthy regularly.
-            self.heatbeat_thread = threading.Thread(target=self.__heatbeat, daemon=True)
-            # self.heatbeat_thread = threading.Thread(target=self.__heatbeat)
+            self.heatbeat_thread = threading.Thread(target=self.__heatbeat_service, daemon=True)
+            # self.heatbeat_thread = threading.Thread(target=self.__heatbeat_service)
             self.heatbeat_thread.start()
             thread_list.append(self.heatbeat_thread)
 

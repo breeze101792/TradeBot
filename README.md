@@ -7,6 +7,7 @@ pip install yfinance backtrader
 
 # FIXME.
 1. Fix hang when market.get_data, symbole not exist.
+2. FIX, when insufficient money will cause add history fail.
 
 # Actions
 ## First milestone

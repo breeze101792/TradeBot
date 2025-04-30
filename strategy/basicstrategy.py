@@ -10,7 +10,7 @@ class BasicStrategy(bt.Strategy):
     trading_date = None
     last_trade = {
         "date"          : None,
-        "code"          : "",
+        "symbol"          : "",
         "action"        : "none", # sell/buy/None
         "price"         : 0,
         "size"      : 0,
@@ -49,7 +49,7 @@ class BasicStrategy(bt.Strategy):
 
             self.last_trade = {
                 "date"          : None,
-                "code"          : "",
+                "symbol"          : "",
                 "action"        : "none", # sell/buy/None
                 "price"         : 0,
                 "size"      : 0,
@@ -61,13 +61,13 @@ class BasicStrategy(bt.Strategy):
         self.trading_history = []
     def update_trading_info(self, date, code, action, price, size):
         self.last_trade['date']          = date
-        self.last_trade['code']          = code
+        self.last_trade['symbol']          = code
         self.last_trade['action']        = action
         self.last_trade['price'] = price
         self.last_trade['size'] = size
 
         trade_info = self.last_trade
-        dbg_trace(f"[{self.NAME}] Update Trade info {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']:<4}, Exec size: {trade_info['size']:>5}, Price: {trade_info['price']:>7.2f}")
+        dbg_trace(f"[{self.NAME}] Update Trade info {trade_info['symbol']}@{trade_info['date']}: Action: {trade_info['action']:<4}, Exec size: {trade_info['size']:>5}, Price: {trade_info['price']:>7.2f}")
     # def notify_trade(self, trade):
     #     """
     #     Logs trade status changes (opened, closed).
@@ -178,7 +178,7 @@ class BasicStrategy(bt.Strategy):
             # self.bar_executed = len(self) # This seems unnecessary unless used elsewhere
 
         elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            dbg_info('Order Canceled/Margin/Rejected')
+            dbg_warning(f'!!! Order for {data._name} Canceled/Margin/Rejected')
 
         # Write down: no pending order
         self.order = None
@@ -196,6 +196,7 @@ class BasicStrategy(bt.Strategy):
             return
         for data in self.datas:
             for each_record in self.initial_order_history:
+                # FIXME, insufficent fund will cause update fail without any notification.
                 if each_record[data_name_idx] == data._name:
                     price = each_record[data_price_idx]
 

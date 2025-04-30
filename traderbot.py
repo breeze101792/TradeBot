@@ -12,19 +12,8 @@ from backtest.btcli import *
 def main():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--debug", dest="debug",
-                    help="debug mode on!!", action="store_true")
-
-    # BackTestig data input type
-    parser.add_argument("-t", "--test-type", action="store",
-        dest="test_type", default="single",
-        choices=['single', 'batch'],
-        help="Backtesting for with different way to input data. ['single', 'batch']")
-
-    # parser.add_argument("-D", "--data-set", action="store",
-    #     dest="test_type", default="default",
-    #     choices=['default'],
-    #     help="Backtesting for with different data set. ")
+    parser.add_argument("-d", "--develoment", dest="develoment",
+                    help="develoment mode on!!", action="store_true")
 
     parser.add_argument("--time-frame", action="store",
         dest="timeframe", default="single",
@@ -42,6 +31,11 @@ def main():
         choices=['backtest', 'trade'],
         help="Trading mode")
 
+    # Shortcut flag for backtest mode
+    parser.add_argument("-b", "--backtest", action="store_const",
+        dest="trading_mode", const="backtest", # Set trading_mode to 'backtest' if -b is used
+        help="Shortcut to enable backtest mode (equivalent to -m backtest)")
+
     # Start config
     cm = AppConfigManager()
     cm.load()
@@ -51,9 +45,17 @@ def main():
 
     # Start parsing args.
     args = parser.parse_args()
-    if args.debug:
-        DebugSetting.setDbgLevel("all")
-        dbg_info('Enable Debug mode')
+    if args.develoment:
+        # DebugSetting.setDbgLevel("all")
+        dbg_warning('Enable development mode')
+        cm.set('path.broker', "broker_development")
+    else:
+        ans = input("!!! It's a NOT in development mode, are you sure you want to proceed, or try with development mode.?(y/N, enter to goto development mode.):")
+        if ans not in ['y', 'Y', 'yes', 'YES']:
+            dbg_warning('Enable development mode')
+            cm.set('path.broker', "broker_development")
+        else:
+            dbg_warning('Disable development mode')
 
     # Start core.
     if args.trading_mode == "trade":

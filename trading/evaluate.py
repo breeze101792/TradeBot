@@ -20,7 +20,7 @@ class Evaluate:
         if self.flag_development:
             dbg_warning('Enable debug mode.')
             # Buy
-            self.test_buy_list = ['1474', '1536', '1539', '1540', '2031', '2233', '2345', '2467', '3019', '3022', '3031', '3049', '4137', '4581', '6405', '6674', '6781', '6863', '6937', '8101', '8104', '8114', '8467', '8499']
+            self.test_buy_list = ['1307', '1413', '1558', '1597', '1721', '2022', '2034', '2250', '2312', '2374', '2399', '2429', '2488', '2496', '2514', '2520', '2542', '2618', '2891']
             # Sell
             self.test_sell_list = []
             # self.test_sell_list.append({'symbol':'2330', 'open_date':date.today().isoformat(), 'size':5, 'initial_entry_price':2000, 'strategy': self.default_strategy.NAME})
@@ -68,10 +68,10 @@ class Evaluate:
                     trade_info = each_strategy.last_trade
 
                     if trade_info['action'] == 'buy':
-                        dbg_info(f"Evaluation Trade {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
-                        candidate_dict[trade_info['code']] = {'strategy': each_strategy}
+                        dbg_info(f"Evaluation Trade {trade_info['symbol']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
+                        candidate_dict[trade_info['symbol']] = {'strategy': each_strategy}
                     # else:
-                    #     dbg_info(f"Evaluation Trade {trade_info['code']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
+                    #     dbg_info(f"Evaluation Trade {trade_info['symbol']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
                 except Exception as e:
                     dbg_warning(e)
                 
@@ -219,13 +219,13 @@ class Evaluate:
                     # Add details needed for the actual sell order
                     selling_list.append({
                         'symbol': trade_info['symbol'],
-                        'size': position_size, # Sell the entire current position size
+                        'size': trade_info['size'], # Sell the position size strategy decided.
                         'price': trade_info['price'], # Target sell price from strategy (might be indicative)
                         'strategy': target_strategy # Keep strategy object if needed later
                     })
                 elif trade_info:
                     # Assuming dbg_debug exists in your system, similar to dbg_info/dbg_warning
-                    dbg_debug(f"No sell signal for {symbol} on {last_trading_day}. Last action: {trade_info.get('action')}")
+                    dbg_debug(f"No sell signal for {symbol} on {last_trading_day}. Last action: {trade_info}")
                 else:
                     # Assuming dbg_debug exists
                     dbg_debug(f"No trade info generated for {symbol} by strategy {strategy_name} on {last_trading_day}.")

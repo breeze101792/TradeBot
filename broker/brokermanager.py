@@ -35,7 +35,7 @@ class BrokerManager:
             initial_cash = kwargs.get('initial_cash', 1000000.0)
             commission_per_trade = kwargs.get('commission_per_trade', 5.0)
             # Use os.path.join for correct path construction
-            state_filepath = kwargs.get('state_filepath', os.path.join(self.cm.get_path('broker'), f'{broker_type}_state')) # Default path
+            state_filepath = kwargs.get('state_filepath', os.path.join(self.cm.get_path('broker'), f'{broker_type}/broker_state.json')) # Default path
 
             self.broker = BaseBroker(
                 initial_cash=initial_cash,

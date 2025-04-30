@@ -18,7 +18,8 @@ from backtest.analyzer.partialtrade import *
 from strategy.strategy import *
 
 class Backtest:
-    INIT_CASH = 1000000
+    # 10b to avoid buy fail.
+    INIT_CASH = 1000000000
     COMMISSION = 0.001
     SLIPPAGE_PREC = 0.001
     TO_DATE=datetime.today()
@@ -313,7 +314,8 @@ class Backtest:
         # (datetime, size, price, data_name)
         # Example: order_history = (('2012-04-11', 10, 100.50, 'AAPL'), ('2012-05-01', -10, 105.20, 'AAPL'))
         dbg_trace(f"Adding {len(self.cached_validated_history)} validated historical orders.")
-        cerebro.add_order_history(self.cached_validated_history, notify = False)
+        # cerebro.add_order_history(self.cached_validated_history, notify = False)
+        cerebro.add_order_history(self.cached_validated_history, notify = True)
 
     def add_strategy(self, strategy_list, cerebro = None):
         if cerebro is None:
