@@ -259,7 +259,7 @@ class BaseBroker:
                 # For now, we'll just log and continue setting the path
 
         self.state_filepath = filepath
-        dbg_info(f"Broker state file path set to: {self.state_filepath}")
+        dbg_trace(f"Broker state file path set to: {self.state_filepath}")
 
     def _save_state(self, filepath: str | None = None):
         """
@@ -281,7 +281,7 @@ class BaseBroker:
 
             with open(save_path, 'w') as f:
                 json.dump(state, f, indent=4)
-            dbg_info(f"Broker state saved successfully to {save_path}")
+            dbg_trace(f"Broker state saved successfully to {save_path}")
         except IOError as e:
             dbg_error(f"Failed to save broker state to {save_path}: {e}")
 
@@ -328,7 +328,7 @@ class BaseBroker:
                     # Assign the loaded (or None) open_date
                     open_date=loaded_open_date
                 )
-            dbg_info(f"Broker state loaded successfully from {load_path}. Cash: ${self.cash:,.2f}, Positions: {len(self.positions)}")
+            dbg_trace(f"Broker state loaded successfully from {load_path}. Cash: ${self.cash:,.2f}, Positions: {len(self.positions)}")
 
         except (IOError, json.JSONDecodeError, KeyError, TypeError) as e:
             dbg_error(f"Failed to load or parse broker state from {load_path}: {e}. Using existing/default state.")
@@ -337,7 +337,7 @@ class BaseBroker:
         """
         Connects the simulated broker. For BaseBroker, this means loading the last saved state.
         """
-        dbg_info(f"Connecting BaseBroker: Loading state from {self.state_filepath}...")
+        dbg_trace(f"Connecting BaseBroker: Loading state from {self.state_filepath}...")
         self._load_state() # Load state using the configured filepath
 
     def disconnect(self):
@@ -346,10 +346,10 @@ class BaseBroker:
         if it has changed since the last load or save.
         """
         if self._state_changed:
-            dbg_info(f"Disconnecting BaseBroker: State changed, saving state to {self.state_filepath}...")
+            dbg_trace(f"Disconnecting BaseBroker: State changed, saving state to {self.state_filepath}...")
             self._save_state() # Save state using the configured filepath
         else:
-            dbg_info(f"Disconnecting BaseBroker: State unchanged since last load/save, skipping save to {self.state_filepath}.")
+            dbg_trace(f"Disconnecting BaseBroker: State unchanged since last load/save, skipping save to {self.state_filepath}.")
 
 
 if __name__ == "__main__":

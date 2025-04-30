@@ -20,7 +20,7 @@ class Evaluate:
         if self.flag_development:
             dbg_warning('Enable debug mode.')
             # Buy
-            self.test_buy_list = ['1307', '1413', '1558', '1597', '1721', '2022', '2034', '2250', '2312', '2374', '2399', '2429', '2488', '2496', '2514', '2520', '2542', '2618', '2891']
+            self.test_buy_list = ['1459', '1463', '1528', '2049', '2392', '2417', '2455', '2486', '3023', '3645', '4540', '4555', '5225', '6743', '8429']
             # Sell
             self.test_sell_list = []
             # self.test_sell_list.append({'symbol':'2330', 'open_date':date.today().isoformat(), 'size':5, 'initial_entry_price':2000, 'strategy': self.default_strategy.NAME})
@@ -146,7 +146,7 @@ class Evaluate:
         # selling_list = [{'symbol':'2330', 'size':5, 'initial_entry_price':1000, 'date':date.today(), 'strategy': DailyMACStrategy.NAME}] 
 
         if len(position_dict) == 0:
-            dbg_info(f"No position.")
+            dbg_debug(f"No position.")
             return []
         strategyMgr = StrategyManager()
 
@@ -155,7 +155,7 @@ class Evaluate:
         selling_analyzer.clean_result()
 
         last_trading_day = MarketTime.get_previous_market_update_time().date()
-        dbg_info(f"Last Trad date {last_trading_day}")
+        dbg_debug(f"Last Trad date {last_trading_day}")
 
         # Iterate through positions provided by the broker (dict: {symbol: Position_object})
         for symbol, position_obj in position_dict.items():
@@ -177,7 +177,7 @@ class Evaluate:
                     dbg_warning(f"Skipping evaluation for {symbol}: Missing or invalid position data (Date: {purchase_date}, Price: {purchase_price}, Size: {position_size})")
                     continue
 
-                dbg_info(f"Evaluating selling condition for {symbol}, opened on {purchase_date.isoformat()} at initial price {purchase_price:.2f}, current size {position_size}, using strategy {strategy_name}")
+                dbg_info(f"Evaluating for {symbol}, opened on {purchase_date.isoformat()} at initial price {purchase_price:.2f}, current size {position_size}, using strategy {strategy_name}")
 
                 # test only one year for accelerate performance.
                 # TODO: Consider if FROM_DATE should be relative to purchase_date?
@@ -215,7 +215,7 @@ class Evaluate:
                 # Check if the strategy generated a sell signal for the last trading day
                 if trade_info and trade_info.get('action') == 'sell' and trade_info.get('symbol') == symbol:
                      # Ensure the sell signal corresponds to the evaluated symbol
-                    dbg_info(f"Sell signal generated for {symbol} by strategy {strategy_name}. Details: {trade_info}")
+                    dbg_trace(f"Sell signal generated for {symbol} by strategy {strategy_name}. Details: {trade_info}")
                     # Add details needed for the actual sell order
                     selling_list.append({
                         'symbol': trade_info['symbol'],
@@ -242,9 +242,9 @@ class Evaluate:
         selling_list = self.__sell_find_candidate(position_dict)
 
         if len(selling_list) != 0:
-            dbg_info(f"Potential Selling List: {selling_list}") # Renamed for clarity
+            dbg_debug(f"Potential Selling List: {selling_list}") # Renamed for clarity
         else:
-            dbg_info(f"No Potential Selling.")
+            dbg_debug(f"No Potential Selling.")
 
         for sell_candidate in selling_list:
             # Use 'symbol' key which is consistent now

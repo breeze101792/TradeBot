@@ -208,7 +208,7 @@ class BasicStrategy(bt.Strategy):
                     self.trailing_takeprofit[data] = price * (1 + self.params.trailing_takeprofit_pct)  # Set initial trailing take profit (20% up)
                     # --]
 
-                    dbg_info(f"Add order history of {data._name}, pos:{each_record[data_pos_idx]}/price:{each_record[data_price_idx]}")
+                    dbg_trace(f"Add order history of {data._name}, pos:{each_record[data_pos_idx]}/price:{each_record[data_price_idx]}")
 
                     self.initial_order_history.remove(each_record)
         if len(self.initial_order_history) != 0:

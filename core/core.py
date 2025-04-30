@@ -19,6 +19,25 @@ from trading.tradecli import TDCLI
 from trading.evaluate import Evaluate
 from broker.brokermanager import BrokerManager
 
+def sleep_with_flag(timeout: float, flag: threading.Event):
+    # print(f"Sleeping for up to {timeout} seconds...")
+    # This will block up to `timeout` seconds, or return early if flag is set
+    interrupted = flag.wait(timeout)
+    if interrupted:
+        dbg_info("Sleep interrupted by flag!")
+        return -1
+    # print("Sleep completed.")
+def sleep_until_with_flag(target_time: datetime, flag: threading.Event):
+    # print(f"Sleeping for up to {target_time} seconds...")
+    # This will block up to `target_time` seconds, or return early if flag is set
+    now = datetime.now()
+    delta = (target_time - now).total_seconds()
+    interrupted = flag.wait(delta)
+    if interrupted:
+        dbg_info("Sleep interrupted by flag!")
+        return -1
+    # print("Sleep completed.")
+
 def sleep_until(target_time: datetime):
     now = datetime.now()
     delta = (target_time - now).total_seconds()
@@ -44,6 +63,8 @@ class Core:
         self.trading_service_thread = None
         self.selling_service_thread = None
         self.heatbeat_thread = None
+
+        self.stop_event = threading.Event()
 
         # class
         self.database = None
@@ -71,7 +92,8 @@ class Core:
             trade_broker.connect()
             for each_symbol in buy_list:
                 dbg_info(f'Buying product: {each_symbol}')
-                current_cash = trade_broker.get_cash()
+                # 0.9 is to avoid market price increase cause insufficient funds.
+                current_cash = trade_broker.get_cash() * 0.9
                 current_price = trade_broker.get_last_price(each_symbol)
                 # size should be the 1000x
                 order_size = 1 * 1000
@@ -127,6 +149,9 @@ class Core:
         # Buyig evaluation.
         buy_list = trade_eval.buying_evaluation()
 
+        # debug
+        # self.__buying_exec(buy_list)
+        # debug
         return buy_list
     def __selling_eval(self, args = None):
         trade_eval = Evaluate()
@@ -136,7 +161,7 @@ class Core:
         trade_broker = BrokerManager()
         trade_broker.connect()
         pos_list = trade_broker.get_all_positions()
-        dbg_info(f"Position: {pos_list.keys()}")
+        dbg_debug(f"Position: {pos_list.keys()}")
 
         # Selling evaluation.
         sell_list = trade_eval.selling_evaluation(pos_list)
@@ -155,7 +180,10 @@ class Core:
             try:
                 # dbg_trace('heart beatting every {}s'.format(heart_beat_interval_time))
                 self.__sanitycheck()
-                time.sleep(heart_beat_interval_time)
+                sleep_result = sleep_with_flag(heart_beat_interval_time, self.stop_event)
+                if sleep_result == -1:
+                    break;
+                # time.sleep(heart_beat_interval_time)
             except KeyboardInterrupt:
                 dbg_warning("Keyboard Interupt.")
                 break;
@@ -187,9 +215,13 @@ class Core:
                 ###############################################################
                 # sleep until next weekday market close time
                 # give the time to download first.
-                target = MarketTime.get_next_market_update_time().replace(hour=14, minute=30, second=0, microsecond=0)
+                # target = MarketTime.get_next_market_update_time().replace(hour=14, minute=30, second=0, microsecond=0)
+                # for development convince, we set evaluation 2 hours before market open.
+                target = MarketTime.get_next_market_open_time().replace(hour=7, minute=0, second=0, microsecond=0)
                 dbg_info(f'Trading Service will wake up at {target} to eval.')
-                sleep_until(target)
+                sleep_result = sleep_until_with_flag(target, self.stop_event)
+                if sleep_result == -1:
+                    break;
 
                 ###############################################################
                 dbg_info('Running Trading Service')
@@ -198,7 +230,9 @@ class Core:
                 if len(buy_list) > 0:
                     target = MarketTime.get_next_market_open_time().replace(hour=8, minute=50, second=0, microsecond=0)
                     dbg_info(f'Trading Service will wake up at {target}, to buy product.')
-                    sleep_until(target)
+                    sleep_result = sleep_until_with_flag(target, self.stop_event)
+                    if sleep_result == -1:
+                        break;
                     self.__buying_exec(buy_list)
 
             except KeyboardInterrupt:
@@ -236,7 +270,9 @@ class Core:
                 # TODO, looping service on market open to close.
                 target = MarketTime.get_next_market_open_time().replace(hour=8, minute=50, second=0, microsecond=0)
                 dbg_info(f'Selling Service will wake up at {target}, to eval.')
-                sleep_until(target)
+                sleep_result = sleep_until_with_flag(target, self.stop_event)
+                if sleep_result == -1:
+                    break;
 
                 ###############################################################
                 dbg_info('Running Selling Service')
@@ -278,7 +314,9 @@ class Core:
                 # current_time = datetime.now()
                 target = MarketTime.get_next_market_update_time()
                 dbg_info(f'Datasource Service will wake up at {target}')
-                sleep_until(target)
+                sleep_result = sleep_until_with_flag(target, self.stop_event)
+                if sleep_result == -1:
+                    break;
                 ###############################################################
 
                 dbg_info('Updating stock info.')
@@ -368,7 +406,7 @@ class Core:
 
             # wait for service start.
             while self.flag_selling_service_running is False or self.flag_trade_service_running is False or self.flag_heatbeat_running is False:
-                dbg_info('Wait for threadings start.')
+                dbg_debug('Wait for threadings start.')
                 time.sleep(0.5)
 
             # Run CLI
@@ -389,27 +427,32 @@ class Core:
 
         finally:
             dbg_info('Safe exit threading.')
+
+            # disable all service flag
+            self.flag_core_running = False
+            self.flag_heatbeat_running = False
+            self.flag_selling_service_running = False
+            self.flag_datasource_service_running = False
+            self.flag_trade_service_running = False
+
+            # set event to stop sleep.
+            self.stop_event.set()
+
             if self.flag_datasource_service_running and self.datasource_service_thread is not None:
-                self.flag_datasource_service_running = False
                 self.datasource_service_thread.join()
                 self.datasource_service_thread = None
 
             if self.flag_trade_service_running and self.trading_service_thread is not None:
-                self.flag_trade_service_running = False
                 self.trading_service_thread.join()
                 self.trading_service_thread = None
 
             if self.flag_selling_service_running and self.selling_service_thread is not None:
-                self.flag_selling_service_running = False
                 self.selling_service_thread.join()
                 self.selling_service_thread = None
 
             if self.flag_heatbeat_running and self.heatbeat_thread is not None:
-                self.flag_heatbeat_running = False
                 self.heatbeat_thread.join()
                 self.heatbeat_thread = None
-
-            self.flag_core_running = False
 
         dbg_info('Core End.')
 

@@ -1,6 +1,8 @@
 
-from typing import Type, Dict, Any, Optional
+from typing import Type, Dict, Any, Optional, List
 import os
+import csv
+from datetime import datetime, timedelta
 from tabulate import tabulate # Import tabulate for creating tables
 
 # Local file
@@ -9,8 +11,6 @@ from utility.debug import * # Replace standard logging with custom debug system
 # Assuming BaseBroker is the primary implementation for now
 from broker.base.basebroker import BaseBroker, Position
 from core.config import *
-
-
 
 class BrokerManager:
     """
@@ -30,6 +30,10 @@ class BrokerManager:
         self.broker: BaseBroker # Type hint for the wrapped broker instance
         self.broker_type = broker_type
 
+        self.transaction_log_path = kwargs.get('transaction_log_path', 
+            os.path.join(self.cm.get_path('broker'), f'{broker_type}/transactions.csv'))
+        self._ensure_transaction_log_dir()
+
         if broker_type == 'base':
             # Extract relevant kwargs for BaseBroker, providing defaults if not present
             initial_cash = kwargs.get('initial_cash', 1000000.0)
@@ -43,7 +47,7 @@ class BrokerManager:
             )
             # Set the state file path after initialization
             self.broker.set_state_filepath(state_filepath)
-            dbg_info(f"Initialized BaseBroker via BrokerManager. Cash: ${initial_cash:,.2f}, Commission: ${commission_per_trade:.2f}, State File: {state_filepath}")
+            dbg_debug(f"Initialized BaseBroker via BrokerManager. Cash: ${initial_cash:,.2f}, Commission: ${commission_per_trade:.2f}, State File: {state_filepath}")
         # Add elif blocks here for other broker types in the future
         # elif broker_type == 'interactive_brokers':
         #     self.broker = InteractiveBrokersBroker(**kwargs)
@@ -64,7 +68,17 @@ class BrokerManager:
         Returns:
             Optional[Dict[str, Any]]: Details of the execution, or None if rejected/failed.
         """
-        return self.broker.place_order(symbol, action, size, price)
+        result = self.broker.place_order(symbol, action, size, price)
+        if result:
+            self._log_transaction(
+                symbol=symbol,
+                action=action,
+                size=size,
+                price=result['price'],
+                commission=result['commission'],
+                cash_balance=self.get_cash()
+            )
+        return result
 
     def get_cash(self) -> float:
         """Returns the current available cash balance from the managed broker."""
@@ -122,7 +136,7 @@ class BrokerManager:
         total_cost_basis = 0.0
         total_unrealized_pl = 0.0
 
-        dbg_info("Summarizing positions...")
+        # dbg_info("Summarizing positions...")
         for symbol, pos in positions.items():
             try:
                 current_price = self.broker.get_last_price(symbol)
@@ -206,6 +220,158 @@ class BrokerManager:
             dbg_error(f"BrokerManager: Error during disconnection for {self.broker_type} broker: {e}")
             # Optionally re-raise or handle specific disconnection errors
             raise
+
+    def _ensure_transaction_log_dir(self):
+        """Ensures the directory for transaction logs exists."""
+        os.makedirs(os.path.dirname(self.transaction_log_path), exist_ok=True)
+
+    def _log_transaction(self, symbol: str, action: str, size: int, price: float, 
+                        commission: float, cash_balance: float):
+        """
+        Logs a transaction to the CSV file.
+        
+        Args:
+            symbol: Trading symbol
+            action: 'buy' or 'sell'
+            size: Number of shares
+            price: Execution price per share
+            commission: Commission paid
+            cash_balance: Cash balance after transaction
+        """
+        log_exists = os.path.exists(self.transaction_log_path)
+        
+        with open(self.transaction_log_path, 'a', newline='') as f:
+            writer = csv.writer(f)
+            if not log_exists:
+                writer.writerow([
+                    'timestamp', 'symbol', 'action', 'size', 
+                    'price', 'commission', 'cash_balance'
+                ])
+            
+            writer.writerow([
+                datetime.now().isoformat(),
+                symbol,
+                action,
+                size,
+                price,
+                commission,
+                cash_balance
+            ])
+
+    def get_transactions(self) -> List[Dict[str, Any]]:
+        """
+        Returns all logged transactions as a list of dictionaries.
+        
+        Returns:
+            List of transaction records with keys matching CSV headers
+        """
+        if not os.path.exists(self.transaction_log_path):
+            return []
+            
+        with open(self.transaction_log_path, 'r') as f:
+            reader = csv.DictReader(f)
+            return list(reader)
+
+    def summarize_transactions(self, duration: str = None):
+        """
+        Prints a summary of transactions with additional stock status information.
+        
+        Args:
+            duration (str): Optional filter for transactions ('month', 'year', 'week')
+        """
+        transactions = self.get_transactions()
+        if not transactions:
+            print("No transactions recorded.")
+            return
+
+        # Filter by duration if specified
+        now = datetime.now()
+        if duration:
+            if duration == 'month':
+                cutoff = now - timedelta(days=30)
+            elif duration == 'year':
+                cutoff = now - timedelta(days=365)
+            elif duration == 'week':
+                cutoff = now - timedelta(days=7)
+            else:
+                raise ValueError("Invalid duration. Use 'month', 'year' or 'week'")
+            
+            transactions = [t for t in transactions 
+                          if datetime.fromisoformat(t['timestamp']) >= cutoff]
+
+        total_buys = sum(1 for t in transactions if t['action'] == 'buy')
+        total_sells = sum(1 for t in transactions if t['action'] == 'sell')
+        total_commission = sum(float(t['commission']) for t in transactions)
+
+        # Get current positions
+        current_positions = self.get_all_positions()
+        current_symbols = set(current_positions.keys())
+
+        # Track opened and closed stocks
+        opened_stocks = set()
+        closed_stocks = set()
+        monthly_profit = 0.0
+
+        # Analyze transactions
+        for t in transactions:
+            symbol = t['symbol']
+            if t['action'] == 'buy':
+                opened_stocks.add(symbol)
+            elif t['action'] == 'sell':
+                if symbol in opened_stocks:
+                    opened_stocks.remove(symbol)
+                    closed_stocks.add(symbol)
+                # Calculate profit for sells
+                buy_price = next((float(bt['price']) for bt in reversed(transactions) 
+                                if bt['symbol'] == symbol and bt['action'] == 'buy'), 0)
+                monthly_profit += (float(t['price']) - buy_price) * int(t['size']) - float(t['commission'])
+
+        # Prepare summary data for tabulate
+        summary_data = [
+            ["Time Period", f"Last {duration}" if duration else "All"],
+            ["Total Transactions", len(transactions)],
+            ["Buy Orders", total_buys],
+            ["Sell Orders", total_sells],
+            ["Total Commission", f"${total_commission:,.2f}"],
+            ["Estimated Profit", f"${monthly_profit:,.2f}"]
+        ]
+
+        # Print summary table
+        print("\n--- Transactions Summary ---")
+        print(tabulate(summary_data, tablefmt="grid", stralign="right"))
+
+        # Prepare stock status data for tabulate
+        stock_status_data = []
+        for symbol in opened_stocks:
+            pos = current_positions.get(symbol)
+            if pos:
+                current_price = self.get_last_price(symbol)
+                stock_status_data.append([
+                    symbol,
+                    "Open",
+                    pos.size,
+                    f"${pos.average_entry_price:,.2f}",
+                    f"${current_price:,.2f}"
+                ])
+
+        for symbol in closed_stocks:
+            stock_status_data.append([
+                symbol,
+                "Closed",
+                "N/A",
+                "N/A",
+                "N/A"
+            ])
+
+        # Print stock status table if there are any positions
+        if stock_status_data:
+            print("\n--- Stock Status ---")
+            print(tabulate(
+                stock_status_data,
+                headers=["Symbol", "Status", "Shares", "Avg Price", "Current Price"],
+                tablefmt="grid",
+                stralign="right"
+            ))
 
     # You might add other broker-specific methods here as needed,
     # potentially checking self.broker_type if they aren't universal.
