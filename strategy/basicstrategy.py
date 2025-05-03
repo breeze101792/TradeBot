@@ -211,6 +211,8 @@ class BasicStrategy(bt.Strategy):
                     dbg_trace(f"Add order history of {data._name}, pos:{each_record[data_pos_idx]}/price:{each_record[data_price_idx]}")
 
                     self.initial_order_history.remove(each_record)
+                else:
+                    dbg_warning(f"{each_record[data_name_idx]}/{data._name} are different.")
         if len(self.initial_order_history) != 0:
             dbg_error(f"initial_order_history init fail {self.initial_order_history}.")
             raise

@@ -149,7 +149,7 @@ class Core:
         # Buyig evaluation.
         buy_list = trade_eval.buying_evaluation()
 
-        # debug
+        # FIXME, debug, don't not open it.
         # self.__buying_exec(buy_list)
         # debug
         return buy_list

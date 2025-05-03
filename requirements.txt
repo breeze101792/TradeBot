@@ -4,4 +4,5 @@ yfinance
 twstock
 lxml
 shioaji
+tabulate
 # python-dotenv

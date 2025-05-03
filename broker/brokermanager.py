@@ -239,24 +239,61 @@ class BrokerManager:
             cash_balance: Cash balance after transaction
         """
         log_exists = os.path.exists(self.transaction_log_path)
-        
-        with open(self.transaction_log_path, 'a', newline='') as f:
-            writer = csv.writer(f)
-            if not log_exists:
-                writer.writerow([
-                    'timestamp', 'symbol', 'action', 'size', 
-                    'price', 'commission', 'cash_balance'
-                ])
-            
-            writer.writerow([
-                datetime.now().isoformat(),
-                symbol,
-                action,
-                size,
-                price,
-                commission,
-                cash_balance
-            ])
+        now_iso = datetime.now().isoformat()
+
+        if not log_exists:
+            # File doesn't exist, create it, log initial positions, then log the current transaction
+            initial_positions = self.get_all_positions()
+            with open(self.transaction_log_path, 'w', newline='') as f:
+                writer = csv.writer(f)
+                # Write header
+                header = ['timestamp', 'symbol', 'action', 'size', 'price', 'commission', 'cash_balance']
+                writer.writerow(header)
+
+                # Log existing positions as 'initial' state if any exist
+                if initial_positions:
+                    dbg_info(f"Transaction log not found. Logging {len(initial_positions)} initial positions.")
+                    for pos_symbol, pos in initial_positions.items():
+                        # Note: cash_balance here reflects the balance *after* the current transaction,
+                        # not the balance when the initial position was established.
+                        initial_row = [
+                            now_iso, # Timestamp of when the log was created/initial state recorded
+                            pos_symbol,
+                            'initial', # Special action type
+                            pos.size,
+                            pos.average_entry_price,
+                            0.0, # No commission for initial state logging
+                            cash_balance # Use current cash balance
+                        ]
+                        writer.writerow(initial_row)
+                else:
+                     dbg_info("Transaction log not found. No initial positions to log.")
+
+                # Now log the actual transaction that triggered this call
+                current_transaction_row = [
+                    now_iso,
+                    symbol,
+                    action,
+                    size,
+                    price,
+                    commission,
+                    cash_balance
+                ]
+                writer.writerow(current_transaction_row)
+        else:
+            # File exists, append the current transaction
+            with open(self.transaction_log_path, 'a', newline='') as f:
+                writer = csv.writer(f)
+                current_transaction_row = [
+                    now_iso,
+                    symbol,
+                    action,
+                    size,
+                    price,
+                    commission,
+                    cash_balance
+                ]
+                writer.writerow(current_transaction_row)
 
     def get_transactions(self) -> List[Dict[str, Any]]:
         """
@@ -275,14 +312,59 @@ class BrokerManager:
     def summarize_transactions(self, duration: str = None):
         """
         Prints a summary of transactions with additional stock status information.
-        
+        If no transactions are found, it will display current positions as the initial state.
+
         Args:
             duration (str): Optional filter for transactions ('month', 'year', 'week')
         """
         transactions = self.get_transactions()
+        current_positions = self.get_all_positions()
+
+        # Handle case where there are no transactions (potentially initial state from loaded positions)
         if not transactions:
-            print("No transactions recorded.")
-            return
+            if not current_positions:
+                print("No transactions recorded and no positions held.")
+                return
+            else:
+                print("\n--- Transactions Summary (No History) ---")
+                summary_data = [
+                    ["Time Period", f"Initial State (No Transactions)"],
+                    ["Total Transactions", 0],
+                    ["Buy Orders", 0],
+                    ["Sell Orders", 0],
+                    ["Total Commission", "$0.00"],
+                    ["Estimated Profit", "$0.00"]
+                ]
+                print(tabulate(summary_data, tablefmt="grid", stralign="right"))
+
+                print("\n--- Stock Status (Initial) ---")
+                stock_status_data = []
+                for symbol, pos in current_positions.items():
+                    try:
+                        current_price = self.get_last_price(symbol)
+                    except Exception:
+                        current_price = 0.0 # Handle error fetching price
+                    stock_status_data.append([
+                        symbol,
+                        "Open", # Mark as Open since it's a current holding
+                        pos.size,
+                        f"${pos.average_entry_price:,.2f}",
+                        f"${current_price:,.2f}"
+                    ])
+                
+                if stock_status_data:
+                     print(tabulate(
+                        stock_status_data,
+                        headers=["Symbol", "Status", "Shares", "Avg Price", "Current Price"],
+                        tablefmt="grid",
+                        stralign="right"
+                    ))
+                else:
+                    # This case should technically not be reached if current_positions is not empty
+                    print("No current positions found despite initial check.")
+                return # Stop processing as there are no transactions
+
+        # --- Original logic continues below if transactions exist ---
 
         # Filter by duration if specified
         now = datetime.now()
@@ -303,11 +385,10 @@ class BrokerManager:
         total_sells = sum(1 for t in transactions if t['action'] == 'sell')
         total_commission = sum(float(t['commission']) for t in transactions)
 
-        # Get current positions
-        current_positions = self.get_all_positions()
+        # current_positions already fetched earlier
         current_symbols = set(current_positions.keys())
 
-        # Track opened and closed stocks
+        # Track opened and closed stocks based on transaction history within the period
         opened_stocks = set()
         closed_stocks = set()
         monthly_profit = 0.0
