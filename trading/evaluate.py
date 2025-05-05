@@ -20,7 +20,7 @@ class Evaluate:
         if self.flag_development:
             dbg_warning('Enable debug mode.')
             # Buy
-            self.test_buy_list = ['1459', '1463', '1528', '2049', '2392', '2417', '2455', '2486', '3023', '3645', '4540', '4555', '5225', '6743', '8429']
+            self.test_buy_list = ['2330', '1459', '1463', '1528', '2049', '2392', '2417', '2455', '2486', '3023', '3645', '4540', '4555', '5225', '6743', '8429']
             # Sell
             self.test_sell_list = []
             # self.test_sell_list.append({'symbol':'2330', 'open_date':date.today().isoformat(), 'size':5, 'initial_entry_price':2000, 'strategy': self.default_strategy.NAME})
@@ -53,7 +53,7 @@ class Evaluate:
                 try:
                     dbg_info(f"[{each_idx + 1:>2}/{len(product_list)}] {each_product}")
                     # test only one year for accerate performance.
-                    trade_analyzer.FROM_DATE=trade_analyzer.TO_DATE - relativedelta(years=1)
+                    trade_analyzer.from_date=trade_analyzer.to_date - relativedelta(years=1)
 
                     trade_analyzer.setup()
                     trade_analyzer.add_data([each_product])
@@ -92,7 +92,7 @@ class Evaluate:
         for each_product in candidate_dict.keys():
             try:
                 # test only one year for accerate performance.
-                candidate_analyzer.FROM_DATE=candidate_analyzer.TO_DATE - relativedelta(years=1)
+                candidate_analyzer.from_date=candidate_analyzer.to_date - relativedelta(years=1)
                 candidate_analyzer.setup()
                 candidate_analyzer.add_data([each_product])
 
@@ -180,8 +180,8 @@ class Evaluate:
                 dbg_info(f"Evaluating for {symbol}, opened on {purchase_date.isoformat()} at initial price {purchase_price:.2f}, current size {position_size}, using strategy {strategy_name}")
 
                 # test only one year for accelerate performance.
-                # TODO: Consider if FROM_DATE should be relative to purchase_date?
-                selling_analyzer.FROM_DATE = selling_analyzer.TO_DATE - relativedelta(years=1)
+                # TODO: Consider if from_date should be relative to purchase_date?
+                selling_analyzer.from_date = selling_analyzer.to_date - relativedelta(years=1)
                 selling_analyzer.setup() # Setup Cerebro instance
 
                 # Add data for the specific stock

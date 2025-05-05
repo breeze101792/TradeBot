@@ -18,14 +18,14 @@ from backtest.analyzer.partialtrade import *
 from strategy.strategy import *
 
 class Backtest:
-    # 10b to avoid buy fail.
-    INIT_CASH = 1000000000
-    COMMISSION = 0.001
-    SLIPPAGE_PREC = 0.001
-    TO_DATE=datetime.today()
-    FROM_DATE=TO_DATE - relativedelta(years=5)
-
     def __init__(self, market):
+        # Internal storage for configuration attributes
+        self._init_cash = 1000000000  # 10b to avoid buy fail.
+        self._commission = 0.001
+        self._slippage_prec = 0.001
+        self._to_date = datetime.today() # Use property setter logic
+        self._from_date = self.to_date - relativedelta(years=5) # Use property setter logic
+
         self.market = market
         self.default_strategy = MovingAverageCrossover
         self.default_product_list = self.market.get_top_product_list()
@@ -38,16 +38,76 @@ class Backtest:
         # every run cached.
         self.cached_validated_history = []
 
+    # --- Property Getters/Setters for Configuration ---
+
+    @property
+    def init_cash(self):
+        return self._init_cash
+
+    @init_cash.setter
+    def init_cash(self, value):
+        if not isinstance(value, (int, float)) or value <= 0:
+            raise ValueError("Initial cash must be a positive number.")
+        self._init_cash = value
+
+    @property
+    def commission(self):
+        return self._commission
+
+    @commission.setter
+    def commission(self, value):
+        if not isinstance(value, (int, float)) or value < 0:
+            raise ValueError("Commission must be a non-negative number.")
+        self._commission = value
+
+    @property
+    def slippage_prec(self):
+        return self._slippage_prec
+
+    @slippage_prec.setter
+    def slippage_prec(self, value):
+        if not isinstance(value, (int, float)) or value < 0:
+            raise ValueError("Slippage percentage must be a non-negative number.")
+        self._slippage_prec = value
+
+    @property
+    def to_date(self):
+        return self._to_date
+
+    @to_date.setter
+    def to_date(self, value):
+        if not isinstance(value, datetime):
+            raise ValueError("to_date must be a datetime object.")
+        # Optional: Add validation against from_date if needed
+        # if hasattr(self, '_from_date') and self._from_date and value < self._from_date:
+        #     raise ValueError("to_date cannot be earlier than from_date.")
+        self._to_date = value
+
+    @property
+    def from_date(self):
+        return self._from_date
+
+    @from_date.setter
+    def from_date(self, value):
+        if not isinstance(value, datetime):
+            raise ValueError("from_date must be a datetime object.")
+        # Optional: Add validation against to_date if needed
+        # if hasattr(self, '_to_date') and self._to_date and value > self._to_date:
+        #     raise ValueError("from_date cannot be later than to_date.")
+        self._from_date = value
+
+    # --- End Properties ---
+
     def __setup_broker(self, cerebro = None):
         if cerebro is None:
             cerebro = self.cerebro
 
-        # Setup init cash
-        cerebro.broker.set_cash(self.INIT_CASH)
-        # Set commission
-        cerebro.broker.setcommission(commission=self.COMMISSION)
-        # set perc
-        cerebro.broker.set_slippage_perc(perc=self.SLIPPAGE_PREC)
+        # Setup init cash using internal attribute
+        cerebro.broker.set_cash(self._init_cash)
+        # Set commission using internal attribute
+        cerebro.broker.setcommission(commission=self._commission)
+        # set perc using internal attribute
+        cerebro.broker.set_slippage_perc(perc=self._slippage_prec)
     def __setup_analyzer(self, cerebro = None):
         if cerebro is None:
             cerebro = self.cerebro
@@ -72,7 +132,8 @@ class Backtest:
             result_item = {}
             result_item['data'] = self.data_list
             result_item['strategy'] = [each_stra.NAME for each_stra in self.strategy_list]
-            result_item['init_cash'] = self.INIT_CASH
+            # Use internal attribute for reporting initial cash
+            result_item['init_cash'] = self._init_cash
             result_item['cash'] = cerebro.broker.getvalue()
 
             # ann_returN
@@ -252,7 +313,8 @@ class Backtest:
         for each_product in product_list:
             try:
                 df = self.market.get_data(each_product)
-                data = bt.feeds.PandasData(dataname=df, fromdate=self.FROM_DATE, todate=self.TO_DATE)
+                # Use internal attributes for date range
+                data = bt.feeds.PandasData(dataname=df, fromdate=self._from_date, todate=self._to_date)
 
                 dbg_trace(f"Add product {each_product}.")
 

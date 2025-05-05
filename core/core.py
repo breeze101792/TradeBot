@@ -209,6 +209,7 @@ class Core:
         self.flag_trade_service_running = True
 
         # do the evaluation daily
+        buy_list = []
         while True:
             try:
                 # sleeping control
@@ -216,17 +217,18 @@ class Core:
                 # sleep until next weekday market close time
                 # give the time to download first.
                 # target = MarketTime.get_next_market_update_time().replace(hour=14, minute=30, second=0, microsecond=0)
-                # for development convince, we set evaluation 2 hours before market open.
-                target = MarketTime.get_next_market_open_time().replace(hour=7, minute=0, second=0, microsecond=0)
-                dbg_info(f'Trading Service will wake up at {target} to eval.')
-                sleep_result = sleep_until_with_flag(target, self.stop_event)
-                if sleep_result == -1:
-                    break;
+                # for development convenience, we set evaluation 4 hours before market open.
+                if len(buy_list) == 0:
+                    target = MarketTime.get_next_market_open_time().replace(hour=5, minute=0, second=0, microsecond=0)
+                    dbg_info(f'Trading Service will wake up at {target} to eval.')
+                    sleep_result = sleep_until_with_flag(target, self.stop_event)
+                    if sleep_result == -1:
+                        break;
+                    dbg_info('Running Trading Evaluation')
+                    # IDEA, do we need to sperate it to buy service?
+                    buy_list = self.__trading_eval()
 
                 ###############################################################
-                dbg_info('Running Trading Service')
-                # IDEA, do we need to sperate it to buy service?
-                buy_list = self.__trading_eval()
                 if len(buy_list) > 0:
                     target = MarketTime.get_next_market_open_time().replace(hour=8, minute=50, second=0, microsecond=0)
                     dbg_info(f'Trading Service will wake up at {target}, to buy product.')
@@ -234,6 +236,20 @@ class Core:
                     if sleep_result == -1:
                         break;
                     self.__buying_exec(buy_list)
+
+                # reset buy_list
+                buy_list = []
+
+                # sleeping control
+                ###############################################################
+                target = MarketTime.get_next_market_update_time().replace(hour=15, minute=0, second=0, microsecond=0)
+                dbg_info(f'Trading Service will wake up at {target} to eval.')
+                sleep_result = sleep_until_with_flag(target, self.stop_event)
+                if sleep_result == -1:
+                    break;
+                dbg_info('Running Trading Evaluation')
+                buy_list = self.__trading_eval()
+                ###############################################################
 
             except KeyboardInterrupt:
                 dbg_warning("Keyboard Interupt.")
@@ -383,17 +399,17 @@ class Core:
         try:
             # Data Thread.
             # Update all market data for analysis later.
-            self.datasource_service_thread = threading.Thread(target=self.__datasource_service, daemon=True)
+            self.datasource_service_thread = threading.Thread(target=self.__datasource_service)
             self.datasource_service_thread.start()
             thread_list.append(self.datasource_service_thread)
 
             # Trading Thread.
             # Analysis and place order here.
-            self.trading_service_thread = threading.Thread(target=self.__trading_service, daemon=True)
+            self.trading_service_thread = threading.Thread(target=self.__trading_service)
             self.trading_service_thread.start()
             thread_list.append(self.trading_service_thread)
 
-            self.selling_service_thread = threading.Thread(target=self.__selling_service, daemon=True)
+            self.selling_service_thread = threading.Thread(target=self.__selling_service)
             self.selling_service_thread.start()
             thread_list.append(self.selling_service_thread)
 

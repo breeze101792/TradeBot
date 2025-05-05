@@ -213,6 +213,8 @@ class BasicStrategy(bt.Strategy):
                     self.initial_order_history.remove(each_record)
                 else:
                     dbg_warning(f"{each_record[data_name_idx]}/{data._name} are different.")
+
+        # FIXME, if the con-current exist, this will cause issue. don't mix up buy/sell thread.
         if len(self.initial_order_history) != 0:
             dbg_error(f"initial_order_history init fail {self.initial_order_history}.")
             raise

@@ -76,8 +76,8 @@ class BTCLI(CommandLineInterface):
         if args['#'] == 1 and args['1'] in operation_list:
             if args['1'] == 'strategy':
                 # for easy to trace, set to two month
-                self.backtest.TO_DATE = datetime.today()
-                self.backtest.FROM_DATE = datetime.today() - relativedelta(months=2)
+                self.backtest.to_date = datetime.today()
+                self.backtest.from_date = datetime.today() - relativedelta(months=2)
                 dbg_info(f"{datetime.today()},{relativedelta(month=3)}")
                 self.strategy_list=['TEST']
                 self.cmd_info()
@@ -122,8 +122,8 @@ class BTCLI(CommandLineInterface):
         self.print(f"product_list  : {self.product_list}")
         self.print(f"strategy_list : {self.strategy_list}")
         self.print(f"mode          : {self.mode}")
-        self.print(f"fromdate      : {self.backtest.FROM_DATE}")
-        self.print(f"todate        : {self.backtest.TO_DATE}")
+        self.print(f"fromdate      : {self.backtest.from_date}")
+        self.print(f"todate        : {self.backtest.to_date}")
         self.print("############################################################")
         return True
 
@@ -229,20 +229,20 @@ class BTCLI(CommandLineInterface):
         try:
             if args['#'] == 1:
                 if int(args['1']) < 100:
-                    self.backtest.TO_DATE = datetime.today()
-                    self.backtest.FROM_DATE = datetime.today() - relativedelta(years=int(args['1']))
+                    self.backtest.to_date = datetime.today()
+                    self.backtest.from_date = datetime.today() - relativedelta(years=int(args['1']))
             elif args['#'] == 2:
                 if args['1'] == 'from':
                     if int(args['2']) < 100:
-                        self.backtest.FROM_DATE = datetime.today() - relativedelta(years=int(args['2']))
+                        self.backtest.from_date = datetime.today() - relativedelta(years=int(args['2']))
                     else:
-                        self.backtest.FROM_DATE = datetime.strptime(args['2'], "%Y%m%d")
+                        self.backtest.from_date = datetime.strptime(args['2'], "%Y%m%d")
                 elif args['1'] == 'to':
                     if int(args['2']) < 100:
-                        self.backtest.TO_DATE = datetime.today() - relativedelta(years=int(args['2']))
+                        self.backtest.to_date = datetime.today() - relativedelta(years=int(args['2']))
                     else:
-                        self.backtest.TO_DATE = datetime.strptime(args['2'], "%Y%m%d")
-            self.print(f"Set from date {self.backtest.FROM_DATE}, to date {self.backtest.TO_DATE}.")
+                        self.backtest.to_date = datetime.strptime(args['2'], "%Y%m%d")
+            self.print(f"Set from date {self.backtest.from_date}, to date {self.backtest.to_date}.")
         except Exception as e:
             dbg_error(e)
             dbg_error("date should be like 20200101.")
