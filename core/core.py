@@ -218,15 +218,19 @@ class Core:
                 # give the time to download first.
                 # target = MarketTime.get_next_market_update_time().replace(hour=14, minute=30, second=0, microsecond=0)
                 # for development convenience, we set evaluation 4 hours before market open.
-                if len(buy_list) == 0:
-                    target = MarketTime.get_next_market_open_time().replace(hour=5, minute=0, second=0, microsecond=0)
-                    dbg_info(f'Trading Service will wake up at {target} to eval.')
-                    sleep_result = sleep_until_with_flag(target, self.stop_event)
-                    if sleep_result == -1:
-                        break;
-                    dbg_info('Running Trading Evaluation')
-                    # IDEA, do we need to sperate it to buy service?
-                    buy_list = self.__trading_eval()
+
+                update_time = MarketTime.get_next_market_update_time().replace(hour=15, minute=0, second=0, microsecond=0)
+                open_time = MarketTime.get_next_market_open_time().replace(hour=5, minute=0, second=0, microsecond=0)
+
+                target = open_time if update_time > open_time else update_time
+
+                dbg_info(f'Trading Service will wake up at {target} to eval.')
+                sleep_result = sleep_until_with_flag(target, self.stop_event)
+                if sleep_result == -1:
+                    break;
+                dbg_info('Running Trading Evaluation')
+                # IDEA, do we need to sperate it to buy service?
+                buy_list = self.__trading_eval()
 
                 ###############################################################
                 if len(buy_list) > 0:
@@ -239,17 +243,6 @@ class Core:
 
                 # reset buy_list
                 buy_list = []
-
-                # sleeping control
-                ###############################################################
-                target = MarketTime.get_next_market_update_time().replace(hour=15, minute=0, second=0, microsecond=0)
-                dbg_info(f'Trading Service will wake up at {target} to eval.')
-                sleep_result = sleep_until_with_flag(target, self.stop_event)
-                if sleep_result == -1:
-                    break;
-                dbg_info('Running Trading Evaluation')
-                buy_list = self.__trading_eval()
-                ###############################################################
 
             except KeyboardInterrupt:
                 dbg_warning("Keyboard Interupt.")
@@ -276,26 +269,73 @@ class Core:
         dbg_info('Selling Service Start.')
         self.flag_selling_service_running = True
 
-        # do the evaluation daily
+        # do the evaluation daily during market hours
         while True:
             try:
+                # Define market close time for today (e.g., 1:20 PM)
+                # This assumes MarketTime.get_next_market_open_time() gives the correct date.
+                today_market_close_target = MarketTime.get_next_market_close_time().replace(hour=13, minute=20, second=0, microsecond=0)
+                if datetime.now() < today_market_close_target:
+                    dbg_info(f'Selling Service will monitor until {today_market_close_target}.')
+
+                # Intra-day monitoring loop (every 10 minutes until market close)
+                while datetime.now() < today_market_close_target:
+                    if not self.flag_core_running or not self.flag_selling_service_running: # Check flags
+                        dbg_warning("Core or Selling service stopped during intra-day loop.")
+                        break # Exit inner loop
+
+                    dbg_info('Running Selling Evaluation (intra-day)')
+                    selling_list = self.__selling_eval()
+                    if len(selling_list) > 0:
+                        dbg_info(f'Executing selling orders (intra-day): {selling_list}')
+                        self.__selling_exec(selling_list) # Corrected: use selling_list
+                    else:
+                        dbg_info('No selling actions triggered in this interval.')
+
+                    # Calculate sleep duration for the next 10 minutes, but not past market close
+                    now = datetime.now()
+                    next_run_time = now + timedelta(minutes=10)
+                    sleep_duration = 0
+
+                    if next_run_time < today_market_close_target:
+                        # Sleep until the next 10-minute mark
+                        sleep_duration = (next_run_time - now).total_seconds()
+                    else:
+                        # Sleep only until market close
+                        sleep_duration = (today_market_close_target - now).total_seconds()
+
+                    if sleep_duration <= 0:
+                        # If calculation/execution took > 10 mins or we are past close time
+                        if now >= today_market_close_target:
+                             dbg_info("Market close time reached during check.")
+                             break # Exit inner loop, market is closed
+                        else:
+                             # Minimal sleep if calculation was long but still before close
+                             dbg_trace("Calculation took longer than interval, minimal sleep.")
+                             sleep_duration = 1 # Sleep briefly before next check
+
+                    dbg_trace(f"Selling service sleeping for {sleep_duration:.2f} seconds (until next 10min interval or close)")
+                    sleep_result = sleep_with_flag(sleep_duration, self.stop_event)
+                    if sleep_result == -1:
+                        dbg_info("Selling service sleep interrupted during intra-day loop.")
+                        break # Exit inner loop if interrupted
+
+                # End of intra-day loop
+                if datetime.now() >= today_market_close_target:
+                    dbg_info("Selling service finished monitoring for the day (market closed).")
+                # If loop exited due to interruption or flag change, it will be handled by the outer loop's finally block
+
                 # sleeping control
                 ###############################################################
-                # sleep until next weekday market close time
-                # give the time to download first.
-                # TODO, looping service on market open to close.
-                target = MarketTime.get_next_market_open_time().replace(hour=8, minute=50, second=0, microsecond=0)
-                dbg_info(f'Selling Service will wake up at {target}, to eval.')
-                sleep_result = sleep_until_with_flag(target, self.stop_event)
+                # Sleep until next market open time (e.g., 8:50 AM)
+                market_open_target = MarketTime.get_next_market_open_time().replace(hour=8, minute=55, second=0, microsecond=0)
+                dbg_info(f'Selling Service will wake up at {market_open_target} to start intra-day monitoring.')
+                sleep_result = sleep_until_with_flag(market_open_target, self.stop_event)
                 if sleep_result == -1:
-                    break;
+                    dbg_info("Selling service interrupted before market open.")
+                    break # Exit outer loop if interrupted before starting
 
                 ###############################################################
-                dbg_info('Running Selling Service')
-                selling_list = self.__selling_eval()
-                if len(selling_list) > 0:
-                    dbg_info(f'Selling Service will do selling product')
-                    self.__selling_exec(buy_list)
 
             except KeyboardInterrupt:
                 dbg_warning("Keyboard Interupt.")

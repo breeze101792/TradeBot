@@ -85,6 +85,14 @@ class MarketTime:
         return MarketTime._get_next_trading_day_time(MarketTime.MARKET_UPDATE_TIME)
 
     @staticmethod
+    def get_next_market_close_time() -> datetime:
+        """
+        Calculates the next market opening time using the helper method.
+        Assumes the market close at MARKET_CLOSE_TIME on trading days (Mon-Fri).
+        """
+        return MarketTime._get_next_trading_day_time(MarketTime.MARKET_CLOSE_TIME)
+
+    @staticmethod
     def get_next_market_open_time() -> datetime:
         """
         Calculates the next market opening time using the helper method.
