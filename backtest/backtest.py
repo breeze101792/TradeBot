@@ -383,7 +383,7 @@ class Backtest:
         # cerebro.add_order_history(self.cached_validated_history, notify = False)
         cerebro.add_order_history(self.cached_validated_history, notify = True)
 
-    def add_strategy(self, strategy_list, cerebro = None):
+    def add_strategy(self, strategy_list, cerebro = None, last_trading_day = None):
         if cerebro is None:
             cerebro = self.cerebro
 
@@ -391,6 +391,13 @@ class Backtest:
             dbg_trace(f"Add Straegy: {each_stra}")
             cerebro.addstrategy(each_stra)
             self.strategy_list.append(each_stra)
+
+            # clarn trade infojj
+            each_stra.reset_status(each_stra, clean_all = True)
+
+            # TODO, don't access class variable.
+            if last_trading_day is not None:
+                each_stra.trading_date = last_trading_day
 
     def eval(self, cerebro = None):
         if len(self.cached_validated_history) != 0:

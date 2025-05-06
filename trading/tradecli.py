@@ -14,6 +14,7 @@ from utility.cli import *
 from market.market import *
 
 from backtest.commands import *
+from backtest.btcli import *
 from broker.brokermanager import BrokerManager
 
 class TDCLI(CommandLineInterface):
@@ -31,6 +32,19 @@ class TDCLI(CommandLineInterface):
         register_commands(self)
         self.regist_cmd("positons", self.cmd_positions, description=f"show positions.", arg_list = ['show'], group='trade')
         self.regist_cmd("transactions", self.cmd_transactions, description="show transaction.", group='tools')
+        self.regist_cmd("backtest", self.cmd_backtest, description="Enter backtest cli.", group='tools')
+    def cmd_backtest(self, args):
+        try:
+            btcli = BTCLI()
+            btcli.run()
+        except Exception as e:
+            dbg_error(e)
+        
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+            return False
+        return True
+
     def cmd_positions(self, args):
         trade_broker = BrokerManager()
         trade_broker.connect()

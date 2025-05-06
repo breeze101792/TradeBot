@@ -321,12 +321,14 @@ class Core:
             try:
                 # Define market close time for today (e.g., 1:20 PM)
                 # This assumes MarketTime.get_next_market_open_time() gives the correct date.
-                today_market_close_target = MarketTime.get_next_market_close_time().replace(hour=13, minute=20, second=0, microsecond=0)
-                if datetime.now() < today_market_close_target:
-                    dbg_info(f'Selling Service will monitor until {today_market_close_target}.')
+                next_market_close_target = MarketTime.get_next_market_close_time().replace(hour=13, minute=20, second=0, microsecond=0)
+                next_market_open_target = MarketTime.get_next_market_open_time().replace(hour=8, minute=55, second=0, microsecond=0)
+
+                if datetime.now() < next_market_close_target and datetime.now() > next_market_open_target:
+                    dbg_info(f'Selling Service will monitor until {next_market_close_target}.')
 
                 # Intra-day monitoring loop (every 10 minutes until market close)
-                while datetime.now() < today_market_close_target:
+                while datetime.now() < next_market_close_target and datetime.now() > next_market_open_target:
                     if not self.flag_core_running or not self.flag_selling_service_running: # Check flags
                         dbg_warning("Core or Selling service stopped during intra-day loop.")
                         break # Exit inner loop
@@ -344,16 +346,16 @@ class Core:
                     next_run_time = now + timedelta(minutes=10)
                     sleep_duration = 0
 
-                    if next_run_time < today_market_close_target:
+                    if next_run_time < next_market_close_target:
                         # Sleep until the next 10-minute mark
                         sleep_duration = (next_run_time - now).total_seconds()
                     else:
                         # Sleep only until market close
-                        sleep_duration = (today_market_close_target - now).total_seconds()
+                        sleep_duration = (next_market_close_target - now).total_seconds()
 
                     if sleep_duration <= 0:
                         # If calculation/execution took > 10 mins or we are past close time
-                        if now >= today_market_close_target:
+                        if now >= next_market_close_target:
                              dbg_info("Market close time reached during check.")
                              break # Exit inner loop, market is closed
                         else:
@@ -372,7 +374,7 @@ class Core:
                         break # Exit inner loop if interrupted
 
                 # End of intra-day loop
-                if datetime.now() >= today_market_close_target:
+                if datetime.now() >= next_market_close_target:
                     dbg_info("Selling service finished monitoring for the day (market closed).")
                 # If loop exited due to interruption or flag change, it will be handled by the outer loop's finally block
 

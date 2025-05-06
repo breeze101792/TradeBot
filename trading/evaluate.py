@@ -57,11 +57,11 @@ class Evaluate:
 
                     trade_analyzer.setup()
                     trade_analyzer.add_data([each_product])
-                    trade_analyzer.add_strategy([each_strategy])
+                    trade_analyzer.add_strategy([each_strategy], last_trading_day = last_trading_day)
 
                     # FIXME, it's kindle of a weird workaround. just need to fix it.
-                    each_strategy.reset_status(each_strategy, clean_all = True)
-                    each_strategy.trading_date = last_trading_day
+                    # each_strategy.reset_status(each_strategy, clean_all = True)
+                    # each_strategy.trading_date = last_trading_day
 
                     trade_analyzer.eval()
                     # Print detailed last trade information
@@ -99,7 +99,7 @@ class Evaluate:
                 # Setting strategy
                 target_strategy = candidate_dict[each_product]['strategy']
                 # FIXME, it's kindle of a weird workaround. just need to fix it.
-                target_strategy.reset_status(target_strategy, clean_all = True)
+                # target_strategy.reset_status(target_strategy, clean_all = True)
 
                 candidate_analyzer.add_strategy([target_strategy])
                 candidate_analyzer.eval()
@@ -202,11 +202,11 @@ class Evaluate:
                 # Setting strategy used for the original purchase
                 target_strategy = strategyMgr.get_strategy_by_name(strategy_name)
                 # FIXME, it's kindle of a weird workaround. just need to fix it.
-                target_strategy.reset_status(target_strategy, clean_all = True)
-                # reset trading day to evaluate.
-                target_strategy.trading_date = last_trading_day
+                # target_strategy.reset_status(target_strategy, clean_all = True)
+                # # reset trading day to evaluate.
+                # target_strategy.trading_date = last_trading_day
 
-                selling_analyzer.add_strategy([target_strategy])
+                selling_analyzer.add_strategy([target_strategy], last_trading_day = last_trading_day)
                 selling_analyzer.eval()
 
                 # Print detailed last trade information
