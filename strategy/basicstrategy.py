@@ -243,19 +243,19 @@ class BasicStrategy(bt.Strategy):
             win_rate = (winning_trades / total_trades) * 100
             total_pnl = sum(trade['pnl'] for trade in self.trading_history)
 
-            dbg_info(f"--- Strategy Summary ---")
-            dbg_info(f"Strategy Name: {self.NAME}")
-            dbg_info(f"Total Trades: {total_trades}")
-            dbg_info(f"Winning Trades: {winning_trades}")
-            dbg_info(f"Losing Trades: {losing_trades}")
-            dbg_info(f"Win Rate: {win_rate:.2f}%")
-            dbg_info(f"Total PNL: {total_pnl:.2f}")
-            dbg_info(f"------------------------\n")
+            dbg_trace(f"--- Strategy Summary ---")
+            dbg_trace(f"Strategy Name: {self.NAME}")
+            dbg_trace(f"Total Trades: {total_trades}")
+            dbg_trace(f"Winning Trades: {winning_trades}")
+            dbg_trace(f"Losing Trades: {losing_trades}")
+            dbg_trace(f"Win Rate: {win_rate:.2f}%")
+            dbg_trace(f"Total PNL: {total_pnl:.2f}")
+            dbg_trace(f"------------------------\n")
         else:
-            dbg_info(f"--- Strategy Summary ---")
-            dbg_info(f"Strategy Name: {self.NAME}")
-            dbg_info("No trades were executed.")
-            dbg_info(f"------------------------\n")
+            dbg_trace(f"--- Strategy Summary ---")
+            dbg_trace(f"Strategy Name: {self.NAME}")
+            dbg_trace("No trades were executed.")
+            dbg_trace(f"------------------------\n")
 
         # You can also print the full trading history if needed
         # print("Trading History:")

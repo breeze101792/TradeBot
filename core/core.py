@@ -47,6 +47,19 @@ def sleep_until(target_time: datetime):
     else:
         dbg_trace("Target time already passed.")
 
+class TradingStatus:
+    class Trading:
+        target_buying_list = []
+        next_wakeup_time = None
+        # Potential future state variables can be added here
+        # e.g., target_selling_list = [] if needed elsewhere
+
+    class Selling:
+        next_wakeup_time = None
+
+    class Datasource:
+        next_wakeup_time = None
+
 class Core:
     def __init__(self):
         # Flags
@@ -65,6 +78,7 @@ class Core:
         self.heatbeat_thread = None
 
         self.stop_event = threading.Event()
+        self.trading_status = TradingStatus() # Instantiate the class
 
         # class
         self.database = None
@@ -76,8 +90,28 @@ class Core:
         # Check env setup is okay or not.
         return True
     def __sanitycheck(self, args = None):
-        # Check sanity check on heart beat okay or not.
-        # dbg_info('Sanity Check.')
+        """Check thread running status and system health"""
+        if not self.flag_core_running:
+            dbg_error("Core is not running!")
+            return False
+            
+        if not self.flag_heatbeat_running:
+            dbg_error("Heartbeat service has stopped!")
+            return False
+            
+        if not self.flag_trade_service_running:
+            dbg_error("Trading service has stopped!")
+            return False
+            
+        if not self.flag_selling_service_running:
+            dbg_error("Selling service has stopped!")
+            return False
+            
+        if not self.flag_datasource_service_running:
+            dbg_error("Datasource service has stopped!")
+            return False
+            
+        # Additional health checks can be added here
         return True
 
     def __update_datasource(self, args = None):
@@ -179,7 +213,10 @@ class Core:
         while self.flag_core_running and self.flag_heatbeat_running:
             try:
                 # dbg_trace('heart beatting every {}s'.format(heart_beat_interval_time))
-                self.__sanitycheck()
+                # TODO, add mail/notification to user of the server issue been found.
+                result = self.__sanitycheck()
+                if result == False:
+                    self.flag_core_running = False
                 sleep_result = sleep_with_flag(heart_beat_interval_time, self.stop_event)
                 if sleep_result == -1:
                     break;
@@ -208,8 +245,10 @@ class Core:
         dbg_info('Trading Service Start.')
         self.flag_trade_service_running = True
 
+        # Reset buying list at the start
+        self.trading_status.Trading.target_buying_list = []
+
         # do the evaluation daily
-        buy_list = []
         while True:
             try:
                 # sleeping control
@@ -224,25 +263,32 @@ class Core:
 
                 target = open_time if update_time > open_time else update_time
 
+                self.trading_status.Trading.next_wakeup_time = target # Store wake-up time for eval
                 dbg_info(f'Trading Service will wake up at {target} to eval.')
                 sleep_result = sleep_until_with_flag(target, self.stop_event)
+                self.trading_status.Trading.next_wakeup_time = None # Reset after wake-up or interruption
                 if sleep_result == -1:
                     break;
                 dbg_info('Running Trading Evaluation')
                 # IDEA, do we need to sperate it to buy service?
-                buy_list = self.__trading_eval()
+                # Store the result in the shared status object
+                self.trading_status.Trading.target_buying_list = self.__trading_eval()
 
                 ###############################################################
-                if len(buy_list) > 0:
+                # Check the shared status object
+                if len(self.trading_status.Trading.target_buying_list) > 0:
                     target = MarketTime.get_next_market_open_time().replace(hour=8, minute=50, second=0, microsecond=0)
+                    self.trading_status.Trading.next_wakeup_time = target # Store wake-up time for buying
                     dbg_info(f'Trading Service will wake up at {target}, to buy product.')
                     sleep_result = sleep_until_with_flag(target, self.stop_event)
+                    self.trading_status.Trading.next_wakeup_time = None # Reset after wake-up or interruption
                     if sleep_result == -1:
                         break;
-                    self.__buying_exec(buy_list)
+                    # Execute based on the shared status object
+                    self.__buying_exec(self.trading_status.Trading.target_buying_list)
 
-                # reset buy_list
-                buy_list = []
+                # Reset buying list after execution (or if evaluation returned empty)
+                self.trading_status.Trading.target_buying_list = []
 
             except KeyboardInterrupt:
                 dbg_warning("Keyboard Interupt.")
@@ -262,6 +308,7 @@ class Core:
 
                 time.sleep(self.var_threading_delay)
 
+        self.trading_status.Trading.next_wakeup_time = None # Ensure reset on exit
         self.flag_trade_service_running = False
         dbg_warning('Trading Service End.')
     def __selling_service(self):
@@ -314,8 +361,12 @@ class Core:
                              dbg_trace("Calculation took longer than interval, minimal sleep.")
                              sleep_duration = 1 # Sleep briefly before next check
 
-                    dbg_trace(f"Selling service sleeping for {sleep_duration:.2f} seconds (until next 10min interval or close)")
+                    # Calculate and store the actual wake-up time for intra-day sleep
+                    intra_day_wake_up_time = datetime.now() + timedelta(seconds=sleep_duration)
+                    self.trading_status.Selling.next_wakeup_time = intra_day_wake_up_time
+                    dbg_trace(f"Selling service sleeping for {sleep_duration:.2f} seconds (until {intra_day_wake_up_time})")
                     sleep_result = sleep_with_flag(sleep_duration, self.stop_event)
+                    self.trading_status.Selling.next_wakeup_time = None # Reset after wake-up or interruption
                     if sleep_result == -1:
                         dbg_info("Selling service sleep interrupted during intra-day loop.")
                         break # Exit inner loop if interrupted
@@ -327,10 +378,12 @@ class Core:
 
                 # sleeping control
                 ###############################################################
-                # Sleep until next market open time (e.g., 8:50 AM)
+                # Sleep until next market open time (e.g., 8:55 AM)
                 market_open_target = MarketTime.get_next_market_open_time().replace(hour=8, minute=55, second=0, microsecond=0)
+                self.trading_status.Selling.next_wakeup_time = market_open_target # Store wake-up time
                 dbg_info(f'Selling Service will wake up at {market_open_target} to start intra-day monitoring.')
                 sleep_result = sleep_until_with_flag(market_open_target, self.stop_event)
+                self.trading_status.Selling.next_wakeup_time = None # Reset after wake-up or interruption
                 if sleep_result == -1:
                     dbg_info("Selling service interrupted before market open.")
                     break # Exit outer loop if interrupted before starting
@@ -355,6 +408,7 @@ class Core:
 
                 time.sleep(self.var_threading_delay)
 
+        self.trading_status.Selling.next_wakeup_time = None # Ensure reset on exit
         self.flag_selling_service_running = False
         dbg_warning('Selling Service End.')
     def __datasource_service(self):
@@ -369,8 +423,10 @@ class Core:
                 # sleep until next weekday market close time
                 # current_time = datetime.now()
                 target = MarketTime.get_next_market_update_time()
+                self.trading_status.Datasource.next_wakeup_time = target # Store wake-up time
                 dbg_info(f'Datasource Service will wake up at {target}')
                 sleep_result = sleep_until_with_flag(target, self.stop_event)
+                self.trading_status.Datasource.next_wakeup_time = None # Reset after wake-up or interruption
                 if sleep_result == -1:
                     break;
                 ###############################################################
@@ -399,8 +455,36 @@ class Core:
 
                 time.sleep(self.var_threading_delay)
 
+        self.trading_status.Datasource.next_wakeup_time = None # Ensure reset on exit
         self.flag_datasource_service_running = False
-        dbg_warning('Service End.')
+        dbg_warning('Data Source End.')
+    def cmd_status(self, args):
+        """Prints the current status of the trading core and its services."""
+        print("--- Core Status ---")
+        ds_next_wakeup = self.trading_status.Datasource.next_wakeup_time
+        tr_next_wakeup = self.trading_status.Trading.next_wakeup_time
+        sl_next_wakeup = self.trading_status.Selling.next_wakeup_time
+
+        print(f"Core Running               : {self.flag_core_running}")
+        print(f"Heartbeat Service Running  : {self.flag_heatbeat_running}")
+        print(f"Datasource Service Running : {self.flag_datasource_service_running}" + (f" (Next wake up-> {ds_next_wakeup})" if ds_next_wakeup else ""))
+        print(f"Trading Service Running    : {self.flag_trade_service_running}" + (f" (Next wake up-> {tr_next_wakeup})" if tr_next_wakeup else ""))
+        print(f"Selling Service Running    : {self.flag_selling_service_running}" + (f" (Next wake up-> {sl_next_wakeup})" if sl_next_wakeup else ""))
+
+        sanity_result = self.__sanitycheck()
+        print(f"Sanity Check: {sanity_result}")
+
+        print("\n--- Trading Status ---")
+        if self.trading_status.Trading.target_buying_list:
+            print("Target Buying List:")
+            for item in self.trading_status.Trading.target_buying_list:
+                print(f"  - {item}")
+        else:
+            print("Target Buying List: Empty")
+        # Add more status details here if needed in the future
+        print("-------------------")
+        return True
+
     def initialize(self):
         dbg_info('Core start initialize.')
         try:
@@ -418,6 +502,7 @@ class Core:
             self.tdcli.regist_cmd("update", self.__update_datasource, description="Manually trigger an update of market data from configured sources.", group='tools')
             self.tdcli.regist_cmd("trade", self.__trading_eval, description="Do Trading/buy analysis and buy stock.", group='tools')
             self.tdcli.regist_cmd("sell", self.__selling_eval, description="Do Selling analysis and sell stock.", group='tools')
+            self.tdcli.regist_cmd("status", self.cmd_status, description="Get trading status.", group='tools')
         except Exception as e:
             dbg_error(e)
             traceback_output = traceback.format_exc()
@@ -444,11 +529,11 @@ class Core:
             thread_list.append(self.datasource_service_thread)
 
             # Trading Thread.
-            # Analysis and place order here.
             self.trading_service_thread = threading.Thread(target=self.__trading_service)
             self.trading_service_thread.start()
             thread_list.append(self.trading_service_thread)
 
+            # selling Thread
             self.selling_service_thread = threading.Thread(target=self.__selling_service)
             self.selling_service_thread.start()
             thread_list.append(self.selling_service_thread)
@@ -457,12 +542,17 @@ class Core:
             # Checking thread healthy regularly.
             self.heatbeat_thread = threading.Thread(target=self.__heatbeat_service, daemon=True)
             # self.heatbeat_thread = threading.Thread(target=self.__heatbeat_service)
-            self.heatbeat_thread.start()
             thread_list.append(self.heatbeat_thread)
 
             # wait for service start.
-            while self.flag_selling_service_running is False or self.flag_trade_service_running is False or self.flag_heatbeat_running is False:
+            while self.flag_selling_service_running is False or self.flag_trade_service_running is False or self.flag_datasource_service_running is False:
                 dbg_debug('Wait for threadings start.')
+                time.sleep(0.5)
+
+            # start only when all thread is up.
+            self.heatbeat_thread.start()
+            while self.flag_heatbeat_running is False:
+                dbg_debug('Wait for heatbeat threadings start.')
                 time.sleep(0.5)
 
             # Run CLI
@@ -486,17 +576,13 @@ class Core:
 
             # disable all service flag
             self.flag_core_running = False
-            self.flag_heatbeat_running = False
+            self.flag_trade_service_running = False
             self.flag_selling_service_running = False
             self.flag_datasource_service_running = False
-            self.flag_trade_service_running = False
+            self.flag_heatbeat_running = False
 
             # set event to stop sleep.
             self.stop_event.set()
-
-            if self.flag_datasource_service_running and self.datasource_service_thread is not None:
-                self.datasource_service_thread.join()
-                self.datasource_service_thread = None
 
             if self.flag_trade_service_running and self.trading_service_thread is not None:
                 self.trading_service_thread.join()
@@ -505,6 +591,10 @@ class Core:
             if self.flag_selling_service_running and self.selling_service_thread is not None:
                 self.selling_service_thread.join()
                 self.selling_service_thread = None
+
+            if self.flag_datasource_service_running and self.datasource_service_thread is not None:
+                self.datasource_service_thread.join()
+                self.datasource_service_thread = None
 
             if self.flag_heatbeat_running and self.heatbeat_thread is not None:
                 self.heatbeat_thread.join()
