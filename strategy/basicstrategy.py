@@ -1,4 +1,5 @@
 import backtrader as bt
+import threading
 from utility.debug import *
 
 # class BasicStrategy(bt.Strategy):
@@ -28,6 +29,7 @@ class BasicStrategy(bt.Strategy):
     trading_history = []
     def __init__(self):
         super().__init__()
+        self._lock = threading.Lock()
 
         # reset status
         # self.reset_status(clean_all = False)
@@ -183,6 +185,10 @@ class BasicStrategy(bt.Strategy):
         # Write down: no pending order
         self.order = None
     def start(self):
+        # WARNING: Acquiring lock here and holding until stop() can be risky.
+        # Ensure stop() is always called to release the lock, even on errors.
+        self._lock.acquire()
+        dbg_trace("Acquired lock for start()")
         # clear status.
         self.reset_status(clean_all = False)
 
@@ -220,13 +226,15 @@ class BasicStrategy(bt.Strategy):
             raise
         else:
             self.initial_order_history = None
+        # Lock acquired in start() is held until stop()
 
     def stop(self):
         """
         Called at the end of the backtest. Calculate and print summary statistics.
         """
         # since we have analyzer, we don't print this out.
-        return
+        # return # Commented out return to allow lock release below
+
         total_trades = len(self.trading_history)
         winning_trades = sum(1 for trade in self.trading_history if trade['is_win'])
         losing_trades = total_trades - winning_trades
@@ -252,6 +260,15 @@ class BasicStrategy(bt.Strategy):
         # You can also print the full trading history if needed
         # print("Trading History:")
         # for trade in self.trading_history:
+
+        # Release the lock acquired in start()
+        dbg_trace("Releasing lock for stop()")
+        try:
+            self._lock.release()
+        except RuntimeError as e:
+            # Handle case where lock might not be held (e.g., error before start completed)
+            dbg_warning(f"Could not release lock in stop(): {e}")
+
 
     def sell(self, data, size):
         # FIXME, use close as price.

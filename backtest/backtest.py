@@ -1,6 +1,7 @@
 # system file
 import traceback
 import time
+import threading
 
 import backtrader as bt
 import pandas as pd
@@ -37,6 +38,9 @@ class Backtest:
 
         # every run cached.
         self.cached_validated_history = []
+
+        # Lock for eval method
+        self._eval_lock = threading.Lock()
 
     # --- Property Getters/Setters for Configuration ---
 
@@ -397,6 +401,95 @@ class Backtest:
 
         if cerebro is None:
             cerebro = self.cerebro
-            stra_list = cerebro.run()
-            self.__analyze(stra_list)
+            with self._eval_lock: # Ensure only one thread executes eval at a time
+                stra_list = cerebro.run()
+                self.__analyze(stra_list)
 
+
+if __name__ == "__main__":
+    # --- Concurrent Backtest Test ---
+    print("--- Starting Concurrent Backtest Test ---")
+
+    # 1. Mock Market Class
+    class MockMarket:
+        def get_data(self, product_name):
+            """Generates simple dummy data."""
+            dates = pd.date_range(start='2020-01-01', periods=100, freq='D')
+            data = {
+                'open': [100 + i for i in range(100)],
+                'high': [101 + i for i in range(100)],
+                'low': [99 + i for i in range(100)],
+                'close': [100.5 + i for i in range(100)],
+                'volume': [1000 + i * 10 for i in range(100)]
+            }
+            df = pd.DataFrame(data, index=dates)
+            df.index.name = 'datetime' # Ensure index has a name
+            return df
+
+        def get_top_product_list(self):
+            return ['DUMMY_STOCK']
+
+    # 2. Simple Test Strategy
+    class SimpleStrategy(bt.Strategy):
+        NAME = "SimpleTestStrategy" # Add a NAME attribute
+        def __init__(self):
+            self.counter = 0
+
+        def next(self):
+            self.counter += 1
+            # Optional: Add a small delay to increase chance of overlap
+            # time.sleep(0.001)
+            if self.counter % 50 == 0:
+                 # Use dbg_info if available, otherwise print
+                try:
+                    dbg_info(f'[{threading.current_thread().name}] Strategy {self.NAME} - Date: {self.data.datetime.date(0)}, Close: {self.data.close[0]:.2f}')
+                except NameError:
+                    print(f'[{threading.current_thread().name}] Strategy {self.NAME} - Date: {self.data.datetime.date(0)}, Close: {self.data.close[0]:.2f}')
+
+
+    # 3. Worker Function for Threads
+    def run_backtest_thread(thread_id, market_instance):
+        print(f"[Thread-{thread_id}] Starting backtest...")
+        try:
+            backtester = Backtest(market_instance)
+            backtester.from_date = datetime(2020, 1, 1)
+            backtester.to_date = datetime(2020, 12, 31) # Ensure data range covers dummy data
+            backtester.init_cash = 50000 # Smaller init cash for test
+            backtester.commission = 0.002
+            backtester.slippage_prec = 0.002
+
+            backtester.setup()
+            backtester.add_data(['DUMMY_STOCK'])
+            backtester.add_strategy([SimpleStrategy]) # Pass strategy class
+
+            print(f"[Thread-{thread_id}] Running eval...")
+            backtester.eval()
+            print(f"[Thread-{thread_id}] Eval finished. Showing results...")
+            backtester.show_result()
+            print(f"[Thread-{thread_id}] Backtest completed successfully.")
+        except Exception as e:
+            print(f"[Thread-{thread_id}] Error during backtest: {e}")
+            traceback_output = traceback.format_exc()
+            print(traceback_output)
+
+    # 4. Launch Threads
+    num_threads = 3
+    threads = []
+    mock_market = MockMarket()
+
+    print(f"Launching {num_threads} concurrent backtest threads...")
+    for i in range(num_threads):
+        thread = threading.Thread(target=run_backtest_thread, args=(i + 1, mock_market), name=f"Thread-{i+1}")
+        threads.append(thread)
+        thread.start()
+        # Small delay between starting threads (optional, can help observe locking)
+        # time.sleep(0.1)
+
+    # 5. Wait for Threads to Complete
+    print("Waiting for threads to complete...")
+    for thread in threads:
+        thread.join()
+
+    print("--- Concurrent Backtest Test Finished ---")
+
+    # --- End Concurrent Backtest Test ---
