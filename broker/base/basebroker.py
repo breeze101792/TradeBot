@@ -4,6 +4,7 @@ from datetime import date # Import date for tracking open date
 from utility.debug import *
 
 from market.market import *
+from market.provider.twse import *
 
 class Position:
     """Represents a holding in a specific asset."""
@@ -84,6 +85,7 @@ class BaseBroker:
         # positions stores Position objects, keyed by symbol
         self.positions: dict[str, Position] = {}
         self.market = Market()
+        self.data_provider = TWSE()
         self._state_changed: bool = False # Flag to track if state has changed since last load/save
         # dbg_info(f"Broker initialized with Cash: ${self.cash:,.2f}, Commission: ${self.commission_per_trade:.2f}/trade. State file: {self.state_filepath}")
 
@@ -208,16 +210,17 @@ class BaseBroker:
         A real implementation would fetch this from a market data source.
         """
         try:
-            result_df = self.market.get_data(symbol)
-            if result_df is not None and not result_df.empty:
-                # Assuming the DataFrame is sorted chronologically (latest date last)
-                # and has a 'Close' column.
-                last_price = result_df['Close'].iloc[-1]
-                dbg_debug(f"Retrieved last price for {symbol}: {last_price}")
-                return float(last_price) # Ensure it's a float
-            else:
-                dbg_warning(f"Could not get last price for {symbol}: No data returned or DataFrame is empty.")
-                return 0.0 # Return 0.0 if no data is available
+            return self.data_provider.get_current_price(symbol)
+            # result_df = self.market.get_data(symbol)
+            # if result_df is not None and not result_df.empty:
+            #     # Assuming the DataFrame is sorted chronologically (latest date last)
+            #     # and has a 'Close' column.
+            #     last_price = result_df['Close'].iloc[-1]
+            #     dbg_debug(f"Retrieved last price for {symbol}: {last_price}")
+            #     return float(last_price) # Ensure it's a float
+            # else:
+            #     dbg_warning(f"Could not get last price for {symbol}: No data returned or DataFrame is empty.")
+            #     return 0.0 # Return 0.0 if no data is available
         except (KeyError, IndexError, TypeError) as e:
             dbg_error(f"Error retrieving last price for {symbol} from DataFrame: {e}")
             return 0.0 # Return 0.0 on error

@@ -20,6 +20,12 @@ from strategy.strategy import *
 
 class Backtest:
     def __init__(self, market):
+        """
+        Initializes the Backtest object.
+
+        Args:
+            market: An instance of a market data provider (e.g., Market class).
+        """
         # Internal storage for configuration attributes
         self._init_cash = 1000000000  # 10b to avoid buy fail.
         self._commission = 0.001
@@ -46,40 +52,80 @@ class Backtest:
 
     @property
     def init_cash(self):
+        """Gets the initial cash for the backtest."""
         return self._init_cash
 
     @init_cash.setter
     def init_cash(self, value):
+        """
+        Sets the initial cash for the backtest.
+
+        Args:
+            value (float or int): The initial cash amount. Must be positive.
+
+        Raises:
+            ValueError: If the value is not a positive number.
+        """
         if not isinstance(value, (int, float)) or value <= 0:
             raise ValueError("Initial cash must be a positive number.")
         self._init_cash = value
 
     @property
     def commission(self):
+        """Gets the commission rate for trades."""
         return self._commission
 
     @commission.setter
     def commission(self, value):
+        """
+        Sets the commission rate for trades.
+
+        Args:
+            value (float or int): The commission rate. Must be non-negative.
+
+        Raises:
+            ValueError: If the value is a negative number.
+        """
         if not isinstance(value, (int, float)) or value < 0:
             raise ValueError("Commission must be a non-negative number.")
         self._commission = value
 
     @property
     def slippage_prec(self):
+        """Gets the slippage percentage for trades."""
         return self._slippage_prec
 
     @slippage_prec.setter
     def slippage_prec(self, value):
+        """
+        Sets the slippage percentage for trades.
+
+        Args:
+            value (float or int): The slippage percentage. Must be non-negative.
+
+        Raises:
+            ValueError: If the value is a negative number.
+        """
         if not isinstance(value, (int, float)) or value < 0:
             raise ValueError("Slippage percentage must be a non-negative number.")
         self._slippage_prec = value
 
     @property
     def to_date(self):
+        """Gets the end date for the backtest period."""
         return self._to_date
 
     @to_date.setter
     def to_date(self, value):
+        """
+        Sets the end date for the backtest period.
+
+        Args:
+            value (datetime): The end date.
+
+        Raises:
+            ValueError: If the value is not a datetime object.
+        """
         if not isinstance(value, datetime):
             raise ValueError("to_date must be a datetime object.")
         # Optional: Add validation against from_date if needed
@@ -89,10 +135,20 @@ class Backtest:
 
     @property
     def from_date(self):
+        """Gets the start date for the backtest period."""
         return self._from_date
 
     @from_date.setter
     def from_date(self, value):
+        """
+        Sets the start date for the backtest period.
+
+        Args:
+            value (datetime): The start date.
+
+        Raises:
+            ValueError: If the value is not a datetime object.
+        """
         if not isinstance(value, datetime):
             raise ValueError("from_date must be a datetime object.")
         # Optional: Add validation against to_date if needed
@@ -103,6 +159,16 @@ class Backtest:
     # --- End Properties ---
 
     def __setup_broker(self, cerebro = None):
+        """
+        Configures the broker settings within the Cerebro engine.
+
+        Sets initial cash, commission, and slippage based on the Backtest instance's
+        attributes.
+
+        Args:
+            cerebro (bt.Cerebro, optional): The Cerebro engine instance.
+                If None, uses `self.cerebro`.
+        """
         if cerebro is None:
             cerebro = self.cerebro
 
@@ -112,7 +178,15 @@ class Backtest:
         cerebro.broker.setcommission(commission=self._commission)
         # set perc using internal attribute
         cerebro.broker.set_slippage_perc(perc=self._slippage_prec)
+
     def __setup_analyzer(self, cerebro = None):
+        """
+        Adds standard and custom analyzers to the Cerebro engine.
+
+        Args:
+            cerebro (bt.Cerebro, optional): The Cerebro engine instance.
+                If None, uses `self.cerebro`.
+        """
         if cerebro is None:
             cerebro = self.cerebro
         # Add analyzer
@@ -126,7 +200,19 @@ class Backtest:
 
         # customize analyzer
         cerebro.addanalyzer(PartialTradeAnalyzer, _name="pta")
+
     def __analyze(self, strategy_list, cerebro = None):
+        """
+        Extracts and stores analysis results from the executed strategies.
+
+        Populates `self.result_list` with dictionaries containing various
+        performance metrics for each strategy.
+
+        Args:
+            strategy_list (list): A list of executed strategy instances from Cerebro.
+            cerebro (bt.Cerebro, optional): The Cerebro engine instance.
+                If None, uses `self.cerebro`.
+        """
         invalid_number = 101
         if cerebro is None:
             cerebro = self.cerebro
@@ -161,6 +247,15 @@ class Backtest:
             self.result_list.append(result_item)
 
     def setup(self, cerebro = None, broker = None):
+        """
+        Initializes the Cerebro engine and sets up the broker and analyzers.
+
+        Args:
+            cerebro (bt.Cerebro, optional): An existing Cerebro engine instance.
+                If None, a new Cerebro instance is created.
+            broker (bt.BrokerBase, optional): A custom broker class.
+                If None, the default Backtrader broker is used.
+        """
         if cerebro is None:
             self.cerebro = bt.Cerebro()
         else:
@@ -174,9 +269,18 @@ class Backtest:
         self.__setup_analyzer()
 
     def clean_result(self):
+        """Clears the stored backtest results."""
         self.result_list = []
 
     def get_analysis(self):
+        """
+        Retrieves the stored analysis results.
+
+        Returns:
+            list: A list of dictionaries, where each dictionary contains
+                  the analysis results for a strategy run. Returns None
+                  if no results are available.
+        """
         if not self.result_list:
             return None
         else:
@@ -184,7 +288,15 @@ class Backtest:
 
     def show_result(self, annual_return=False):
         """
-        Displays the backtest results in a formatted table.
+        Displays the backtest results in a formatted table using tabulate.
+
+        Args:
+            annual_return (bool, optional): If True, prints annual returns
+                separately after the main results table. Defaults to False.
+
+        Returns:
+            bool: True if results were displayed (or attempted), False if no
+                  results were found.
         """
         if not self.result_list:
             dbg_info("No results found to display.")
@@ -310,7 +422,57 @@ class Backtest:
         print() # Add a blank line at the end
         return True # Indicate successful display attempt
 
-    def add_data(self,product_list , cerebro = None):
+    def add_data_frame(self, symbol_data_list, cerebro = None):
+        """
+        Adds data to Cerebro from a list of symbol-DataFrame pairs.
+
+        Each DataFrame is converted to a Backtrader data feed.
+
+        Args:
+            symbol_data_list (list): A list of dictionaries. Each dictionary
+                must contain a 'symbol' (str) key and a 'data' (pd.DataFrame) key.
+                The DataFrame should have a 'datetime' index and columns like
+                'open', 'high', 'low', 'close', 'volume'.
+            cerebro (bt.Cerebro, optional): The Cerebro engine instance.
+                If None, uses `self.cerebro`.
+        """
+        # example data: [{'symbol': 'AAPL', 'data': aapl_df}, {'symbol': 'GOOG', 'data': goog_df}]
+        if cerebro is None:
+            cerebro = self.cerebro
+
+        for each_data in symbol_data_list:
+            try:
+                df = each_data['data']
+                symbol = each_data['symbol']
+                # Use internal attributes for date range
+                data = bt.feeds.PandasData(dataname=df, fromdate=self._from_date, todate=self._to_date)
+
+                dbg_trace(f"Add product {symbol}.")
+
+                # Add data to enginee
+                cerebro.adddata(data, name=symbol)
+
+                self.data_list.append(symbol)
+            except Exception as e:
+                dbg_error("Error ticker: ", each_data.get('symbol'))
+                # self.update_tracking_list(symbol, False)
+                dbg_error(e)
+
+                traceback_output = traceback.format_exc()
+                dbg_error(traceback_output)
+                continue
+
+    def add_symbol(self,product_list , cerebro = None):
+        """
+        Adds data to Cerebro by fetching it for a list of product symbols.
+
+        Uses the `self.market` object to retrieve data for each symbol.
+
+        Args:
+            product_list (list): A list of product symbols (strings).
+            cerebro (bt.Cerebro, optional): The Cerebro engine instance.
+                If None, uses `self.cerebro`.
+        """
         if cerebro is None:
             cerebro = self.cerebro
 
@@ -336,6 +498,28 @@ class Backtest:
                 continue
 
     def add_history(self, order_history, cerebro = None):
+        """
+        Adds historical orders to the Cerebro engine.
+
+        Validates the format of each order before adding. The order history
+        is cached and applied during the `eval` phase.
+
+        Args:
+            order_history (iterable): An iterable of historical orders.
+                Each order should be a tuple or list in the format:
+                (datetime, size, price, data_name).
+                - datetime: The timestamp of the order.
+                - size (int): The order size (positive for buy, negative for sell).
+                - price (float): The execution price.
+                - data_name (str): The name of the data feed this order applies to.
+            cerebro (bt.Cerebro, optional): The Cerebro engine instance.
+                If None, uses `self.cerebro`.
+
+        Raises:
+            TypeError: If `order_history` is not iterable.
+            ValueError: If any order in `order_history` has an invalid format
+                        or invalid data (e.g., non-numeric size/price, empty data_name).
+        """
         if cerebro is None:
             cerebro = self.cerebro
 
@@ -384,6 +568,17 @@ class Backtest:
         cerebro.add_order_history(self.cached_validated_history, notify = True)
 
     def add_strategy(self, strategy_list, cerebro = None, last_trading_day = None):
+        """
+        Adds strategies to the Cerebro engine.
+
+        Args:
+            strategy_list (list): A list of Backtrader strategy classes (not instances).
+            cerebro (bt.Cerebro, optional): The Cerebro engine instance.
+                If None, uses `self.cerebro`.
+            last_trading_day (datetime, optional): If provided, sets the
+                `trading_date` attribute on each strategy instance.
+                Defaults to None.
+        """
         if cerebro is None:
             cerebro = self.cerebro
 
@@ -400,6 +595,19 @@ class Backtest:
                 each_stra.trading_date = last_trading_day
 
     def eval(self, cerebro = None):
+        """
+        Runs the backtest evaluation using the Cerebro engine.
+
+        If historical orders were added via `add_history`, they are assigned
+        to the strategies before running. The evaluation is protected by a
+        threading lock to ensure thread safety if multiple Backtest instances
+        are run concurrently. After the run, it calls `__analyze` to process
+        the results.
+
+        Args:
+            cerebro (bt.Cerebro, optional): The Cerebro engine instance.
+                If None, uses `self.cerebro`.
+        """
         if len(self.cached_validated_history) != 0:
             # dbg_info('Set order history.')
             for each_stra in self.strategy_list:
@@ -456,6 +664,16 @@ if __name__ == "__main__":
 
     # 3. Worker Function for Threads
     def run_backtest_thread(thread_id, market_instance):
+        """
+        Worker function designed to run a backtest in a separate thread.
+
+        This function is used in the `if __name__ == "__main__":` block
+        to demonstrate concurrent backtesting.
+
+        Args:
+            thread_id (int or str): An identifier for the thread.
+            market_instance: An instance of a market data provider (e.g., MockMarket).
+        """
         print(f"[Thread-{thread_id}] Starting backtest...")
         try:
             backtester = Backtest(market_instance)

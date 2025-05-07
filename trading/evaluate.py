@@ -1,12 +1,14 @@
 from datetime import timedelta, date
 import traceback
 from dateutil.relativedelta import relativedelta
+import pandas as pd
 
 # from trading.analyzer import Analyzer
 from backtest.backtest import Backtest as Analyzer
 from strategy.strategy import *
 from market.market import Market, MarketTime
 from strategy.daily import *
+from broker.brokermanager import BrokerManager
 
 class Evaluate:
     # threshold
@@ -56,7 +58,7 @@ class Evaluate:
                     trade_analyzer.from_date=trade_analyzer.to_date - relativedelta(years=1)
 
                     trade_analyzer.setup()
-                    trade_analyzer.add_data([each_product])
+                    trade_analyzer.add_symbol([each_product])
                     trade_analyzer.add_strategy([each_strategy], last_trading_day = last_trading_day)
 
                     # FIXME, it's kindle of a weird workaround. just need to fix it.
@@ -94,7 +96,7 @@ class Evaluate:
                 # test only one year for accerate performance.
                 candidate_analyzer.from_date=candidate_analyzer.to_date - relativedelta(years=1)
                 candidate_analyzer.setup()
-                candidate_analyzer.add_data([each_product])
+                candidate_analyzer.add_symbol([each_product])
 
                 # Setting strategy
                 target_strategy = candidate_dict[each_product]['strategy']
@@ -137,6 +139,94 @@ class Evaluate:
             dbg_info(f"Product: {each_product} {product_info['name']}/{product_info['category']}, {buying_dict[each_product]['strategy']}, profit: {buying_dict[each_product]['profit']:.2f}")
 
         return buying_dict
+    def __get_realtime_data_list(self, symbol):
+        market = Market()
+        trade_broker = BrokerManager()
+
+        temp_df = market.get_data(symbol) # df with DatetimeIndex
+        
+        if temp_df is None or temp_df.empty:
+            dbg_warning(f"No historical data found for {symbol}. Skipping sell evaluation for this symbol.")
+            return None
+
+        # dbg_debug(f"Original data for {symbol} (tail before modification):\n{temp_df.tail()}")
+
+        # 'price' variable will store the latest price
+        price = trade_broker.get_last_price(symbol) # float 
+        if price == 0:
+            dbg_warning(f"Current price for {symbol} is 0.")
+            return None
+        # current_trading_day is a datetime.date object, defined earlier in the method
+
+        # Convert current_trading_day to pandas Timestamp for DataFrame indexing
+        current_trading_day = datetime.now()
+        last_trading_day_ts = pd.Timestamp(current_trading_day)
+
+        # Prepare data for the current_trading_day
+        # Initialize with previous day's data if available, else with defaults based on temp_df columns
+        if not temp_df.empty:
+            current_day_data = temp_df.iloc[-1].to_dict()
+        else:
+            # Should not happen if initial check temp_df.empty is robust
+            # but as a fallback, create a structure based on columns
+            current_day_data = {col: 0 for col in temp_df.columns if pd.api.types.is_numeric_dtype(temp_df[col])}
+            for col in temp_df.columns:
+                if col not in current_day_data: # For non-numeric or other types
+                    current_day_data[col] = None 
+
+        # Update OHLC with the latest price
+        current_day_data['Open'] = price
+        current_day_data['High'] = price
+        current_day_data['Low'] = price
+        current_day_data['Close'] = price
+
+        # TODO, remove me when it's stable enough.
+        dbg_info(f"Target data for {symbol} (tail after modification), current price: {price}")
+        
+        # Fake other critical data if necessary.
+        # For 'Change', if it represents (Close - Open), it would be 0.
+        # If (Close - PrevClose), it would need PrevClose. For simplicity, set to 0.
+        if 'Change' in current_day_data:
+            current_day_data['Change'] = 0.0
+        
+        # Ensure Volume, Turnover, Transaction are not None if they were from an empty base
+        for col_name in ['Volume', 'Turnover', 'Transaction']:
+            if col_name in current_day_data and current_day_data[col_name] is None:
+                current_day_data[col_name] = 0
+
+        if last_trading_day_ts in temp_df.index:
+            dbg_warning(f"Updating data for {symbol} on {last_trading_day_ts} with Close price {price}")
+            # Update existing row
+            for col, value in current_day_data.items():
+                if col in temp_df.columns: # Ensure column exists before assignment
+                    temp_df.loc[last_trading_day_ts, col] = value
+            target_df = temp_df
+        else:
+            dbg_trace(f"Appending new data for {symbol} on {last_trading_day_ts} with Close price {price}")
+            # Create a new row as a DataFrame
+            new_row_df = pd.DataFrame([current_day_data], index=[last_trading_day_ts])
+            # Ensure the new row DataFrame has the same index name as the original DataFrame
+            new_row_df.index.name = temp_df.index.name if temp_df.index.name else 'Date'
+            
+            # Align columns with temp_df, new_row_df might have different columns or order
+            # Reindex will add missing columns as NaN and drop extra columns.
+            new_row_df = new_row_df.reindex(columns=temp_df.columns)
+
+            # Fill any NaNs that might have been introduced by reindex if a column from temp_df
+            # was not in current_day_data and not handled by initialization.
+            # Example: fill numeric NaNs with 0.
+            for col in new_row_df.columns:
+                if new_row_df[col].isnull().any():
+                    if pd.api.types.is_numeric_dtype(new_row_df[col]):
+                        new_row_df[col].fillna(0, inplace=True)
+                    # else: fill with empty string or other appropriate default for non-numeric
+
+            target_df = pd.concat([temp_df, new_row_df])
+            target_df.sort_index(inplace=True)
+        
+        dbg_debug(f"Target data for {symbol} (tail after modification):\n{target_df.tail()}")
+
+        return target_df
     def __sell_find_candidate(self, position_dict):
         # faking data, example input data.
         if self.flag_development and len(self.test_sell_list) > 0:
@@ -151,6 +241,8 @@ class Evaluate:
         strategyMgr = StrategyManager()
 
         market = Market()
+        trade_broker = BrokerManager()
+
         selling_analyzer = Analyzer(market)
         selling_analyzer.clean_result()
 
@@ -184,8 +276,13 @@ class Evaluate:
                 selling_analyzer.from_date = selling_analyzer.to_date - relativedelta(years=1)
                 selling_analyzer.setup() # Setup Cerebro instance
 
-                # Add data for the specific stock
-                selling_analyzer.add_data([symbol])
+                # Add the combined/updated data feed to the analyzer
+                target_df = self.__get_realtime_data_list(symbol)
+                if target_df is not None:
+                    last_trading_day = datetime.now().date()
+                    selling_analyzer.add_data_frame([{'symbol':symbol, 'data':target_df}])
+                else:
+                    selling_analyzer.add_symbol([symbol])
 
                 # --- Convert current position info to order_history format ---
                 # Format: tuple of tuples -> ((datetime, size, price, data_name),)

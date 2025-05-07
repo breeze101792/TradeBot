@@ -101,6 +101,14 @@ class MarketTime:
         return MarketTime._get_next_trading_day_time(MarketTime.MARKET_OPEN_TIME)
 
     @staticmethod
+    def is_trading_day() -> bool:
+        """
+        Checks if the current day is a trading day (Monday to Friday).
+        """
+        current_time = datetime.now()
+        return current_time.weekday() < 5  # 0=Monday, 1=Tuesday, ..., 4=Friday
+
+    @staticmethod
     def get_previous_market_update_time() -> datetime:
         """
         Calculates the previous expected market data update time.

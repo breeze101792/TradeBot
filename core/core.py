@@ -77,6 +77,8 @@ class Core:
         self.selling_service_thread = None
         self.heatbeat_thread = None
 
+        # FIXME, seperate event for each thread, or it'll be wake up by different thread.
+        # or maybe we wrap a service template for it.
         self.stop_event = threading.Event()
         self.trading_status = TradingStatus() # Instantiate the class
 
@@ -258,14 +260,27 @@ class Core:
                 # target = MarketTime.get_next_market_update_time().replace(hour=14, minute=30, second=0, microsecond=0)
                 # for development convenience, we set evaluation 4 hours before market open.
 
-                update_time = MarketTime.get_next_market_update_time().replace(hour=15, minute=0, second=0, microsecond=0)
-                open_time = MarketTime.get_next_market_open_time().replace(hour=5, minute=0, second=0, microsecond=0)
+                target = None
+                current_time = datetime.now()
 
-                target = open_time if update_time > open_time else update_time
+                if current_time > current_time.replace(hour=15, minute=0, second=0, microsecond=0):
+                    # 15 ~ 24, after market
+                    target = MarketTime.get_next_market_open_time.replace(hour=5, minute=0, second=0, microsecond=0)
+                elif current_time < current_time.replace(hour=8, minute=0, second=0, microsecond=0):
+                    # 0 ~ 8, before market, use one hour early to protect selling service.
+                    target = MarketTime.get_next_market_open_time.replace(hour=5, minute=0, second=0, microsecond=0)
+                else:
+                    # 8 ~ 15
+                    target = MarketTime.get_next_market_update_time().replace(hour=15, minute=0, second=0, microsecond=0)
 
                 self.trading_status.Trading.next_wakeup_time = target # Store wake-up time for eval
-                dbg_info(f'Trading Service will wake up at {target} to eval.')
+
+                dbg_info(f'Trading Service will wake up at {target}.')
                 sleep_result = sleep_until_with_flag(target, self.stop_event)
+                if MarketTime.is_trading_day() is False:
+                    # goto sleep, since market closed.
+                    continue
+
                 self.trading_status.Trading.next_wakeup_time = None # Reset after wake-up or interruption
                 if sleep_result == -1:
                     break;
@@ -322,13 +337,13 @@ class Core:
                 # Define market close time for today (e.g., 1:20 PM)
                 # This assumes MarketTime.get_next_market_open_time() gives the correct date.
                 next_market_close_target = MarketTime.get_next_market_close_time().replace(hour=13, minute=20, second=0, microsecond=0)
-                next_market_open_target = MarketTime.get_next_market_open_time().replace(hour=8, minute=55, second=0, microsecond=0)
+                market_open_target = next_market_close_target.replace(hour=8, minute=55, second=0, microsecond=0)
 
-                if datetime.now() < next_market_close_target and datetime.now() > next_market_open_target:
+                if datetime.now() < next_market_close_target and datetime.now() > market_open_target:
                     dbg_info(f'Selling Service will monitor until {next_market_close_target}.')
 
                 # Intra-day monitoring loop (every 10 minutes until market close)
-                while datetime.now() < next_market_close_target and datetime.now() > next_market_open_target:
+                while datetime.now() < next_market_close_target and datetime.now() > market_open_target:
                     if not self.flag_core_running or not self.flag_selling_service_running: # Check flags
                         dbg_warning("Core or Selling service stopped during intra-day loop.")
                         break # Exit inner loop
