@@ -5,4 +5,5 @@ twstock
 lxml
 shioaji
 tabulate
+wcwidth
 # python-dotenv

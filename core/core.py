@@ -1,6 +1,8 @@
 
-# system file
+# system filejkjk
 import traceback
+from tabulate import tabulate
+import wcwidth # For handling wide characters in tabulate
 import threading
 import math
 import time
@@ -502,8 +504,27 @@ class Core:
         print("\n--- Trading Status ---")
         if self.trading_status.Trading.target_buying_list:
             print("Target Buying List:")
-            for item in self.trading_status.Trading.target_buying_list:
-                print(f"  - {item}")
+            headers = ["Code", "Name", "Type", "Market", "Category", "Start Date", "Country"]
+            table_data = []
+            for item_code in self.trading_status.Trading.target_buying_list:
+                product_info = self.market.get_data_info(item_code)
+                if product_info:
+                    table_data.append([
+                        product_info.get('code', item_code),
+                        product_info.get('name', 'N/A'),
+                        product_info.get('type', 'N/A'),
+                        product_info.get('market', 'N/A'),
+                        product_info.get('category', 'N/A'),
+                        product_info.get('start', 'N/A'),
+                        product_info.get('country', 'N/A')
+                    ])
+                else:
+                    table_data.append([item_code, "Info not found", "N/A", "N/A", "N/A", "N/A", "N/A"])
+            
+            if table_data:
+                print(tabulate(table_data, headers=headers, tablefmt="grid"))
+            else: # Should not happen if target_buying_list is not empty, but good for safety
+                print("Target Buying List: Contains items, but no information could be displayed.")
         else:
             print("Target Buying List: Empty")
         # Add more status details here if needed in the future

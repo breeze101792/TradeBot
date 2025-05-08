@@ -250,6 +250,8 @@ class Market:
         return self.instance.get_data(product_id=product_id, period=period)
 
     def get_data_info(self, product_id):
+        # return the following info.
+        # {'code': '2330', 'type': '股票', 'name': '台積電', 'start': '1994-09-05', 'market': 'listed', 'category': '半導體業', 'country': 'TW'}
         if self.cached_stock_info_frame is None:
             # Update cached buffer
             self.get_data_list()

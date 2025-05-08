@@ -3,6 +3,7 @@ from typing import Type, Dict, Any, Optional, List
 import os
 import csv
 from datetime import datetime, timedelta
+from collections import defaultdict # Import defaultdict
 from tabulate import tabulate # Import tabulate for creating tables
 
 # Local file
@@ -355,9 +356,9 @@ class BrokerManager:
                     ])
                 
                 if stock_status_data:
-                     print(tabulate(
+                    print(tabulate(
                         stock_status_data,
-                        headers=["Symbol", "Status", "Shares", "Avg Price", "Current Price"],
+                        headers=["Symbol", "Status", "Shares", "Avg Entry $", "Mkt Price"],
                         tablefmt="grid",
                         stralign="right"
                     ))
@@ -370,6 +371,7 @@ class BrokerManager:
 
         # Filter by duration if specified
         now = datetime.now()
+        filtered_transactions = transactions # Start with all transactions
         if duration:
             if duration == 'month':
                 cutoff = now - timedelta(days=30)
@@ -380,81 +382,235 @@ class BrokerManager:
             else:
                 raise ValueError("Invalid duration. Use 'month', 'year' or 'week'")
             
-            transactions = [t for t in transactions 
-                          if datetime.fromisoformat(t['timestamp']) >= cutoff]
+            filtered_transactions = [t for t in transactions 
+                                     if datetime.fromisoformat(t['timestamp']) >= cutoff]
 
-        total_buys = sum(1 for t in transactions if t['action'] == 'buy')
-        total_sells = sum(1 for t in transactions if t['action'] == 'sell')
-        total_commission = sum(float(t['commission']) for t in transactions)
+        if not filtered_transactions and not duration: # No transactions at all, and no duration filter
+            print(f"No transactions found.")
+            return
+        
+        # --- Calculate initial positions at cutoff_date if duration is set ---
+        initial_positions_at_cutoff = defaultdict(lambda: {'size': 0, 'total_cost_basis': 0.0})
+        pre_period_transactions_for_initial_state = []
 
-        # current_positions already fetched earlier
-        current_symbols = set(current_positions.keys())
+        if duration and cutoff:
+            # Prepare transactions for calculating initial state (up to and including cutoff)
+            for t_data_raw in transactions: # Use original full list of transactions
+                try:
+                    t_timestamp = datetime.fromisoformat(t_data_raw['timestamp'])
+                    if t_timestamp <= cutoff:
+                        # Parse numerics here to avoid repeated parsing if transaction is used later
+                        size_val, price_val, commission_val = self._parse_transaction_numerics(t_data_raw)
+                        if size_val is None: continue # Skip malformed
+                        
+                        pre_period_transactions_for_initial_state.append({
+                            'symbol': t_data_raw['symbol'],
+                            'action': t_data_raw['action'],
+                            'size': size_val,
+                            'price': price_val,
+                            'commission': commission_val,
+                            'timestamp': t_timestamp # Already datetime object
+                        })
+                except ValueError as e:
+                    dbg_error(f"Error parsing timestamp for transaction {t_data_raw}: {e}")
+                    continue
+            
+            # Sort by timestamp to correctly build initial state
+            pre_period_transactions_for_initial_state.sort(key=lambda x: x['timestamp'])
 
-        # Track opened and closed stocks based on transaction history within the period
-        opened_stocks = set()
-        closed_stocks = set()
-        monthly_profit = 0.0
+            for t_data in pre_period_transactions_for_initial_state:
+                symbol = t_data['symbol']
+                action = t_data['action']
+                size = t_data['size']
+                price = t_data['price']
+                commission = t_data['commission']
+                
+                current_pos_state = initial_positions_at_cutoff[symbol]
+                if action == 'buy' or action == 'initial':
+                    cost_of_this_buy = (price * size) + commission
+                    current_pos_state['total_cost_basis'] += cost_of_this_buy
+                    current_pos_state['size'] += size
+                elif action == 'sell':
+                    if current_pos_state['size'] > 0:
+                        avg_cost_per_share = current_pos_state['total_cost_basis'] / current_pos_state['size']
+                        cost_basis_of_sold_shares = avg_cost_per_share * min(size, current_pos_state['size'])
+                        current_pos_state['total_cost_basis'] -= cost_basis_of_sold_shares
+                    current_pos_state['size'] -= size
+                    current_pos_state['size'] = max(0, current_pos_state['size'])
+                    if current_pos_state['size'] == 0:
+                        current_pos_state['total_cost_basis'] = 0.0
+        
+        # Check if there's any data to show (either period transactions or initial positions)
+        if not filtered_transactions and not any(p['size'] > 0 for p in initial_positions_at_cutoff.values()):
+            print(f"No transactions or relevant initial positions for the specified period ('{duration}').")
+            return
 
-        # Analyze transactions
-        for t in transactions:
-            symbol = t['symbol']
-            if t['action'] == 'buy':
-                opened_stocks.add(symbol)
-            elif t['action'] == 'sell':
-                if symbol in opened_stocks:
-                    opened_stocks.remove(symbol)
-                    closed_stocks.add(symbol)
-                # Calculate profit for sells
-                buy_price = next((float(bt['price']) for bt in reversed(transactions) 
-                                if bt['symbol'] == symbol and bt['action'] == 'buy'), 0)
-                monthly_profit += (float(t['price']) - buy_price) * int(t['size']) - float(t['commission'])
+        # --- Aggregate data for symbols active in the period or at its start ---
+        symbol_period_details = defaultdict(lambda: {
+            'period_buy_volume': 0, 'period_buy_value': 0.0, 'period_buy_commissions': 0.0,
+            'period_sell_volume': 0, 'period_sell_value': 0.0, 'period_sell_commissions': 0.0,
+            'net_pnl_period': 0.0,
+            'last_trade_timestamp_in_period': None
+        })
 
-        # Prepare summary data for tabulate
-        summary_data = [
-            ["Time Period", f"Last {duration}" if duration else "All"],
-            ["Total Transactions", len(transactions)],
-            ["Buy Orders", total_buys],
-            ["Sell Orders", total_sells],
-            ["Total Commission", f"${total_commission:,.2f}"],
-            ["Estimated Profit", f"${monthly_profit:,.2f}"]
-        ]
+        # Initialize P/L tracking with initial positions for the period
+        # This pnl_tracking_state evolves *during* the period for accurate COGS
+        pnl_tracking_state = defaultdict(lambda: {'current_size': 0, 'current_total_cost_basis': 0.0})
 
-        # Print summary table
-        print("\n--- Transactions Summary ---")
-        print(tabulate(summary_data, tablefmt="grid", stralign="right"))
+        if duration: # Populate with state at cutoff
+            for symbol, data in initial_positions_at_cutoff.items():
+                if data['size'] > 0:
+                    pnl_tracking_state[symbol]['current_size'] = data['size']
+                    pnl_tracking_state[symbol]['current_total_cost_basis'] = data['total_cost_basis']
+                    # Ensure symbol appears in symbol_period_details if it has an initial position,
+                    # so it's included in the table even with no period transactions.
+                    _ = symbol_period_details[symbol] 
+        
+        # Process period transactions (transactions in `filtered_transactions`)
+        # Ensure `filtered_transactions` are sorted by timestamp for correct P/L calculation
+        # `filtered_transactions` already contains parsed numerics if we modify its creation
+        
+        # Re-parse or pre-parse filtered_transactions to include datetime objects and numeric types
+        processed_period_transactions = []
+        for t_data_raw in filtered_transactions:
+            try:
+                size_val, price_val, commission_val = self._parse_transaction_numerics(t_data_raw)
+                if size_val is None: continue
+                processed_period_transactions.append({
+                    'symbol': t_data_raw['symbol'],
+                    'action': t_data_raw['action'],
+                    'size': size_val,
+                    'price': price_val,
+                    'commission': commission_val,
+                    'timestamp': datetime.fromisoformat(t_data_raw['timestamp'])
+                })
+            except ValueError as e:
+                dbg_error(f"Error parsing data for period transaction {t_data_raw}: {e}")
+                continue
+        
+        processed_period_transactions.sort(key=lambda x: x['timestamp'])
 
-        # Prepare stock status data for tabulate
-        stock_status_data = []
-        for symbol in opened_stocks:
-            pos = current_positions.get(symbol)
-            if pos:
-                current_price = self.get_last_price(symbol)
-                stock_status_data.append([
-                    symbol,
-                    "Open",
-                    pos.size,
-                    f"${pos.average_entry_price:,.2f}",
-                    f"${current_price:,.2f}"
-                ])
 
-        for symbol in closed_stocks:
-            stock_status_data.append([
+        for t_data in processed_period_transactions:
+            symbol = t_data['symbol']
+            action = t_data['action']
+            size = t_data['size']
+            price = t_data['price']
+            commission = t_data['commission']
+            timestamp = t_data['timestamp']
+
+            details = symbol_period_details[symbol]
+            current_pnl_state = pnl_tracking_state[symbol]
+
+            if action == 'buy' or action == 'initial': # 'initial' should ideally not be in period transactions
+                details['period_buy_volume'] += size
+                details['period_buy_value'] += price * size
+                details['period_buy_commissions'] += commission
+                
+                cost_of_this_buy = (price * size) + commission
+                current_pnl_state['current_total_cost_basis'] += cost_of_this_buy
+                current_pnl_state['current_size'] += size
+            
+            elif action == 'sell':
+                details['period_sell_volume'] += size
+                details['period_sell_value'] += price * size
+                details['period_sell_commissions'] += commission
+
+                proceeds_this_sell = (price * size) - commission
+                cost_of_goods_sold_this_sell = 0.0
+                
+                if current_pnl_state['current_size'] > 0:
+                    avg_cost_at_sell_time = current_pnl_state['current_total_cost_basis'] / current_pnl_state['current_size']
+                    # COGS is based on shares actually available to sell from current holding for P/L state
+                    sold_size_for_cogs = min(size, current_pnl_state['current_size']) 
+                    cost_of_goods_sold_this_sell = avg_cost_at_sell_time * sold_size_for_cogs
+                
+                pnl_this_sell = proceeds_this_sell - cost_of_goods_sold_this_sell
+                details['net_pnl_period'] += pnl_this_sell
+                
+                current_pnl_state['current_total_cost_basis'] -= cost_of_goods_sold_this_sell
+                current_pnl_state['current_size'] -= size # Actual size reduction from sell
+                current_pnl_state['current_size'] = max(0, current_pnl_state['current_size'])
+                if current_pnl_state['current_size'] == 0:
+                    current_pnl_state['current_total_cost_basis'] = 0.0
+            
+            if details['last_trade_timestamp_in_period'] is None or timestamp > details['last_trade_timestamp_in_period']:
+                details['last_trade_timestamp_in_period'] = timestamp
+
+        # --- Calculate derived metrics for table and grand totals ---
+        grand_total_net_pnl_period = 0.0
+        per_symbol_table_data = []
+
+        # Iterate over symbols that had initial positions or period activity
+        active_symbols = set(initial_positions_at_cutoff.keys()) | set(s['symbol'] for s in processed_period_transactions)
+        
+        for symbol in sorted(list(active_symbols)): # Sort for consistent table order
+            data = symbol_period_details[symbol] # Contains period transaction aggregates and P/L
+            
+            avg_buy_price_period = (data['period_buy_value'] / data['period_buy_volume']) if data['period_buy_volume'] > 0 else 0.0
+            total_buy_cost_period_display = data['period_buy_value'] + data['period_buy_commissions']
+            
+            avg_sell_price_period = (data['period_sell_value'] / data['period_sell_volume']) if data['period_sell_volume'] > 0 else 0.0
+            total_sell_income_period_display = data['period_sell_value'] - data['period_sell_commissions']
+            
+            net_volume_period = data['period_buy_volume'] - data['period_sell_volume']
+            grand_total_net_pnl_period += data['net_pnl_period']
+            
+            last_trade_date_str = data['last_trade_timestamp_in_period'].strftime('%Y-%m-%d') if data['last_trade_timestamp_in_period'] else 'N/A'
+
+            per_symbol_table_data.append([
                 symbol,
-                "Closed",
-                "N/A",
-                "N/A",
-                "N/A"
+                data['period_buy_volume'], f"${avg_buy_price_period:,.2f}", f"${total_buy_cost_period_display:,.2f}",
+                data['period_sell_volume'], f"${avg_sell_price_period:,.2f}", f"${total_sell_income_period_display:,.2f}",
+                net_volume_period,
+                f"${data['net_pnl_period']:,.2f}",
+                last_trade_date_str
             ])
 
-        # Print stock status table if there are any positions
-        if stock_status_data:
-            print("\n--- Stock Status ---")
-            print(tabulate(
-                stock_status_data,
-                headers=["Symbol", "Status", "Shares", "Avg Price", "Current Price"],
-                tablefmt="grid",
-                stralign="right"
-            ))
+        # Sort per_symbol_table_data by "Net Vol" (index 7) in descending order
+        # x[7] corresponds to net_volume_period
+        per_symbol_table_data.sort(key=lambda x: x[7], reverse=True)
+
+        # Overall Summary Table
+        total_period_buy_orders = sum(1 for t in processed_period_transactions if t['action'] == 'buy' or t['action'] == 'initial')
+        total_period_sell_orders = sum(1 for t in processed_period_transactions if t['action'] == 'sell')
+        grand_total_period_commission = sum(t['commission'] for t in processed_period_transactions)
+
+        summary_data = [
+            ["Period", f"Last {duration}" if duration else "All Time"],
+            ["Total Txns", len(processed_period_transactions)],
+            ["Buys", total_period_buy_orders],
+            ["Sells", total_period_sell_orders],
+            ["Total Comm.", f"${grand_total_period_commission:,.2f}"],
+            ["Net P/L", f"${grand_total_net_pnl_period:,.2f}"]
+        ]
+
+        print("\n--- Overall Transactions Summary ---")
+        print(tabulate(summary_data, tablefmt="grid", stralign="right"))
+
+        if per_symbol_table_data:
+            headers = [
+                "Symbol", "Buy Vol", "Avg Buy $", "Buy Cost",
+                "Sell Vol", "Avg Sell $", "Sell Income",
+                "Net Vol", "Net P/L", "Last Trade"
+            ]
+            print("\n--- Per-Symbol Transaction Details (Period) ---")
+            print(tabulate(per_symbol_table_data, headers=headers, tablefmt="grid", stralign="right"))
+        else:
+            print("\nNo per-symbol transaction data to display for the period (after considering initial positions).")
+
+    def _parse_transaction_numerics(self, t_data: Dict[str, str]) -> Optional[tuple[int, float, float]]:
+        """Helper to parse numeric fields from a transaction data dictionary."""
+        try:
+            size = int(t_data['size'])
+            price = float(t_data['price'])
+            commission = float(t_data['commission'])
+            return size, price, commission
+        except (ValueError, KeyError) as e:
+            dbg_error(f"Skipping transaction due to data conversion/missing key error: {t_data} - {e}")
+            return None
+
+    # You might add other broker-specific methods here as needed,
 
     # You might add other broker-specific methods here as needed,
     # potentially checking self.broker_type if they aren't universal.
