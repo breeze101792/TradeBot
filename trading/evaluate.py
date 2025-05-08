@@ -9,20 +9,23 @@ from strategy.strategy import *
 from market.market import Market, MarketTime
 from strategy.daily import *
 from broker.brokermanager import BrokerManager
+from core.config import *
 
 class Evaluate:
     # threshold
     BUY_CANDIDATE_PROFIT_THRESHOLD = 1
     def __init__(self):
-        # dev config
-        self.flag_development = False
         # TODO, add multiple strategy support.
         self.default_strategy = DailyMACStrategy
 
-        if self.flag_development:
+        self.cm = AppConfigManager()
+
+        # debug mode
+        self.flag_development = False
+        if self.flag_development and self.cm.get('debug.development') is True:
             dbg_warning('Enable debug mode.')
             # Buy
-            self.test_buy_list = ['2330', '1459', '1463', '1528', '2049', '2392', '2417', '2455', '2486', '3023', '3645', '4540', '4555', '5225', '6743', '8429']
+            self.test_buy_list = ['2028', '8404']
             # Sell
             self.test_sell_list = []
             # self.test_sell_list.append({'symbol':'2330', 'open_date':date.today().isoformat(), 'size':5, 'initial_entry_price':2000, 'strategy': self.default_strategy.NAME})

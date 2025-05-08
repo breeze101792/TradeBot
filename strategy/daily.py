@@ -12,7 +12,7 @@ class DailyMACStrategy(BasicStrategy):
         ("short_period", 5),  # Short period for moving average (5 days)
         ("long_period", 20),  # Long period for moving average (20 days)
         # ("risk_per_trade", 0.2),  # Max risk per trade (20%), this will affect the efficent of using cash.
-        ("risk_per_trade", 0.2),  # Max risk per trade (20%)
+        ("risk_per_trade", 0.8),  # Max risk per trade (20%)
         ("trailing_stop_pct", 0.05),  # Trailing stop percentage (5%)
         ("trailing_takeprofit_pct", 0.10),  # Trailing take profit percentage (10%)
     )
@@ -49,11 +49,14 @@ class DailyMACStrategy(BasicStrategy):
                     self.sell(data=data, size=pos.size)
                     dbg_log(f"📉 [{self.data.datetime.date(0)}]{data._name} Exit Signal (SMA Cross/Stop Loss) @ {price:.2f}, pos:{pos.size}") # Improved log message
                 elif price < self.trailing_stop[data]:
+
+                    # calc size to sell
+                    lot_size = pos.size / self.LOT_UNIT
                     sell_pos = 0
-                    if pos.size > 2:
-                        sell_pos = ceil(pos.size/2)
+                    if lot_size >= 2:
+                        sell_pos = ceil(lot_size/2) * self.LOT_UNIT
                     else:
-                        sell_pos = pos.size
+                        sell_pos = lot_size * self.LOT_UNIT
                     # dbg_info(f'Selling debug: {pos.size}->{sell_pos}')
                     self.sell(data=data, size=sell_pos)
 
@@ -79,7 +82,8 @@ class DailyMACStrategy(BasicStrategy):
                     dbg_log(f"📉 [{self.data.datetime.date(0)}]{data._name} Exit Signal (SMA Cross/Stop Loss) @ {price:.2f}, pos:{pos.size}") # Improved log message
             # Entry: Short MA crosses above Long MA
             elif not pos and self.sma_short[data][0] > self.sma_long[data][0] and self.sma_short[data][-1] <= self.sma_long[data][-1]:
-                size = int(self.broker.get_cash() * self.params.risk_per_trade / price)
+                lot_size = int(self.broker.get_cash() * self.params.risk_per_trade / (price * self.LOT_UNIT))
+                size = lot_size * self.LOT_UNIT
                 self.buy(data=data, size=size)
 
                 # update init paramaters.

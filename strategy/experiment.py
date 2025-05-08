@@ -113,7 +113,7 @@ class MovingAverageCrossoverEn(BasicStrategy):
                 dbg_log(f"- [{self.data.datetime.date(0)}]{data._name} NONE @ {price:.2f}, Stop Loss: {stop_loss:.2f}, Take Profit: {take_profit:.2f}")
 
 
-class BreakoutMomentum(bt.Strategy):
+class BreakoutMomentum(BasicStrategy):
     NAME="BM"
     params = (
         ("breakout_period", 20),  # 突破區間 (20日高點)
@@ -151,7 +151,7 @@ class BreakoutMomentum(bt.Strategy):
                     self.sell(data=data, size=pos.size)
                     dbg_log(f"🏆 [{self.data.datetime.date(0)}]{data._name} 止盈出場 @ {price:.2f}")
 
-class BreakoutMomentum(bt.Strategy):
+class BreakoutMomentum(BasicStrategy):
     NAME="BM"
     params = (
         ("breakout_period", 20),  # 突破區間 (20日高點)
@@ -189,7 +189,7 @@ class BreakoutMomentum(bt.Strategy):
                     self.sell(data=data, size=pos.size)
                     dbg_log(f"🏆 [{self.data.datetime.date(0)}]{data._name} 止盈出場 @ {price:.2f}")
 
-class BreakoutMomentumEn(bt.Strategy):
+class BreakoutMomentumEn(BasicStrategy):
     NAME="BME"
     params = {
         "breakout_period": 20,  # 突破期間

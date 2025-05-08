@@ -5,6 +5,8 @@ class AppConfig(BasicConfig):
     class about:
         program_name = 'Investment'
         version='0.1.0'
+    class debug:
+        development = False
     class path:
         root = os.path.expanduser(f"~/.config/ConfigManager")
         config = "config.json"
@@ -14,6 +16,9 @@ class AppConfig(BasicConfig):
         broker = "broker"
         bt_cmd_history = 'backtrade_cmd.history'
         trade_cmd_history = 'trade_cmd.history'
+    class stock:
+        lot_unit = 1000
+        cash_per_trade = 10 * 10000
 
 class AppConfigManager(ConfigManager):
     def __init__(self):

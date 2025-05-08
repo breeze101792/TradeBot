@@ -7,8 +7,6 @@ from strategy.test import TestStrategy
 from strategy.daily import DailyMACStrategy
 from strategy.bollinger import BollingerRebound
 
-class py_prop:
-        pass
 class StrategyManager:
     def __init__(self, test = 0):
         self.strategy_dict = dict()

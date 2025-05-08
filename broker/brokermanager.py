@@ -122,6 +122,7 @@ class BrokerManager:
         Prints a summary table of all current positions held by the managed broker,
         including market value and unrealized profit/loss.
         """
+        cash = self.broker.get_cash()
         positions = self.broker.get_all_positions()
         if not positions:
             print("No positions currently held.")
@@ -183,6 +184,7 @@ class BrokerManager:
 
             # Print Totals
             print("\n--- Portfolio Totals ---")
+            print(f"Total Cash Value: ${cash:,.2f}")
             print(f"Total Market Value: ${total_market_value:,.2f}")
             print(f"Total Cost Basis:   ${total_cost_basis:,.2f}")
             print(f"Total Unrealized P/L: ${total_unrealized_pl:,.2f}")

@@ -49,6 +49,7 @@ def main():
         # DebugSetting.setDbgLevel("all")
         dbg_warning('Enable development mode')
         cm.set('path.broker', "broker_development")
+        cm.set('debug.development', True)
     else:
         ans = input("!!! It's a NOT in development mode, are you sure you want to proceed, or try with development mode.?(y/N, enter to goto development mode.):")
         if ans not in ['y', 'Y', 'yes', 'YES']:

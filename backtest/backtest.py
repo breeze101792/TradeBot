@@ -19,6 +19,8 @@ from backtest.analyzer.partialtrade import *
 from strategy.strategy import *
 
 class Backtest:
+    # Lock for eval method
+    _EVAL_LOCK = threading.Lock()
     def __init__(self, market):
         """
         Initializes the Backtest object.
@@ -44,9 +46,7 @@ class Backtest:
 
         # every run cached.
         self.cached_validated_history = []
-
-        # Lock for eval method
-        self._eval_lock = threading.Lock()
+        self.cached_last_tradding_day = None
 
     # --- Property Getters/Setters for Configuration ---
 
@@ -271,6 +271,11 @@ class Backtest:
     def clean_result(self):
         """Clears the stored backtest results."""
         self.result_list = []
+
+    def reset(self):
+        # reset status.
+        self.cached_validated_history = []
+        self.cached_last_tradding_day = None
 
     def get_analysis(self):
         """
@@ -587,12 +592,8 @@ class Backtest:
             cerebro.addstrategy(each_stra)
             self.strategy_list.append(each_stra)
 
-            # clarn trade infojj
-            each_stra.reset_status(each_stra, clean_all = True)
-
-            # TODO, don't access class variable.
-            if last_trading_day is not None:
-                each_stra.trading_date = last_trading_day
+        # unify settings, could be override by multiple settings
+        self.cached_last_tradding_day = last_trading_day
 
     def eval(self, cerebro = None):
         """
@@ -608,15 +609,16 @@ class Backtest:
             cerebro (bt.Cerebro, optional): The Cerebro engine instance.
                 If None, uses `self.cerebro`.
         """
-        if len(self.cached_validated_history) != 0:
-            # dbg_info('Set order history.')
+        with self._EVAL_LOCK: # Ensure only one thread executes eval at a time
             for each_stra in self.strategy_list:
+                # reset strategy.
+                each_stra.reset_status(each_stra, clean_all = True)
+                # Setting for strategy.
                 each_stra.initial_order_history = self.cached_validated_history
-            self.cached_validated_history = []
+                each_stra.trading_date = self.cached_last_tradding_day
 
-        if cerebro is None:
-            cerebro = self.cerebro
-            with self._eval_lock: # Ensure only one thread executes eval at a time
+            if cerebro is None:
+                cerebro = self.cerebro
                 stra_list = cerebro.run()
                 self.__analyze(stra_list)
 

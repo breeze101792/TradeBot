@@ -1,12 +1,15 @@
 import backtrader as bt
 import threading
 from utility.debug import *
+from core.config import *
 
 # class BasicStrategy(bt.Strategy):
 #     NAME="BasicStrategy"
 #     def reset_status(self):
 #         pass
 class BasicStrategy(bt.Strategy):
+    LOT_UNIT = 1000
+
     NAME="AdavanceStrategy"
     trading_date = None
     last_trade = {
@@ -18,7 +21,7 @@ class BasicStrategy(bt.Strategy):
     }
 
     # add initial order for testing.
-    initial_order_history = None
+    initial_order_history = []
 
     # recorder
     # Stores details of active buy positions:
@@ -27,9 +30,13 @@ class BasicStrategy(bt.Strategy):
     # Stores details of completed trade portions:
     # [{'code': str, 'entry_date': date, 'exit_date': date, 'avg_entry_price': float, 'exit_price': float, 'size': int, 'pnl': float, 'is_win': bool}]
     trading_history = []
+
+    _lock = threading.Lock()
     def __init__(self):
         super().__init__()
-        self._lock = threading.Lock()
+
+        self.cm = AppConfigManager()
+        self.LOT_UNIT = self.cm.get('stock.lot_unit')
 
         # reset status
         # self.reset_status(clean_all = False)
@@ -47,7 +54,7 @@ class BasicStrategy(bt.Strategy):
         if clean_all is True:
             # this is for servive over cerebro.run()
             self.trading_date = None
-            initial_order_history = None
+            initial_order_history = []
 
             self.last_trade = {
                 "date"          : None,
@@ -197,7 +204,7 @@ class BasicStrategy(bt.Strategy):
         data_price_idx = 2
         data_name_idx = 3
 
-        if self.initial_order_history is None:
+        if self.initial_order_history is None or len(self.initial_order_history) == 0:
             dbg_debug('No order history found.')
             return
         for data in self.datas:
@@ -218,14 +225,14 @@ class BasicStrategy(bt.Strategy):
 
                     self.initial_order_history.remove(each_record)
                 else:
-                    dbg_warning(f"{each_record[data_name_idx]}/{data._name} are different.")
+                    dbg_warning(f"{data._name}/{each_record[data_name_idx]}(recorded data is wrong?) are different.")
 
         # FIXME, if the con-current exist, this will cause issue. don't mix up buy/sell thread.
         if len(self.initial_order_history) != 0:
             dbg_error(f"initial_order_history init fail {self.initial_order_history}.")
             raise
         else:
-            self.initial_order_history = None
+            self.initial_order_history = []
         # Lock acquired in start() is held until stop()
 
     def stop(self):

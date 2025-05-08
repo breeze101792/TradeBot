@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import date # Import date for tracking open date
+from datetime import date, datetime, time # Import date for tracking open date
 from utility.debug import *
 
 from market.market import *
@@ -89,6 +89,31 @@ class BaseBroker:
         self._state_changed: bool = False # Flag to track if state has changed since last load/save
         # dbg_info(f"Broker initialized with Cash: ${self.cash:,.2f}, Commission: ${self.commission_per_trade:.2f}/trade. State file: {self.state_filepath}")
 
+    def is_market_open(self) -> bool:
+        """
+        Checks if the market is currently open.
+        TWSE market hours: Monday to Friday, 9:00 AM to 1:25 PM.
+        """
+        now = datetime.now()
+        current_time = now.time()
+        current_weekday = now.weekday()  # Monday is 0 and Sunday is 6
+
+        # Market is open on weekdays (Monday to Friday)
+        if current_weekday >= 5: # Saturday or Sunday
+            dbg_trace("Market is closed: It's a weekend.")
+            return False
+
+        # Define market open and close times
+        market_open_time = time(9, 0, 0)
+        market_close_time = time(13, 25, 0) # Market closes at 13:25 for matching
+
+        if market_open_time <= current_time <= market_close_time:
+            dbg_trace("Market is open.")
+            return True
+        else:
+            dbg_trace(f"Market is closed: Current time {current_time.strftime('%H:%M:%S')} is outside trading hours ({market_open_time.strftime('%H:%M:%S')} - {market_close_time.strftime('%H:%M:%S')}).")
+            return False
+
     def place_order(self, symbol: str, action: str, size: int, price: float | None = None) -> dict | None:
         """
         Simulates placing and immediately filling an order.
@@ -108,6 +133,10 @@ class BaseBroker:
         Returns:
             dict: Details of the simulated execution ('filled' status), or None if order rejected.
         """
+        if not self.is_market_open():
+            dbg_warning(f"Order rejected for {symbol}: Market is closed.")
+            return None
+
         if size <= 0:
             dbg_error(f"Order rejected for {symbol}: Size must be positive, got {size}.")
             return None

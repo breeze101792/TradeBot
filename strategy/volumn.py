@@ -5,7 +5,7 @@ from strategy.basicstrategy import *
 from strategy.indicator import *
 
 
-class PriceVolumeStrategy(bt.Strategy):
+class PriceVolumeStrategy(BasicStrategy):
     NAME="PVS"
     params = (
         ('short_period', 5),
@@ -20,15 +20,15 @@ class PriceVolumeStrategy(bt.Strategy):
         if self.sma_short[0] > self.sma_long[0] and self.data.close[0] > self.data.open[0] and self.data.volume[0] > self.data.volume[-1]:
             if not self.position:
                 size = self.broker.get_cash() * 0.1 / self.data.close[0]
-                self.buy(size=size)
+                self.buy(self.data, size=size)
                 dbg_log(f"Buy signal: {self.data.close[0]:.2f}")
         elif self.sma_short[0] < self.sma_long[0] and self.data.close[0] < self.data.open[0] and self.data.volume[0] > self.data.volume[-1]:
             if self.position:
-                self.sell(size=self.position.size)
+                self.sell(self.data, size=self.position.size)
                 dbg_log(f"Sell signal: {self.data.close[0]:.2f}")
 
 
-class OBVStrategy(bt.Strategy):
+class OBVStrategy(BasicStrategy):
     NAME="OBVS"
     params = (
         ('obv_period', 14),  # OBV 計算週期
@@ -44,17 +44,17 @@ class OBVStrategy(bt.Strategy):
             if not self.position:
                 # 當 OBV 穿越價格線向上時，買入
                 size = self.broker.get_cash() * 0.1 / self.data.close[0]  # 風險控制為 10% 的現金
-                self.buy(size=size)
+                self.buy(data, size=size)
                 dbg_log(f"Buy signal at {self.data.close[0]:.2f}")
         
         elif self.crossover < 0:
             if self.position:
                 # 當 OBV 穿越價格線向下時，賣出
-                self.sell(size=self.position.size)
+                self.sell(data, size=self.position.size)
                 dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
 
-class ADLineStrategy(bt.Strategy):
+class ADLineStrategy(BasicStrategy):
     NAME="ADLS"
     params = (
         ('ad_period', 14),  # A/D 線計算週期
@@ -70,7 +70,7 @@ class ADLineStrategy(bt.Strategy):
             if not self.position:
                 # 當 A/D 線上穿價格線時，買入
                 size = self.broker.get_cash() * 0.1 / self.data.close[0]  # 風險控制為 10% 的現金
-                self.buy(size=size)
+                self.buy(data, size=size)
                 dbg_log(f"Buy signal at {self.data.close[0]:.2f}")
         
         elif self.crossover < 0:
@@ -80,7 +80,7 @@ class ADLineStrategy(bt.Strategy):
                 dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
 
-class VWAPStrategy(bt.Strategy):
+class VWAPStrategy(BasicStrategy):
     NAME="VWAPS"
     params = (
         ('vwap_period', 20),  # VWAP 計算週期
@@ -95,16 +95,16 @@ class VWAPStrategy(bt.Strategy):
             if not self.position:
                 # 當價格高於 VWAP 時，買入
                 size = self.broker.get_cash() * 0.1 / self.data.close[0]
-                self.buy(size=size)
+                self.buy(self.data, size=size)
                 dbg_log(f"Buy signal at {self.data.close[0]:.2f}")
 
         elif self.data.close[0] < self.vwap[0]:
             if self.position:
                 # 當價格低於 VWAP 時，賣出
-                self.sell(size=self.position.size)
+                self.sell(self.data, size=self.position.size)
                 dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
-class PriceVolumeBreakoutStrategy(bt.Strategy):
+class PriceVolumeBreakoutStrategy(BasicStrategy):
     NAME="PVBS"
     params = (
         ('breakout_threshold', 1.5),  # 當成交量超過平均量的 1.5 倍時，視為突破
@@ -121,16 +121,16 @@ class PriceVolumeBreakoutStrategy(bt.Strategy):
             if not self.position:
                 # 當價格突破區間並且成交量劇增時，買入
                 size = self.broker.get_cash() * 0.1 / self.data.close[0]
-                self.buy(size=size)
+                self.buy(self.data, size=size)
                 dbg_log(f"Breakout Buy signal at {self.data.close[0]:.2f}")
 
         elif self.data.close[0] < self.lowest_close[0] and self.data.volume[0] > self.avg_volume[0] * self.params.breakout_threshold:
             if self.position:
                 # 當價格突破最低區間並且成交量劇增時，賣出
-                self.sell(size=self.position.size)
+                self.sell(self.data, size=self.position.size)
                 dbg_log(f"Breakout Sell signal at {self.data.close[0]:.2f}")
 
-class CMFStrategy(bt.Strategy):
+class CMFStrategy(BasicStrategy):
     NAME="CMFS"
     params = (
         ('cmf_period', 20),  # CMF 計算週期
@@ -145,16 +145,16 @@ class CMFStrategy(bt.Strategy):
             if not self.position:
                 # 當 CMF 大於 0 時，表示資金流入，買入
                 size = self.broker.get_cash() * 0.1 / self.data.close[0]
-                self.buy(size=size)
+                self.buy(self.data, size=size)
                 dbg_log(f"Buy signal at {self.data.close[0]:.2f}")
 
         elif self.cmf[0] < 0:
             if self.position:
                 # 當 CMF 小於 0 時，表示資金流出，賣出
-                self.sell(size=self.position.size)
+                self.sell(self.data, size=self.position.size)
                 dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
-class VolumeSpikeStrategy(bt.Strategy):
+class VolumeSpikeStrategy(BasicStrategy):
     NAME="VSS"
     params = (
         ('volume_spike_factor', 2),  # 成交量是過去平均量的幾倍才算劇增
@@ -169,11 +169,11 @@ class VolumeSpikeStrategy(bt.Strategy):
             if self.data.close[0] > self.data.open[0]:
                 if not self.position:
                     size = self.broker.get_cash() * 0.1 / self.data.close[0]
-                    self.buy(size=size)
+                    self.buy(self.data, size=size)
                     dbg_log(f"Volume spike Buy signal at {self.data.close[0]:.2f}")
             elif self.data.close[0] < self.data.open[0]:
                 if self.position:
-                    self.sell(size=self.position.size)
+                    self.sell(self.data, size=self.position.size)
                     dbg_log(f"Volume spike Sell signal at {self.data.close[0]:.2f}")
 
 

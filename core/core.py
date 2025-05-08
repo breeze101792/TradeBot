@@ -2,7 +2,7 @@
 # system file
 import traceback
 import threading
-
+import math
 import time
 # FIXME, may be remove latter
 import backtrader as bt
@@ -121,6 +121,9 @@ class Core:
         return True
 
     def __buying_exec(self, buy_list):
+        LOT_UNIT = self.cm.get('stock.lot_unit')
+        CASH_PER_TRADE = self.cm.get('stock.cash_per_trade')
+
         # {symbol:2330, price:1000, size:1000, }
         if len( buy_list) >= 1:
             # TODO, Place order & save to data base for info/stop_loss price.
@@ -130,15 +133,19 @@ class Core:
                 dbg_info(f'Buying product: {each_symbol}')
                 # 0.9 is to avoid market price increase cause insufficient funds.
                 current_cash = trade_broker.get_cash() * 0.9
+                # budget should smaller then CASH_PER_TRADE.
+                buying_budget = current_cash if current_cash < CASH_PER_TRADE else CASH_PER_TRADE
                 current_price = trade_broker.get_last_price(each_symbol)
+
                 # size should be the 1000x
-                order_size = 1 * 1000
+                order_lot = math.floor(buying_budget / (current_price * LOT_UNIT))
+                order_size = order_lot * LOT_UNIT
 
                 # sanity check
-                if current_price * order_size < current_cash:
+                if current_price * order_size < buying_budget:
                     trade_broker.place_order(symbol=each_symbol, size=order_size, action='buy')
                 else:
-                    dbg_warning('Insufficient cash, ignore buying product:{each_symbol} at size:{order_size}, current:{current_price}')
+                    dbg_warning(f'Insufficient cash (buget {buying_budget}), ignore buying product:{each_symbol} at size:{order_size}, price:{current_price}')
             trade_broker.summarize_positions()
             trade_broker.disconnect()
         else:
@@ -185,8 +192,9 @@ class Core:
         # Buyig evaluation.
         buy_list = trade_eval.buying_evaluation()
 
-        # FIXME, debug, don't not open it.
-        # self.__buying_exec(buy_list)
+        # NOTE. debug, don't not open it.
+        # if self.cm.get('debug.development') is True: 
+        #     self.__buying_exec(buy_list)
         # debug
         return buy_list
     def __selling_eval(self, args = None):
@@ -265,10 +273,10 @@ class Core:
 
                 if current_time > current_time.replace(hour=15, minute=0, second=0, microsecond=0):
                     # 15 ~ 24, after market
-                    target = MarketTime.get_next_market_open_time.replace(hour=5, minute=0, second=0, microsecond=0)
+                    target = MarketTime.get_next_market_open_time().replace(hour=5, minute=0, second=0, microsecond=0)
                 elif current_time < current_time.replace(hour=8, minute=0, second=0, microsecond=0):
                     # 0 ~ 8, before market, use one hour early to protect selling service.
-                    target = MarketTime.get_next_market_open_time.replace(hour=5, minute=0, second=0, microsecond=0)
+                    target = MarketTime.get_next_market_open_time().replace(hour=5, minute=0, second=0, microsecond=0)
                 else:
                     # 8 ~ 15
                     target = MarketTime.get_next_market_update_time().replace(hour=15, minute=0, second=0, microsecond=0)
@@ -292,7 +300,7 @@ class Core:
                 ###############################################################
                 # Check the shared status object
                 if len(self.trading_status.Trading.target_buying_list) > 0:
-                    target = MarketTime.get_next_market_open_time().replace(hour=8, minute=50, second=0, microsecond=0)
+                    target = MarketTime.get_next_market_open_time().replace(hour=9, minute=0, second=0, microsecond=0)
                     self.trading_status.Trading.next_wakeup_time = target # Store wake-up time for buying
                     dbg_info(f'Trading Service will wake up at {target}, to buy product.')
                     sleep_result = sleep_until_with_flag(target, self.stop_event)
@@ -337,7 +345,7 @@ class Core:
                 # Define market close time for today (e.g., 1:20 PM)
                 # This assumes MarketTime.get_next_market_open_time() gives the correct date.
                 next_market_close_target = MarketTime.get_next_market_close_time().replace(hour=13, minute=20, second=0, microsecond=0)
-                market_open_target = next_market_close_target.replace(hour=8, minute=55, second=0, microsecond=0)
+                market_open_target = next_market_close_target.replace(hour=9, minute=0, second=0, microsecond=0)
 
                 if datetime.now() < next_market_close_target and datetime.now() > market_open_target:
                     dbg_info(f'Selling Service will monitor until {next_market_close_target}.')
@@ -396,7 +404,7 @@ class Core:
                 # sleeping control
                 ###############################################################
                 # Sleep until next market open time (e.g., 8:55 AM)
-                market_open_target = MarketTime.get_next_market_open_time().replace(hour=8, minute=55, second=0, microsecond=0)
+                market_open_target = MarketTime.get_next_market_open_time().replace(hour=9, minute=0, second=0, microsecond=0)
                 self.trading_status.Selling.next_wakeup_time = market_open_target # Store wake-up time
                 dbg_info(f'Selling Service will wake up at {market_open_target} to start intra-day monitoring.')
                 sleep_result = sleep_until_with_flag(market_open_target, self.stop_event)
