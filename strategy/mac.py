@@ -4,17 +4,17 @@ from math import ceil
 from utility.debug import *
 from strategy.basicstrategy import *
 
-# Daily test MACE Strategy
+# Moving Average Crossover
 # this is for experiment on daily evaluation.
-class DailyMACStrategy(BasicStrategy):
-    NAME="DMACE"
+class MovingAverageCrossoverStrategy(BasicStrategy):
+    NAME="MovingAverageCrossover"
     params = (
-        ("short_period", 5),  # Short period for moving average (5 days)
-        ("long_period", 20),  # Long period for moving average (20 days)
+        ("short_period", 10),  # Short period for moving average (5 days)
+        ("long_period", 50),  # Long period for moving average (20 days)
         # ("risk_per_trade", 0.2),  # Max risk per trade (20%), this will affect the efficent of using cash.
         ("risk_per_trade", 0.8),  # Max risk per trade (20%)
         ("trailing_stop_pct", 0.05),  # Trailing stop percentage (5%)
-        ("trailing_takeprofit_pct", 0.10),  # Trailing take profit percentage (10%)
+        ("trailing_takeprofit_pct", 0.05),  # Trailing take profit percentage (10%)
     )
 
     def __init__(self):
@@ -36,7 +36,7 @@ class DailyMACStrategy(BasicStrategy):
         for data in self.datas:
             pos = self.getposition(data)
             price = data.close[0]
-            # dbg_info(f"[{self.data.datetime.date(0)}]{data._name} Last day {price:.2f}, pos:{pos.size}, stop_loss: {self.stop_loss[data]}/{self.trailing_stop[data]}")
+            # dbg_info(f"[{self.data.datetime.date(0)}]{data._name} Price:{price:.2f}, pos:{pos.size}")
 
             # Exit: Short MA crosses below Long MA or hit stop loss/take profit
             if pos.size > 0:
@@ -46,9 +46,11 @@ class DailyMACStrategy(BasicStrategy):
 
                 # Exit conditions
                 if price < self.stop_loss[data]:
+                    # entry stop loss.
                     self.sell(data=data, size=pos.size)
                     dbg_log(f"📉 [{self.data.datetime.date(0)}]{data._name} Exit Signal (SMA Cross/Stop Loss) @ {price:.2f}, pos:{pos.size}") # Improved log message
                 elif price < self.trailing_stop[data]:
+                    # trailing stop loss.
 
                     # calc size to sell
                     lot_size = pos.size / self.LOT_UNIT
@@ -66,18 +68,30 @@ class DailyMACStrategy(BasicStrategy):
                     dbg_log(f"📉 [{self.data.datetime.date(0)}]{data._name} Trailing Stop Loss hit @ {price:.2f}, pos:{sell_pos}")
 
                 # we don't sell it when it's going higher.
-                # elif price > self.trailing_takeprofit[data]:
-                #     # we don't sell out all stock at once.
-                #     if pos.size > 2:
-                #         self.sell(data=data, size=int(pos.size/2))
-                #
-                #     # adjust next profit sell.
-                #     if price > self.trailing_takeprofit[data]:
-                #         self.trailing_takeprofit[data] = price * (1 + self.params.trailing_takeprofit_pct)  # Adjust trailing take profit
-                #
-                #     dbg_log(f"🏆 [{self.data.datetime.date(0)}]{data._name} Trailing Take Profit hit @ {price:.2f}")
+                elif price > self.trailing_takeprofit[data]:
+                    # adjust moving profit.
+
+                    # we don't sell out all stock at once.
+                    lot_size = pos.size / self.LOT_UNIT
+                    sell_pos = 0
+                    if lot_size >= 2:
+                        sell_pos = ceil(lot_size/2) * self.LOT_UNIT
+                    else:
+                        sell_pos = lot_size * self.LOT_UNIT
+                    # dbg_info(f'Selling debug: {pos.size}->{sell_pos}')
+                    self.sell(data=data, size=sell_pos)
+
+                    # adjust next profit sell.
+                    if price > self.trailing_takeprofit[data]:
+                        self.trailing_takeprofit[data] = price * (1 + self.params.trailing_takeprofit_pct)  # Adjust trailing take profit
+
+                    # update trailing stop
+                    self.trailing_stop[data] = price * (1 - self.params.trailing_stop_pct)  # Set initial trailing stop loss (5% down)
+
+                    dbg_log(f"🏆 [{self.data.datetime.date(0)}]{data._name} Trailing Take Profit hit @ {price:.2f}")
 
                 elif self.sma_short[data][0] < self.sma_long[data][0]:
+                    # strategy safty.
                     self.sell(data=data, size=pos.size)
                     dbg_log(f"📉 [{self.data.datetime.date(0)}]{data._name} Exit Signal (SMA Cross/Stop Loss) @ {price:.2f}, pos:{pos.size}") # Improved log message
             # Entry: Short MA crosses above Long MA
@@ -98,5 +112,4 @@ class DailyMACStrategy(BasicStrategy):
             else:
                 # No position held
                 # dbg_log(f"- [{self.data.datetime.date(0)}]{data._name} No Position @ {price:.2f}")
-
                 pass

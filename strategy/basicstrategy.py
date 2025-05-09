@@ -3,11 +3,9 @@ import threading
 from utility.debug import *
 from core.config import *
 
-# class BasicStrategy(bt.Strategy):
-#     NAME="BasicStrategy"
-#     def reset_status(self):
-#         pass
+# NOTE. strategy should only access by backtest class, so we could ensure the thread safty.
 class BasicStrategy(bt.Strategy):
+    DEBUG_FLAG = False
     LOT_UNIT = 1000
 
     NAME="AdavanceStrategy"
@@ -31,12 +29,15 @@ class BasicStrategy(bt.Strategy):
     # [{'code': str, 'entry_date': date, 'exit_date': date, 'avg_entry_price': float, 'exit_price': float, 'size': int, 'pnl': float, 'is_win': bool}]
     trading_history = []
 
-    _lock = threading.Lock()
     def __init__(self):
         super().__init__()
 
         self.cm = AppConfigManager()
         self.LOT_UNIT = self.cm.get('stock.lot_unit')
+
+        # we save the latest order, for checking if there is the duplicate order exist.
+        # may need to modify it for mulitple order?
+        self.order = None
 
         # reset status
         # self.reset_status(clean_all = False)
@@ -77,23 +78,26 @@ class BasicStrategy(bt.Strategy):
 
         trade_info = self.last_trade
         dbg_trace(f"[{self.NAME}] Update Trade info {trade_info['symbol']}@{trade_info['date']}: Action: {trade_info['action']:<4}, Exec size: {trade_info['size']:>5}, Price: {trade_info['price']:>7.2f}")
-    # def notify_trade(self, trade):
-    #     """
-    #     Logs trade status changes (opened, closed).
-    #     Detailed execution info is handled by notify_order.
-    #     """
-    #     trade_date = bt.num2date(trade.dt).date() if trade.dt else None # Get date of the event
-    #     code = trade.data._name if trade.data else 'N/A'
-    #
-    #     if trade.justopened:
-    #         dbg_info(f'TRADE OPENED : {code}, Size: {trade.size}, Price: {trade.price:.2f}, Date: {trade_date}')
-    #     elif trade.isclosed:
-    #         dbg_info(f'TRADE CLOSED : {code}, PNL: {trade.pnl:.2f}, PNL w/ Comm: {trade.pnlcomm:.2f}, Date: {trade_date}')
-    #     # Optional: Log updates to existing trades if needed
-    #     # elif trade.isopen:
-    #     #     dbg_trace(f'TRADE UPDATE : {code}, Current Size: {trade.size}, Date: {trade_date}')
+    def notify_trade(self, trade):
+        """
+        Logs trade status changes (opened, closed).
+        Detailed execution info is handled by notify_order.
+        """
+        trade_date = self.data.datetime.date(0) # Get date of the event
+        code = trade.data._name if trade.data else 'N/A'
+
+        if trade.justopened:
+            dbg_trace(f'TRADE OPENED : {code}, Size: {trade.size}, Price: {trade.price:.2f}, Date: {trade_date}')
+        elif trade.isclosed:
+            dbg_trace(f'TRADE CLOSED : {code}, PNL: {trade.pnl:.2f}, PNL w/ Comm: {trade.pnlcomm:.2f}, Date: {trade_date}')
+        # Optional: Log updates to existing trades if needed
+        elif trade.isopen:
+            dbg_trace(f'TRADE UPDATE : {code}, Current Size: {trade.size}, Date: {trade_date}')
 
     def notify_order(self, order):
+        if order.status in [order.Completed, order.Canceled, order.Rejected]:
+            self.order = None  # Reset after order is finalized
+
         if order.status in [order.Submitted, order.Accepted]:
             # dbg_trace('Buy/Sell order submitted/accepted to/by broker')
             # Buy/Sell order submitted/accepted to/by broker - Nothing to do
@@ -177,25 +181,24 @@ class BasicStrategy(bt.Strategy):
 
                     # Check if position is fully closed (handle potential float inaccuracies)
                     if pos['remaining_size'] == 0: # Consider position closed if remaining size is negligible
-                        dbg_log(f"Closed Active Trade {code} fully.")
+                        dbg_trace(f"Closed Active Trade {code} fully.")
                         del self.active_trades[data]
                 else:
                     # This might happen if selling logic triggers without a corresponding buy recorded
                     # or if handling short positions (not implemented here)
-                    dbg_warning(f"Sell executed for {code} on {exec_date} but no active buy record found in self.active_trades.")
+                    dbg_warning(f"Sell executed for {code} on {exec_date} size:{exec_size} but no active buy record found in active_trades: {self.active_trades}.")
 
             # self.bar_executed = len(self) # This seems unnecessary unless used elsewhere
 
         elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            dbg_warning(f'!!! Order for {data._name} Canceled/Margin/Rejected')
+            dbg_warning(f'!!! Order for {order.data._name} Canceled/Margin/Rejected')
 
         # Write down: no pending order
         self.order = None
     def start(self):
         # WARNING: Acquiring lock here and holding until stop() can be risky.
         # Ensure stop() is always called to release the lock, even on errors.
-        self._lock.acquire()
-        dbg_trace("Acquired lock for start()")
+
         # clear status.
         self.reset_status(clean_all = False)
 
@@ -268,19 +271,10 @@ class BasicStrategy(bt.Strategy):
         # print("Trading History:")
         # for trade in self.trading_history:
 
-        # Release the lock acquired in start()
-        dbg_trace("Releasing lock for stop()")
-        try:
-            self._lock.release()
-        except RuntimeError as e:
-            # Handle case where lock might not be held (e.g., error before start completed)
-            dbg_warning(f"Could not release lock in stop(): {e}")
-
-
     def sell(self, data, size):
         # FIXME, use close as price.
         price = data.close[0]
-        # dbg_info(f'Sell {data._name}, size:{size}')
+        dbg_trace(f'Sell {data._name}, size:{size}')
         self.update_trading_info(
             date=data.datetime.date(0),
             code=data._name,
@@ -288,12 +282,15 @@ class BasicStrategy(bt.Strategy):
             price=price,
             size=size,
         )
-        result = super().sell(data=data, size=size)
-        return result
+        if self.order is not None:
+            dbg_warning(f"Cancelling existing order for {self.order.data._name}: Ref: {self.order.ref}, Type: {'Buy' if self.order.isbuy() else 'Sell'}, Size: {self.order.size}, Price: {self.order.price}, Status: {self.order.getstatusname()}")
+            self.order.cancel()
+        self.order = super().sell(data=data, size=size)
+        return self.order
     def buy(self, data, size):
         # FIXME, use close as price.
         price = data.close[0]
-        # dbg_info(f'Buy {data._name}, size:{size}')
+        dbg_trace(f'Buy {data._name}, size:{size}')
         self.update_trading_info(
             date=data.datetime.date(0),
             code=data._name,
@@ -301,5 +298,9 @@ class BasicStrategy(bt.Strategy):
             price=price,
             size=size,
         )
-        result = super().buy(data=data, size=size)
-        return result
+        if self.order is not None:
+            dbg_warning(f"Cancelling existing order for {self.order.data._name}: Ref: {self.order.ref}, Type: {'Buy' if self.order.isbuy() else 'Sell'}, Size: {self.order.size}, Price: {self.order.price}, Status: {self.order.getstatusname()}")
+            self.order.cancel()
+
+        self.order = super().buy(data=data, size=size)
+        return self.order

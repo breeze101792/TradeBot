@@ -7,7 +7,7 @@ import pandas as pd
 from backtest.backtest import Backtest as Analyzer
 from strategy.strategy import *
 from market.market import Market, MarketTime
-from strategy.daily import *
+from strategy.mac import MovingAverageCrossoverStrategy
 from broker.brokermanager import BrokerManager
 from core.config import *
 
@@ -16,7 +16,7 @@ class Evaluate:
     BUY_CANDIDATE_PROFIT_THRESHOLD = 1
     def __init__(self):
         # TODO, add multiple strategy support.
-        self.default_strategy = DailyMACStrategy
+        self.default_strategy = MovingAverageCrossoverStrategy
 
         self.cm = AppConfigManager()
 
@@ -236,7 +236,7 @@ class Evaluate:
             position_dict = self.test_sell_list
 
         selling_list = []
-        # selling_list = [{'symbol':'2330', 'size':5, 'initial_entry_price':1000, 'date':date.today(), 'strategy': DailyMACStrategy.NAME}] 
+        # selling_list = [{'symbol':'2330', 'size':5, 'initial_entry_price':1000, 'date':date.today(), 'strategy': MovingAverageCrossoverStrategy.NAME}] 
 
         if len(position_dict) == 0:
             dbg_debug(f"No position.")

@@ -211,13 +211,16 @@ class Market:
                 self.instance = each_market()
 
     def get_top_product_list(self, number = 20):
+        if number > 20:
+            dbg_warning('Number should not bigger then 20.')
+            number = 20
         top_tw_stocks = [
             "2330", "2454", "2317", "2881", "2308",
             "2882", "2412", "2382", "2891", "3711",
             "2886", "2303", "1301", "1303", "1216",
             "2884", "6669", "2885", "5880", "3045"
         ]
-        return top_tw_stocks
+        return top_tw_stocks[:number]
 
     def get_product_list_by_date(self, start_date = "2020-01-01"):
         product_frame_list = self.instance.get_data_list()

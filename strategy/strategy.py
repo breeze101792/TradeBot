@@ -1,19 +1,24 @@
 import backtrader as bt
 import pandas as pd
 from utility.debug import *
-from strategy.experiment import *
-from strategy.volumn import *
-from strategy.test import TestStrategy
-from strategy.daily import DailyMACStrategy
-from strategy.bollinger import BollingerRebound
+
+# Offical
+from strategy.mac import MovingAverageCrossoverStrategy
+
+# experiment
+from strategy.experiment.experiment import *
+from strategy.experiment.volumn import *
+from strategy.experiment.test import TestStrategy
+from strategy.experiment.bollinger import BollingerRebound
 
 class StrategyManager:
     def __init__(self, test = 0):
         self.strategy_dict = dict()
         
+        self.register_strategy(MovingAverageCrossoverStrategy)
+
         # Strategy registration.
         # tested
-        self.register_strategy(DailyMACStrategy)
         self.register_strategy(MovingAverageCrossoverEn)
         self.register_strategy(BreakoutMomentumEn)
         # self.register_strategy(MovingAverageCrossover)

@@ -27,7 +27,7 @@ class BTCLI(CommandLineInterface):
         self.market = Market()
         self.strategyMgr = StrategyManager()
 
-        self.product_list = ['2330']
+        self.product_list = self.market.get_top_product_list(5)
         # self.strategy_list = [MovingAverageCrossover]
         self.strategy_list=[self.strategyMgr.get_strategy_list()[0].NAME]
         self.mode = 'default'
@@ -133,6 +133,10 @@ class BTCLI(CommandLineInterface):
         if args['#'] == 1:
             if args['1'] == 't20':
                 self.product_list = self.market.get_top_product_list(20)
+            elif args['1'] == 't10':
+                self.product_list = self.market.get_top_product_list(10)
+            elif args['1'] == 't5':
+                self.product_list = self.market.get_top_product_list(5)
             elif args['1'] == 'y20':
                 self.product_list = self.market.get_product_list_by_date(start_date = "2020-01-01")
             elif args['1'] == 'y10':
