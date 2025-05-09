@@ -50,7 +50,7 @@ class BTCLI(CommandLineInterface):
         self.total_mkt_type_list = self.market.get_markget_list()
         self.regist_cmd("market", self.cmd_market, description=f"Change market(data provider). Ops: {self.total_mkt_op_list}, Data:{self.total_mkt_type_list}", arg_list = self.total_mkt_op_list +self.total_mkt_type_list, group='setting')
 
-        self.total_data_list = ['t20', 'y20', 'y10', 'y05', 'y00']
+        self.total_data_list = ['t5', 't10', 't20', 't50', 'y20', 'y10', 'y05', 'y00']
         self.total_data_op_list = ['set', 'add', 'list', 'del']
         self.regist_cmd("data", self.cmd_data, description=f"Change database, test list stored. Ops: {self.total_data_op_list}, Data:{self.total_data_list}", arg_list = self.total_data_list +self.total_data_op_list, group='setting')
 
@@ -131,12 +131,14 @@ class BTCLI(CommandLineInterface):
         # total_data_list = self.total_data_list
         operation_list = self.total_data_op_list
         if args['#'] == 1:
-            if args['1'] == 't20':
-                self.product_list = self.market.get_top_product_list(20)
+            if args['1'] == 't5':
+                self.product_list = self.market.get_top_product_list(5)
             elif args['1'] == 't10':
                 self.product_list = self.market.get_top_product_list(10)
-            elif args['1'] == 't5':
-                self.product_list = self.market.get_top_product_list(5)
+            elif args['1'] == 't20':
+                self.product_list = self.market.get_top_product_list(20)
+            elif args['1'] == 't50':
+                self.product_list = self.market.get_top_product_list(50)
             elif args['1'] == 'y20':
                 self.product_list = self.market.get_product_list_by_date(start_date = "2020-01-01")
             elif args['1'] == 'y10':

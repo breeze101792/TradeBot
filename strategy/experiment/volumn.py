@@ -1,7 +1,7 @@
 import backtrader as bt
 import pandas as pd
 from utility.debug import *
-from strategy.basicstrategy import *
+from strategy.basic.basicstrategy import BasicStrategy
 from strategy.indicator import *
 
 

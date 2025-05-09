@@ -498,6 +498,25 @@ class Backtest:
                     row.append(year_returns.get(year, na_string)) # Use na_string if year not present
                 pivoted_table_data.append(row)
 
+            # --- Add Average Row for Annual Returns ---
+            if pivoted_table_data and len(annual_headers) > 2: # Ensure there's data and year columns
+                average_annual_row = ["Average", ""] # Symbol, Strategy
+                # Iterate through year columns (starting from index 2 of annual_headers)
+                for year_idx in range(2, len(annual_headers)):
+                    year_values = []
+                    for data_row in pivoted_table_data:
+                        # Ensure the row is long enough and value is numeric
+                        if len(data_row) > year_idx and isinstance(data_row[year_idx], (int, float)):
+                            year_values.append(data_row[year_idx])
+
+                    if year_values:
+                        avg_year_return = sum(year_values) / len(year_values)
+                        average_annual_row.append(avg_year_return)
+                    else:
+                        average_annual_row.append(na_string) # Or float('nan') if tabulate handles it
+                pivoted_table_data.append(average_annual_row)
+            # --- End Add Average Row ---
+
             # Step 4: Update tabulate call
             try:
                 annual_table_str = tabulate(

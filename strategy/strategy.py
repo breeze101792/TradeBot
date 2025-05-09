@@ -4,6 +4,9 @@ from utility.debug import *
 
 # Offical
 from strategy.mac import MovingAverageCrossoverStrategy
+from strategy.bm import BreakoutMomentumStrategy
+from strategy.rsi import RelativeStrengthIndexStrategy
+from strategy.bmr import BollingerMeanReversionStrategy
 
 # experiment
 from strategy.experiment.experiment import *
@@ -16,6 +19,9 @@ class StrategyManager:
         self.strategy_dict = dict()
         
         self.register_strategy(MovingAverageCrossoverStrategy)
+        self.register_strategy(BreakoutMomentumStrategy)
+        self.register_strategy(RelativeStrengthIndexStrategy)
+        self.register_strategy(BollingerMeanReversionStrategy)
 
         # Strategy registration.
         # tested
@@ -25,6 +31,7 @@ class StrategyManager:
         # self.register_strategy(BreakoutMomentum)
         self.register_strategy(PriceVolumeStrategy)
         self.register_strategy(VWAPStrategy)
+
         # New.
         # self.register_strategy(BollingerRebound)
 

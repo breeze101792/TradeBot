@@ -1,5 +1,5 @@
 import backtrader as bt
-from strategy.basicstrategy import *
+from strategy.basic.basicstrategy import BasicStrategy
 # Assuming basicstrategy might contain helper functions or base classes, keep the import.
 # If basicstrategy is not used, it could be removed.
 # from strategy.basicstrategy import * # Commented out if not used, uncomment if needed.
