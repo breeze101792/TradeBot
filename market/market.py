@@ -281,7 +281,8 @@ class Market:
         product_frame_list = self.instance.get_data_list()
         product_amount = len(product_frame_list)
         for idx, each_product_row in product_frame_list.iterrows():
-            dbg_info(f"[{idx}/{product_amount}] Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
+            # Use space to avoid error message been erase.
+            dbg_info(f"[{idx}/{product_amount}] Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}", prefix='\r', end=' ' * 10)
             try:
                 self.instance.get_data(product_id = each_product_row['code'])
             except Exception as e:
@@ -289,6 +290,7 @@ class Market:
                 dbg_error(e)
                 time.sleep(1)
                 continue
+        dbg_info(f"all {product_amount} has been update to date.", prefix='\r')
 
     # This method seems redundant now that the logic is in MarketTime.get_next_market_update_time
     # Consider removing it or calling the MarketTime method from here if needed.

@@ -3,10 +3,10 @@ import pandas as pd
 from utility.debug import *
 
 # Offical
-from strategy.mac import MovingAverageCrossoverStrategy
-from strategy.bm import BreakoutMomentumStrategy
-from strategy.rsi import RelativeStrengthIndexStrategy
-from strategy.bmr import BollingerMeanReversionStrategy
+from strategy.candidate.mac import MovingAverageCrossoverStrategy
+from strategy.candidate.bm import BreakoutMomentumStrategy
+from strategy.candidate.rsi import RelativeStrengthIndexStrategy
+from strategy.candidate.bmr import BollingerMeanReversionStrategy
 
 # experiment
 from strategy.experiment.experiment import *
@@ -18,9 +18,9 @@ class StrategyManager:
     def __init__(self, test = 0):
         self.strategy_dict = dict()
         
+        self.register_strategy(RelativeStrengthIndexStrategy)
         self.register_strategy(MovingAverageCrossoverStrategy)
         self.register_strategy(BreakoutMomentumStrategy)
-        self.register_strategy(RelativeStrengthIndexStrategy)
         self.register_strategy(BollingerMeanReversionStrategy)
 
         # Strategy registration.
@@ -46,6 +46,11 @@ class StrategyManager:
         # self.register_strategy(HighWinRateStrategy)
 
         # print(f'Init StrategyManager {self.strategy_dict}, {test}', )
+
+    def get_default_strategy(self):
+        if not self.strategy_dict:
+            return None  # Or raise an exception, depending on desired behavior
+        return list(self.strategy_dict.values())[0]
 
     def register_strategy(self, new_strategy):
         if self.strategy_dict.get(new_strategy.NAME) is not None:

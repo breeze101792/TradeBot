@@ -5,9 +5,8 @@ import pandas as pd
 
 # from trading.analyzer import Analyzer
 from backtest.backtest import Backtest as Analyzer
-from strategy.strategy import *
+from strategy.strategy import StrategyManager
 from market.market import Market, MarketTime
-from strategy.mac import MovingAverageCrossoverStrategy
 from broker.brokermanager import BrokerManager
 from core.config import *
 
@@ -16,7 +15,9 @@ class Evaluate:
     BUY_CANDIDATE_PROFIT_THRESHOLD = 1
     def __init__(self):
         # TODO, add multiple strategy support.
-        self.default_strategy = MovingAverageCrossoverStrategy
+        stra_mgr = StrategyManager()
+        self.default_strategy = stra_mgr.get_default_strategy()
+        dbg_info(f"default strategy: {self.default_strategy}")
 
         self.cm = AppConfigManager()
 
@@ -56,7 +57,7 @@ class Evaluate:
             for each_idx in range(0, len(product_list)):
                 each_product = product_list[each_idx]
                 try:
-                    dbg_info(f"[{each_idx + 1:>2}/{len(product_list)}] {each_product}")
+                    dbg_info(f"[{each_idx + 1:>2}/{len(product_list)}] {each_product}" , prefix = '\r',end='')
                     # test only one year for accerate performance.
                     trade_analyzer.from_date=trade_analyzer.to_date - relativedelta(years=1)
 

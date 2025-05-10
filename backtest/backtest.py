@@ -14,8 +14,9 @@ from utility.debug import *
 from utility.utils import *
 from core.database import *
 from market.market import *
-from backtest.backtest import *
+# from backtest.backtest import * # Self import removed
 from backtest.analyzer.partialtrade import *
+from backtest.backresult import BackResult # Added import
 from strategy.strategy import *
 
 class Backtest:
@@ -38,6 +39,7 @@ class Backtest:
         self.market = market
         self.default_strategy = MovingAverageCrossover
         self.default_product_list = self.market.get_top_product_list()
+        self.btresult = None
 
         self.cerebro = None
         self.data_list = []
@@ -290,252 +292,6 @@ class Backtest:
             return None
         else:
             return self.result_list
-
-    def show_result(self, annual_return=False):
-        """
-        Displays the backtest results in a formatted table using tabulate.
-
-        Args:
-            annual_return (bool, optional): If True, prints annual returns
-                separately after the main results table. Defaults to False.
-
-        Returns:
-            bool: True if results were displayed (or attempted), False if no
-                  results were found.
-        """
-        if not self.result_list:
-            dbg_info("No results found to display.")
-            return False
-
-        headers = [
-            "Symbol", "Strategy", "Profit %", "Sharpe", "VWR",
-            "Max DD %", "SQN", "Buys", "Buy Win %", "Sells", "Sell Win %"
-        ]
-        table_data = []
-        annual_returns_data = [] # Store annual returns separately for printing after table
-
-        # Lists to store values for averaging
-        profit_pct_values = []
-        sharpe_values = []
-        vwr_values = []
-        max_dd_values = []
-        sqn_values = []
-        buy_total_values = []
-        buy_win_pct_values = []
-        sell_total_values = []
-        sell_win_pct_values = []
-
-        invalid_number = float('nan') # Use NaN for missing numeric data
-        na_string = 'N/A' # String used by tabulate for missing values
-
-        for i, each_result in enumerate(self.result_list):
-            try:
-                # --- Extract Data ---
-                symbol_list = each_result.get('data', [])
-                strategy_list = each_result.get('strategy', [])
-                symbol = ",".join(map(str, symbol_list)) if symbol_list else na_string
-                strategy = ",".join(map(str, strategy_list)) if strategy_list else na_string
-
-                # Basic truncation (tabulate might handle wrapping better depending on format)
-                symbol = (symbol[:27] + '...') if len(symbol) > 30 else symbol
-                strategy = (strategy[:27] + '...') if len(strategy) > 30 else strategy
-
-
-                init_cash = each_result.get('init_cash', 0)
-                final_cash = each_result.get('cash', 0)
-                profit_pct = ((final_cash / init_cash - 1) * 100) if init_cash != 0 else 0.0
-
-                sharpe = each_result.get('sharpe', invalid_number)
-                if sharpe is None or not isinstance(sharpe, (int, float)): sharpe = invalid_number
-
-                vwr = each_result.get('vwr', invalid_number)
-                if vwr is None or not isinstance(vwr, (int, float)): vwr = invalid_number
-
-                drawdown = each_result.get('drawdown', {}).get('max', {}).get('drawdown', invalid_number)
-                if drawdown is None or not isinstance(drawdown, (int, float)): drawdown = invalid_number
-
-                sqn = each_result.get('sqn', {}).get('sqn', invalid_number)
-                if sqn is None or not isinstance(sqn, (int, float)): sqn = invalid_number
-
-                # Trade Analyzer (Buy side focus)
-                trade_analyzer = each_result.get('trade_analyzer', {})
-                buy_total = trade_analyzer.get('total', {}).get('total', 0)
-                buy_won = trade_analyzer.get('won', {}).get('total', 0)
-                buy_winning_rate = (buy_won / buy_total * 100) if buy_total > 0 else 0.0
-
-                # Partial Trade Analyzer (Sell side focus - from pta)
-                pta_analyzer = each_result.get('pta', {})
-                sell_total = pta_analyzer.get('total_trades', 0)
-                sell_won = pta_analyzer.get('won', 0)
-                sell_winning_rate = (sell_won / sell_total * 100) if sell_total > 0 else 0.0
-
-                annual_returns = each_result.get('annual_return', {})
-
-                # --- Prepare Row Data for Tabulate ---
-                row = [
-                    symbol,
-                    strategy,
-                    profit_pct,
-                    sharpe,
-                    vwr,
-                    drawdown, # Already a percentage
-                    sqn,
-                    buy_total,
-                    buy_winning_rate,
-                    sell_total,
-                    sell_winning_rate
-                ]
-                table_data.append(row)
-
-                # Store annual returns if requested
-                if annual_return and annual_returns:
-                    for year, ret in annual_returns.items():
-                        if isinstance(ret, (int, float)):
-                            # Store each year's return as a separate entry for tabulate
-                            annual_returns_data.append([symbol, strategy, str(year), ret])
-
-                # --- Collect data for averaging ---
-                if isinstance(profit_pct, (int, float)): profit_pct_values.append(profit_pct)
-                if isinstance(sharpe, (int, float)): sharpe_values.append(sharpe)
-                if isinstance(vwr, (int, float)): vwr_values.append(vwr)
-                if isinstance(drawdown, (int, float)): max_dd_values.append(drawdown) # drawdown is already a percentage
-                if isinstance(sqn, (int, float)): sqn_values.append(sqn)
-                if isinstance(buy_total, (int, float)): buy_total_values.append(buy_total)
-                if isinstance(buy_winning_rate, (int, float)): buy_win_pct_values.append(buy_winning_rate)
-                if isinstance(sell_total, (int, float)): sell_total_values.append(sell_total)
-                if isinstance(sell_winning_rate, (int, float)): sell_win_pct_values.append(sell_winning_rate)
-
-            except Exception as e:
-                dbg_error(f"Error processing result item index {i}: {e}")
-                dbg_error(f"Problematic result item content: {each_result}")
-                traceback_output = traceback.format_exc()
-                dbg_error(traceback_output)
-                # Add an error row to the table data
-                table_data.append([
-                    'ERROR', f'Check Logs (Index {i})', None, None, None, None, None, None, None, None, None
-                ])
-
-        # --- Calculate and Add Average Row ---
-        if table_data and not all(row[0] == 'ERROR' for row in table_data): # Only add average if there's valid data
-            num_valid_rows = len(profit_pct_values) # Assuming all lists will have same count of valid entries
-            if num_valid_rows > 0:
-                avg_profit_pct = sum(profit_pct_values) / len(profit_pct_values) if profit_pct_values else invalid_number
-                avg_sharpe = sum(sharpe_values) / len(sharpe_values) if sharpe_values else invalid_number
-                avg_vwr = sum(vwr_values) / len(vwr_values) if vwr_values else invalid_number
-                avg_max_dd = sum(max_dd_values) / len(max_dd_values) if max_dd_values else invalid_number
-                avg_sqn = sum(sqn_values) / len(sqn_values) if sqn_values else invalid_number
-                avg_buy_total = sum(buy_total_values) / len(buy_total_values) if buy_total_values else invalid_number
-                avg_buy_win_pct = sum(buy_win_pct_values) / len(buy_win_pct_values) if buy_win_pct_values else invalid_number
-                avg_sell_total = sum(sell_total_values) / len(sell_total_values) if sell_total_values else invalid_number
-                avg_sell_win_pct = sum(sell_win_pct_values) / len(sell_win_pct_values) if sell_win_pct_values else invalid_number
-
-                average_row = [
-                    "Average",
-                    "", # No specific strategy for average
-                    avg_profit_pct,
-                    avg_sharpe,
-                    avg_vwr,
-                    avg_max_dd,
-                    avg_sqn,
-                    avg_buy_total,
-                    avg_buy_win_pct,
-                    avg_sell_total,
-                    avg_sell_win_pct
-                ]
-                table_data.append(average_row)
-
-        # --- Generate and Print Table ---
-        try:
-            # Use tabulate to create the table string
-            # 'grid' format provides clear borders
-            # 'floatfmt=".2f"' formats floats to 2 decimal places
-            # 'stralign="right"' aligns strings to the right (like numbers)
-            # 'missingval="N/A"' displays missing data as N/A
-            table_str = tabulate(
-                table_data,
-                headers=headers,
-                tablefmt="grid",
-                floatfmt=".2f",
-                stralign="right", # Align string columns right for consistency
-                numalign="right", # Align numeric columns right
-                missingval=na_string
-            )
-            print("\n--- Backtest Results Summary ---")
-            print(table_str)
-
-        except Exception as e:
-            dbg_error(f"Error generating results table with tabulate: {e}")
-            print("\nError: Could not generate results summary table.")
-
-        # --- Print Annual Returns (Optional) ---
-        if annual_return and annual_returns_data:
-            print("\n--- Annual Returns ---")
-
-            # Step 1: Collect all unique years and restructure data
-            all_years = set()
-            pivoted_returns_dict = {} # Key: (symbol, strategy), Value: {year: return_val}
-
-            for symbol, strategy, year_str, return_val in annual_returns_data:
-                all_years.add(year_str) # Assuming year_str is like '2020', '2021'
-                if (symbol, strategy) not in pivoted_returns_dict:
-                    pivoted_returns_dict[(symbol, strategy)] = {}
-                pivoted_returns_dict[(symbol, strategy)][year_str] = return_val
-
-            sorted_years = sorted(list(all_years))
-
-            # Step 2: Generate dynamic headers
-            annual_headers = ["Symbol", "Strategy"] + sorted_years
-
-            # Step 3: Populate the pivoted table data
-            pivoted_table_data = []
-            # Sort by symbol then strategy for consistent output
-            sorted_keys = sorted(pivoted_returns_dict.keys(), key=lambda x: (x[0], x[1]))
-
-            for symbol, strategy in sorted_keys:
-                row = [symbol, strategy]
-                year_returns = pivoted_returns_dict[(symbol, strategy)]
-                for year in sorted_years:
-                    row.append(year_returns.get(year, na_string)) # Use na_string if year not present
-                pivoted_table_data.append(row)
-
-            # --- Add Average Row for Annual Returns ---
-            if pivoted_table_data and len(annual_headers) > 2: # Ensure there's data and year columns
-                average_annual_row = ["Average", ""] # Symbol, Strategy
-                # Iterate through year columns (starting from index 2 of annual_headers)
-                for year_idx in range(2, len(annual_headers)):
-                    year_values = []
-                    for data_row in pivoted_table_data:
-                        # Ensure the row is long enough and value is numeric
-                        if len(data_row) > year_idx and isinstance(data_row[year_idx], (int, float)):
-                            year_values.append(data_row[year_idx])
-
-                    if year_values:
-                        avg_year_return = sum(year_values) / len(year_values)
-                        average_annual_row.append(avg_year_return)
-                    else:
-                        average_annual_row.append(na_string) # Or float('nan') if tabulate handles it
-                pivoted_table_data.append(average_annual_row)
-            # --- End Add Average Row ---
-
-            # Step 4: Update tabulate call
-            try:
-                annual_table_str = tabulate(
-                    pivoted_table_data,
-                    headers=annual_headers,
-                    tablefmt="grid",
-                    floatfmt=".2f", # For the return percentage
-                    stralign="right",
-                    numalign="right",
-                    missingval=na_string
-                )
-                print(annual_table_str)
-            except Exception as e:
-                dbg_error(f"Error generating annual returns table with tabulate: {e}")
-                print("\nError: Could not generate annual returns table.")
-            print("-" * 20) # Separator
-
-        print() # Add a blank line at the end
-        return True # Indicate successful display attempt
 
     def add_data_frame(self, symbol_data_list, cerebro = None):
         """
@@ -813,7 +569,10 @@ if __name__ == "__main__":
             print(f"[Thread-{thread_id}] Running eval...")
             backtester.eval()
             print(f"[Thread-{thread_id}] Eval finished. Showing results...")
-            backtester.show_result()
+            # Instantiate BackResult and show results
+            results_display = BackResult(backtester.get_analysis())
+            results_display.show_analysis()
+            results_display.show_annual_return()
             print(f"[Thread-{thread_id}] Backtest completed successfully.")
         except Exception as e:
             print(f"[Thread-{thread_id}] Error during backtest: {e}")

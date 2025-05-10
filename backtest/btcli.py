@@ -42,7 +42,8 @@ class BTCLI(CommandLineInterface):
         self.regist_cmd("info", self.cmd_info, description="Show infos.", group='tools')
         self.regist_cmd("evaluate", self.cmd_evaluate, description="excute backtesting.", group='tools')
         self.regist_cmd("update", self.cmd_update_database, description="Update local database.", arg_list = ['all'], group='tools')
-        self.regist_cmd("report", self.cmd_report, description=f"Show report of backtest.", group='tools')
+        self.report_list = ['analysis', 'annual', 'average']
+        self.regist_cmd("report", self.cmd_report, description=f"Show report of backtest.", arg_list = self.report_list, group='tools')
         self.regist_cmd("clean", self.cmd_clean, description=f"Clean report of backtest.", group='tools')
 
         # Settings
@@ -61,8 +62,9 @@ class BTCLI(CommandLineInterface):
         self.regist_cmd("strategy", self.cmd_strategy, description=f"Set strategy. Ops: {self.total_strategy_op_list}, Stra:{self.total_strategy_list}", arg_list = self.total_strategy_list + self.total_strategy_op_list, group='setting')
         self.set_date_list = ['to', 'from']
         self.regist_cmd("date", self.cmd_date, description=f"Set date. ex. 20200101", arg_list = self.set_date_list, group='setting')
-        self.total_mode_list = ['default', 'single', 'mix']
-        self.regist_cmd("mode", self.cmd_mode, description=f"Set test mode. {self.total_mode_list}", arg_list = self.total_mode_list, group='setting')
+        # Forcus on only one mode, to reduce system complexity.
+        # self.total_mode_list = ['default', 'single', 'mix']
+        # self.regist_cmd("mode", self.cmd_mode, description=f"Set test mode. {self.total_mode_list}", arg_list = self.total_mode_list, group='setting')
 
         self.total_test_cmd_list = ['strategy', 'shioajifake']
         self.regist_cmd("test", self.cmd_test, description=f"Set test commands. cmd:{self.total_test_cmd_list}", arg_list = self.total_test_cmd_list, group='setting')
@@ -256,12 +258,34 @@ class BTCLI(CommandLineInterface):
         return True
 
     def cmd_report(self, args):
-        setting_list = ['all']
-        if args['#'] == 1:
-            if args['1'] == 'all':
-                self.backtest.show_result(annual_return=True)
+        setting_list = self.report_list
+
+        results_display = BackResult(self.backtest.get_analysis())
+        if args['#'] == 1 and args['1'] in setting_list:
+            if args['1'] == 'result':
+                results_display.show_analysis()
+            elif args['1'] == 'annual':
+                results_display.show_annual_return()
+            else:
+                results_display.show_analysis()
+        elif args['#'] == 2 and args['1'] in setting_list:
+            if args['1'] == 'result':
+                if args['2'] == 'average':
+                    results_display.show_analysis(average_only = True)
+                else:
+                    results_display.show_analysis()
+            elif args['1'] == 'annual':
+                if args['2'] == 'average':
+                    results_display.show_annual_return(average_only = True)
+                else:
+                    results_display.show_annual_return()
+            else:
+                if args['2'] == 'average':
+                    results_display.show_analysis(average_only = True)
+                else:
+                    results_display.show_analysis()
         else:
-            self.backtest.show_result(annual_return=True)
+            results_display.show_analysis()
         return True
 
     def cmd_clean(self, args):
@@ -275,27 +299,35 @@ class BTCLI(CommandLineInterface):
             if self.mode == 'default':
                 for each_strategy in self.strategy_list:
                     target_strategy = self.strategyMgr.get_strategy_by_name(each_strategy)
-                    for each_product in self.product_list:
+                    for idx, each_product in enumerate(self.product_list):
+                        dbg_info(f'[{target_strategy.NAME}][{idx + 1}/{len(self.product_list)}] Symbol: {each_product}', prefix='\r', end=' ' * 10)
                         self.backtest.setup(broker=self.broker)
                         self.backtest.add_symbol([each_product])
                         self.backtest.add_strategy([target_strategy])
                         self.backtest.eval()
-                self.backtest.show_result()
-            elif self.mode == 'single':
-                # self.backtest.testSingle(strategy=self.strategy_list[0], product_list=self.product_list)
-                for each_product in self.product_list:
-                    self.backtest.setup(broker=self.broker)
-                    self.backtest.add_symbol([each_product])
-                    self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
-                    self.backtest.eval()
-                self.backtest.show_result()
-            elif self.mode == 'mix':
-                # self.backtest.testBatch(strategy_list = self.strategy_list, product_list = self.product_list)
-                self.backtest.setup(broker=self.broker)
-                self.backtest.add_symbol(self.product_list)
-                self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
-                self.backtest.eval()
-                self.backtest.show_result()
+                    dbg_info(f'[{target_strategy.NAME}] all {len(self.product_list)} products done', prefix='\r')
+                results_display = BackResult(self.backtest.get_analysis())
+                results_display.show_analysis()
+
+            # elif self.mode == 'single':
+            #     # self.backtest.testSingle(strategy=self.strategy_list[0], product_list=self.product_list)
+            #     for each_product in self.product_list:
+            #         self.backtest.setup(broker=self.broker)
+            #         self.backtest.add_symbol([each_product])
+            #         self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
+            #         self.backtest.eval()
+            #     results_display = BackResult(self.backtest.get_analysis())
+            #     results_display.show_analysis()
+            #
+            # elif self.mode == 'mix':
+            #     # self.backtest.testBatch(strategy_list = self.strategy_list, product_list = self.product_list)
+            #     self.backtest.setup(broker=self.broker)
+            #     self.backtest.add_symbol(self.product_list)
+            #     self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
+            #     self.backtest.eval()
+            #
+            #     results_display = BackResult(self.backtest.get_analysis())
+            #     results_display.show_analysis()
             else:
                 dbg_error(f'Unknown test mode.{self.mode}')
                 return False
