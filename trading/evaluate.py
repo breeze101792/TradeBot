@@ -57,7 +57,7 @@ class Evaluate:
             for each_idx in range(0, len(product_list)):
                 each_product = product_list[each_idx]
                 try:
-                    dbg_info(f"[{each_idx + 1:>2}/{len(product_list)}] {each_product}" , prefix = '\r',end='')
+                    dbg_info(f"[{each_idx + 1:>2}/{len(product_list)}] {each_product}" , prefix = '\r',end=' ' * 10)
                     # test only one year for accerate performance.
                     trade_analyzer.from_date=trade_analyzer.to_date - relativedelta(years=1)
 
@@ -83,6 +83,7 @@ class Evaluate:
                 
                     traceback_output = traceback.format_exc()
                     dbg_warning(traceback_output)
+        dbg_info(f"All product evaluated.", prefix='\n')
         return candidate_dict
     def __buy_filering_profitable_product(self, candidate_dict):
         if len(candidate_dict) != 0:
@@ -95,8 +96,11 @@ class Evaluate:
 
         candidate_analyzer = Analyzer(market)
         candidate_analyzer.clean_result()
-        for each_product in candidate_dict.keys():
+        candidate_keys = list(candidate_dict.keys())
+        dbg_info(f"Start filtering.")
+        for each_idx, each_product in enumerate(candidate_keys):
             try:
+                dbg_info(f"[{each_idx + 1:>2}/{len(candidate_keys)}] [{each_product}] ", prefix='\r', end=' ' * 10)
                 # test only one year for accerate performance.
                 candidate_analyzer.from_date=candidate_analyzer.to_date - relativedelta(years=1)
                 candidate_analyzer.setup()
@@ -117,7 +121,6 @@ class Evaluate:
                 final_cash = report.get('cash', 0)
                 profit = (final_cash - init_cash) / init_cash * 100
 
-                dbg_info(f"[{each_product}], {profit:.2f}%")
                 if profit > self.BUY_CANDIDATE_PROFIT_THRESHOLD:
                     buying_dict[each_product] = {'strategy': target_strategy, 'profit' : profit}
             except Exception as e:
@@ -125,6 +128,7 @@ class Evaluate:
             
                 traceback_output = traceback.format_exc()
                 dbg_warning(traceback_output)
+            dbg_info(f"All {len(candidate_keys)} products are analysed. ", prefix='\n')
         candidate_analyzer.show_result()
 
         return buying_dict

@@ -41,7 +41,7 @@ class BTCLI(CommandLineInterface):
         # Tools
         self.regist_cmd("info", self.cmd_info, description="Show infos.", group='tools')
         self.regist_cmd("evaluate", self.cmd_evaluate, description="excute backtesting.", group='tools')
-        self.regist_cmd("update", self.cmd_update_database, description="Update local database.", arg_list = ['all'], group='tools')
+        self.regist_cmd("update", self.cmd_update_database, description="Update local database.", arg_list = ['all', 'force'], group='tools')
         self.report_list = ['analysis', 'annual', 'average']
         self.regist_cmd("report", self.cmd_report, description=f"Show report of backtest.", arg_list = self.report_list, group='tools')
         self.regist_cmd("clean", self.cmd_clean, description=f"Clean report of backtest.", group='tools')
@@ -107,10 +107,24 @@ class BTCLI(CommandLineInterface):
                 ans = input()
                 if ans == 'YES':
                     self.market.update_data()
+            elif args['1'] == 'force':
+                for each_product in self.product_list:
+                    self.print(f"Force update product {each_product}")
+                    self.market.get_data(product_id = each_product, force_update = True)
             else:
                 self.print(f"Update product {args['1']}")
                 self.market.get_data(product_id = args['1'])
             return True
+        elif args['#'] == 2:
+            if args['1'] == 'force':
+                if args['2'] == 'all':
+                    self.print("!!! Are you really sure about FORCE updating local database.(YES/No, Defaul No. Please enter full word.) !!!")
+                    ans = input()
+                    if ans == 'YES':
+                        self.market.update_data(force_update = True)
+                else:
+                    self.print(f"Force update product {args['2']}")
+                    self.market.get_data(product_id = args['2'], force_update = True)
         else:
             for each_product in self.product_list:
                 self.print(f"Update product {each_product}")
@@ -297,6 +311,7 @@ class BTCLI(CommandLineInterface):
         try:
             self.backtest.clean_result()
             if self.mode == 'default':
+                dbg_info(f'Start evaluation.')
                 for each_strategy in self.strategy_list:
                     target_strategy = self.strategyMgr.get_strategy_by_name(each_strategy)
                     for idx, each_product in enumerate(self.product_list):
@@ -305,9 +320,8 @@ class BTCLI(CommandLineInterface):
                         self.backtest.add_symbol([each_product])
                         self.backtest.add_strategy([target_strategy])
                         self.backtest.eval()
-                    dbg_info(f'[{target_strategy.NAME}] all {len(self.product_list)} products done', prefix='\r')
-                results_display = BackResult(self.backtest.get_analysis())
-                results_display.show_analysis()
+                    dbg_info(f'[{target_strategy.NAME}] all {len(self.product_list)} products done', prefix='\n')
+                self.backtest.show_result()
 
             # elif self.mode == 'single':
             #     # self.backtest.testSingle(strategy=self.strategy_list[0], product_list=self.product_list)
@@ -316,8 +330,7 @@ class BTCLI(CommandLineInterface):
             #         self.backtest.add_symbol([each_product])
             #         self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
             #         self.backtest.eval()
-            #     results_display = BackResult(self.backtest.get_analysis())
-            #     results_display.show_analysis()
+            #     self.backtest.show_result()
             #
             # elif self.mode == 'mix':
             #     # self.backtest.testBatch(strategy_list = self.strategy_list, product_list = self.product_list)
@@ -326,8 +339,7 @@ class BTCLI(CommandLineInterface):
             #     self.backtest.add_strategy([self.strategyMgr.get_strategy_by_name(each_strategy) for each_strategy in self.strategy_list])
             #     self.backtest.eval()
             #
-            #     results_display = BackResult(self.backtest.get_analysis())
-            #     results_display.show_analysis()
+            #     self.backtest.show_result()
             else:
                 dbg_error(f'Unknown test mode.{self.mode}')
                 return False

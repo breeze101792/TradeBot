@@ -273,6 +273,9 @@ class Backtest:
     def clean_result(self):
         """Clears the stored backtest results."""
         self.result_list = []
+    def show_result(self):
+        results_display = BackResult(self.get_analysis())
+        results_display.show_analysis()
 
     def reset(self):
         # reset status.

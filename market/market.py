@@ -16,6 +16,7 @@ from market.dataprovider import *
 
 from market.provider.yahoo import *
 from market.provider.twse import *
+from market.provider.findmind import *
 from datetime import time as dt_time # Alias to avoid conflict with time module
 
 class MarketTime:
@@ -152,7 +153,7 @@ class MarketTime:
 
 class Market:
     def __init__(self, market = None):
-        self.__market_list = [ TWSE, Yahoo ]
+        self.__market_list = [ TWSE, Yahoo , FindMind]
         self.instance = None
         self.cached_stock_info_frame = None
 
@@ -256,9 +257,9 @@ class Market:
             product_list.append(each_product_row['code'])
         return product_list
 
-    def get_data(self, product_id: str, period: str = None):
+    def get_data(self, product_id: str, period: str = None, force_update: bool = False):
         # FIXME, sanity check product_id.
-        return self.instance.get_data(product_id=product_id, period=period)
+        return self.instance.get_data(product_id=product_id, period=period, force_update = force_update)
 
     def get_data_info(self, product_id):
         # return the following info.
@@ -277,20 +278,21 @@ class Market:
             dbg_error(traceback_output)
             return None
 
-    def update_data(self):
+    def update_data(self, force_update: bool = False):
         product_frame_list = self.instance.get_data_list()
         product_amount = len(product_frame_list)
+        dbg_info(f"Start update data.")
         for idx, each_product_row in product_frame_list.iterrows():
             # Use space to avoid error message been erase.
             dbg_info(f"[{idx}/{product_amount}] Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}", prefix='\r', end=' ' * 10)
             try:
-                self.instance.get_data(product_id = each_product_row['code'])
+                self.instance.get_data(product_id = each_product_row['code'], force_update = force_update)
             except Exception as e:
                 dbg_error(f"Error updateing stock: {each_product_row['code']}")
                 dbg_error(e)
                 time.sleep(1)
                 continue
-        dbg_info(f"all {product_amount} has been update to date.", prefix='\r')
+        dbg_info(f"All {product_amount} has been update to date.", prefix='\n')
 
     # This method seems redundant now that the logic is in MarketTime.get_next_market_update_time
     # Consider removing it or calling the MarketTime method from here if needed.

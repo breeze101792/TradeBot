@@ -114,6 +114,9 @@ class DataProvider:
             new_df = self.download_data(product_id, start_date = last_date)
             if not new_df.empty:
                 if df is not None:
+                    # Update the old data, if updated.
+                    df.update(new_df)
+
                     # Merge old and new data, keeping the most recent
                     df = pd.concat([df, new_df]).drop_duplicates(keep='last')
                 else:
