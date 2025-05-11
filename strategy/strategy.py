@@ -18,32 +18,34 @@ class StrategyManager:
     def __init__(self, test = 0):
         self.strategy_dict = dict()
         
+        # adjust for win rate/profit.
         self.register_strategy(RelativeStrengthIndexStrategy)
-        self.register_strategy(MovingAverageCrossoverStrategy)
-        self.register_strategy(BreakoutMomentumStrategy)
         self.register_strategy(BollingerMeanReversionStrategy)
+        self.register_strategy(BreakoutMomentumStrategy)
+        self.register_strategy(MovingAverageCrossoverStrategy)
 
-        # Strategy registration.
-        # tested
-        self.register_strategy(MovingAverageCrossoverEn)
-        self.register_strategy(BreakoutMomentumEn)
-        # self.register_strategy(MovingAverageCrossover)
-        # self.register_strategy(BreakoutMomentum)
-        self.register_strategy(PriceVolumeStrategy)
-        self.register_strategy(VWAPStrategy)
+        if False:
+            # Strategy registration.
+            # tested
+            self.register_strategy(MovingAverageCrossoverEn)
+            self.register_strategy(BreakoutMomentumEn)
+            # self.register_strategy(MovingAverageCrossover)
+            # self.register_strategy(BreakoutMomentum)
+            self.register_strategy(PriceVolumeStrategy)
+            self.register_strategy(VWAPStrategy)
 
-        # New.
-        # self.register_strategy(BollingerRebound)
+            # New.
+            # self.register_strategy(BollingerRebound)
 
-        # self.register_strategy(OBVStrategy)
-        # self.register_strategy(ADLineStrategy)
-        # self.register_strategy(PriceVolumeBreakoutStrategy)
-        # self.register_strategy(CMFStrategy)
-        # self.register_strategy(VolumeSpikeStrategy)
+            # self.register_strategy(OBVStrategy)
+            # self.register_strategy(ADLineStrategy)
+            # self.register_strategy(PriceVolumeBreakoutStrategy)
+            # self.register_strategy(CMFStrategy)
+            # self.register_strategy(VolumeSpikeStrategy)
 
-        # Test
-        # self.register_strategy(TestStrategy)
-        # self.register_strategy(HighWinRateStrategy)
+            # Test
+            # self.register_strategy(TestStrategy)
+            # self.register_strategy(HighWinRateStrategy)
 
         # print(f'Init StrategyManager {self.strategy_dict}, {test}', )
 

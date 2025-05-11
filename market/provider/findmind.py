@@ -11,14 +11,15 @@ from market.dataprovider import *
 
 from FinMind.data import DataLoader
 
+# This still be the experimental provider. don't use it, since it's not all verfied with other trusted data.
 class FindMind(DataProvider):
     NAME='findmind'
     def __init__(self):
         super().__init__()
         self.token = None
         self.findmind = DataLoader()
-        # self.download_data = self.fetch_adjusted_data
-        self.download_data = self.fetch_data
+        self.download_data = self.fetch_adjusted_data
+        # self.download_data = self.fetch_data
     def download_data_list(self, market: str = None, country: str = None):
         """
         Downloads a list of stocks from FinMind, mimicking twse.py structure.
@@ -201,8 +202,7 @@ class FindMind(DataProvider):
                 stock_id=symbol,
                 start_date=start_date,
             )
-            # dbg_info(f"Dividend result for {symbol} from {start_date}:") # Can be verbose
-            # dbg_info(df.head())
+            # print(f"Dividend: {df}")
             return df
         except Exception as e:
             dbg_error(f"Error fetching dividend_result for {symbol} from FinMind: {e}")
@@ -274,6 +274,11 @@ class FindMind(DataProvider):
             #     if col in df_reduction.columns:
             #         df_reduction[col] = pd.to_numeric(df_reduction[col], errors='coerce')
 
+            # sample output.
+            # date stock_id ClosingPriceonTheLastTradingDay PostReductionReferencePrice LimitUp LimitDown OpeningReferencePrice ExrightReferencePrice ReasonforCapitalReduction
+            # 2022-09-19 2603 80.8 187.0 205.5 168.5 187.0 -1.0 Cash refund
+
+            # dbg_info(f"reduction: {df_reduction}")
             return df_reduction
 
         except requests.exceptions.RequestException as e:
@@ -346,26 +351,17 @@ class FindMind(DataProvider):
         # Using 180 days as a buffer should be sufficient for most cases.
         dividend_announcement_start_str = (actual_start_date_prices - pd.Timedelta(days=180)).strftime('%Y-%m-%d')
         
-        try:
-            df_dividend_announcements = self.findmind.taiwan_stock_dividend_result(
-                stock_id=ticker,
-                start_date=dividend_announcement_start_str,
-                # end_date can be omitted to get all up to the latest
-            )
-            # date stock_id  before_price  after_price  stock_and_cache_dividend stock_or_cache_dividend  max_price  min_price  open_price  reference_price
-            # 0  2022-07-27     2881          59.2        55.70                      3.50                       息       61.2      50.20        55.7            55.70
-            # 1  2022-09-22     2881          56.5        53.80                      2.69                       權       59.1      48.45        53.8            53.80
-            # 2  2023-07-20     2881          64.8        63.30                      1.50                       息       69.6      57.00        63.3            63.30
-            # 3  2023-09-04     2881          64.8        61.71                      3.09                       權       67.8      55.60        61.7            61.71
-            # 4  2024-07-19     2881          89.9        87.40                      2.50                       息       96.1      78.70        87.4            87.40
-            # 5  2024-09-09     2881          92.5        88.09                      4.40                       權       96.8      79.30        88.1            88.09
-            # dbg_info(df_dividend_announcements) # Can be verbose, uncomment for debugging dividend data
-        except Exception as e:
-            dbg_error(f"Error fetching dividend_result for {ticker} from FinMind: {e}")
-            traceback_output = traceback.format_exc()
-            dbg_error(traceback_output)
-            dbg_warning(f"Proceeding with unadjusted prices for {ticker} due to dividend fetch error.")
-            return df_prices # Return unadjusted prices if dividend data fetch fails.
+        # Use the class's own method to fetch dividend data
+        df_dividend_announcements = self.fetch_dividend_result(
+            symbol=ticker,
+            start_date=dividend_announcement_start_str
+        )
+        # fetch_dividend_result already handles exceptions and returns an empty DataFrame on error.
+        # It also logs errors and potentially the DataFrame content internally via dbg_info.
+
+        # If df_dividend_announcements is empty after the call, it means either no data was found
+        # or an error occurred during fetching (which fetch_dividend_result would have logged).
+        # No need to explicitly log an exception here for the fetch operation itself.
 
         if df_dividend_announcements.empty:
             dbg_info(f"No dividend announcements found for {ticker} for the period. Prices are effectively unadjusted or no dividends occurred.")
@@ -387,6 +383,9 @@ class FindMind(DataProvider):
             dividend_value_from_row = row.get('stock_and_cache_dividend')
             # 'stock_or_cache_dividend' indicates the type: '息' (cash) or '權' (stock rights/dividend).
             dividend_type_char = row.get('stock_or_cache_dividend')
+
+            before_dividend_price = row.get('before_price')
+            after_dividend_price = row.get('after_price')
 
             # Validate essential data fields from the dividend announcement.
             if pd.isna(ex_date_str) or \
@@ -412,9 +411,9 @@ class FindMind(DataProvider):
                 cash_div_amount = float(dividend_value_from_row)
             elif dividend_type_char == '權' or dividend_type_char == '除權': # Stock dividend
                 # 'stock_and_cache_dividend' for '權' or '除權' is the NTD value of stock dividend per share.
-                # Example: 1 NTD stock dividend per share, with par value 10 NTD, means 0.1 new shares per original share.
-                # So, stock_div_r = 0.1 (i.e., a 10% stock dividend).
-                stock_div_r = float(dividend_value_from_row) / par_value
+                # we use dividend_value_from_row / before_dividend_price to get stock ratio. it'll be used for later calc.
+                stock_div_r = float(dividend_value_from_row) / before_dividend_price
+                # dbg_info(f"{dividend_value_from_row}")
             elif dividend_type_char == '除權息' or dividend_type_char == '權息': # Both cash and stock
                 # For '除權息' type, we assume 'stock_and_cache_dividend' represents the CASH portion.
                 # This is supported by the observation that (before_price - after_price) often equals this value.
@@ -440,112 +439,145 @@ class FindMind(DataProvider):
             dbg_info(f"No relevant dividend events found for {ticker} impacting the price data period.")
             return df_prices
 
-        # dbg_info(dividend_events) # Can be verbose, uncomment for debugging processed events
-        df_events = pd.DataFrame(dividend_events)
-        
-        # 4. Group and Sort Events
-        # Group by ex-dividend date ('date') in case multiple corporate actions (e.g., cash and stock dividend) occur on the same day.
-        # Sum cash dividends and stock dividend ratios for the same ex-date.
-        grouped_events = df_events.groupby('date').agg(
-            cash_div=('cash_div', 'sum'),
-            stock_div_ratio=('stock_div_ratio', 'sum') 
-        ).reset_index()
-        
-        # Sort events by ex-dividend date in descending order (newest to oldest).
-        # Adjustments must be applied backwards in time: adjust for the most recent dividend first, then the next recent, and so on.
-        grouped_events.sort_values(by='date', ascending=False, inplace=True)
+        # Combine dividend events and capital reduction events
+        all_events = [] # List to hold all processed event dictionaries
+
+        # Process Dividend Events (already in dividend_events list)
+        for div_event in dividend_events:
+            if div_event.get('cash_div', 0) > 0:
+                all_events.append({
+                    'date': div_event['date'],
+                    'type': 'cash_dividend',
+                    'cash_amount': div_event['cash_div']
+                })
+            if div_event.get('stock_div_ratio', 0) > 0:
+                 all_events.append({
+                    'date': div_event['date'],
+                    'type': 'stock_dividend',
+                    'stock_ratio': div_event['stock_div_ratio']
+                })
+
+        # Fetch and Process Capital Reduction Events
+        df_reduction = self.fetch_capital_reduction_data(stock_id=ticker, start_date=actual_start_date_prices)
+        if not df_reduction.empty:
+            for _, reduction_row in df_reduction.iterrows():
+                event_date = reduction_row.name # Index is 'date' (pd.Timestamp)
+                
+                if event_date < actual_start_date_prices:
+                    continue
+
+                price_before_reduction = reduction_row.get('ClosingPriceonTheLastTradingDay')
+                price_after_reduction = reduction_row.get('PostReductionReferencePrice')
+
+                if pd.isna(price_before_reduction) or pd.isna(price_after_reduction) or \
+                   price_before_reduction <= 0:
+                    dbg_warning(f"Skipping capital reduction event for {ticker} on {event_date.strftime('%Y-%m-%d')} due to missing/invalid prices: "
+                                f"Before={price_before_reduction}, After={price_after_reduction}")
+                    continue
+                
+                if price_after_reduction <= 0:
+                    dbg_warning(f"Capital reduction event for {ticker} on {event_date.strftime('%Y-%m-%d')} has PostReductionReferencePrice <= 0 ({price_after_reduction}). "
+                                f"This specific event's adjustment will be skipped.")
+                    continue
+                
+                price_adj_factor = price_after_reduction / price_before_reduction
+                volume_adj_factor = price_before_reduction / price_after_reduction
+                
+                all_events.append({
+                    'date': event_date,
+                    'type': 'capital_reduction',
+                    'price_adj_factor': price_adj_factor,
+                    'volume_adj_factor': volume_adj_factor
+                })
+
+        if not all_events:
+            dbg_info(f"No dividend or capital reduction events found for {ticker} impacting the price data period.")
+            # Recalculate 'Change' for unadjusted prices if it exists, then return
+            if 'Change' in df_prices.columns and not df_prices.empty:
+                prev_close = df_prices['Close'].shift(1)
+                df_prices['Change'] = df_prices['Close'] - prev_close
+                if len(df_prices.index) > 0:
+                    df_prices.loc[df_prices.index[0], 'Change'] = 0.0
+            return df_prices
+
+        all_events_df = pd.DataFrame(all_events)
+        all_events_df.sort_values(by='date', ascending=False, inplace=True)
 
         ohlc_cols = ['Open', 'High', 'Low', 'Close']
-        any_stock_dividend_applied = False # Flag to track if volume needs int conversion later.
+        made_volume_float = False # Flag to track if Volume dtype was changed to float
 
-        # 5. Iterate through the sorted (descending by date) dividend events and apply adjustments to historical prices.
-        for _, event_row in grouped_events.iterrows():
-            ex_date = event_row['date'] # The ex-dividend date for the current event.
-            cash_div = event_row['cash_div']
-            stock_div_r = event_row['stock_div_ratio'] 
+        # 5. Iterate through sorted events and apply adjustments
+        for _, event_row in all_events_df.iterrows():
+            ex_date = event_row['date']
+            event_type = event_row['type']
 
-            # Find the index location of the ex-dividend date in our price DataFrame.
-            # `searchsorted` finds where `ex_date` would be inserted to maintain order.
-            # `side='left'` means if `ex_date` exists, its index is returned.
             idx_loc_ex_date = df_prices.index.searchsorted(ex_date, side='left')
 
-            # If the ex-dividend date is before or at the very start of our price data,
-            # it means this dividend's effect is on data prior to what we've fetched, so we skip.
-            if idx_loc_ex_date == 0: 
-                dbg_trace(f"Event date {ex_date.strftime('%Y-%m-%d')} for {ticker} is at or before start of price data. Skipping adjustment.")
+            if idx_loc_ex_date == 0:
+                dbg_trace(f"Event date {ex_date.strftime('%Y-%m-%d')} for {ticker} (type: {event_type}) is at or before start of price data. Skipping adjustment.")
                 continue
             
-            # Adjustments are applied to all data *before* the ex-dividend date.
-            # `df_prices.index[:idx_loc_ex_date]` selects all rows from the beginning up to (but not including) the ex-dividend date.
             target_rows_index = df_prices.index[:idx_loc_ex_date]
-            
-            # Apply cash dividend adjustment
-            if cash_div > 0:
-                # The reference price for adjustment is the closing price on the day *before* the ex-dividend date.
-                # `df_prices.index[idx_loc_ex_date - 1]` gives the index label for the day before ex-date.
-                close_on_prev_day = df_prices.loc[df_prices.index[idx_loc_ex_date - 1], 'Close']
-                adj_ratio_cash = None
-                
-                # Standard cash dividend adjustment: P_adj = P_orig * (Close_prev - CashDiv) / Close_prev
-                if close_on_prev_day > 0 and close_on_prev_day > cash_div:
-                    adj_ratio_cash = (close_on_prev_day - cash_div) / close_on_prev_day
-                elif close_on_prev_day > 0 and close_on_prev_day <= cash_div : # Edge case: dividend is large relative to price
-                    dbg_warning(f"Cash dividend ({cash_div}) for {ticker} on {ex_date.strftime('%Y-%m-%d')} "
-                                f"is greater than or equal to Closing price on previous day ({close_on_prev_day}). Setting adj_ratio to very small value or handling as zero.")
-                    # This case means the stock value effectively drops to (near) zero.
-                    # Adjusting by (Close_prev_day - CashDividend) might result in zero or negative prices.
-                    # A common way is to set adjusted prices to a very small positive number or handle as per broker's method.
-                    # For simplicity, if (Close_prev_day - CashDividend) is <=0, we can make ratio very small.
-                    # Or, more practically, if Close_prev_day - CashDividend <= 0, this implies the stock is almost worthless post-dividend.
-                    # Let's make the adjusted prices reflect a tiny fraction of original.
-                    adj_ratio_cash = 0.0001 # Arbitrary small factor to prevent zero/negative prices.
-                                           # A more sophisticated handling might be needed depending on broker practices.
-                else: # close_on_prev_day is 0 or negative (should not happen for valid price data)
-                    dbg_warning(f"Invalid prev_day_close ({close_on_prev_day}) for cash dividend adjustment for {ticker} on {ex_date.strftime('%Y-%m-%d')}.")
+            if target_rows_index.empty:
+                continue
 
-                if adj_ratio_cash is not None:
-                    # Apply the cash adjustment ratio to OHLC prices for all days before the ex-dividend date.
+            if event_type == 'cash_dividend':
+                cash_div = event_row['cash_amount']
+                if cash_div > 0:
+                    close_on_prev_day = df_prices.loc[df_prices.index[idx_loc_ex_date - 1], 'Close']
+                    adj_ratio_cash = None
+                    if close_on_prev_day > 0 and close_on_prev_day > cash_div:
+                        adj_ratio_cash = (close_on_prev_day - cash_div) / close_on_prev_day
+                    elif close_on_prev_day > 0 and close_on_prev_day <= cash_div:
+                        dbg_warning(f"Cash dividend ({cash_div}) for {ticker} on {ex_date.strftime('%Y-%m-%d')} "
+                                    f"is >= Closing price on previous day ({close_on_prev_day}). Setting adj_ratio to small value.")
+                        adj_ratio_cash = 0.0001 
+                    else:
+                        dbg_warning(f"Invalid prev_day_close ({close_on_prev_day}) for cash dividend adjustment for {ticker} on {ex_date.strftime('%Y-%m-%d')}.")
+
+                    if adj_ratio_cash is not None:
+                        for col_name in ohlc_cols:
+                            df_prices.loc[target_rows_index, col_name] *= adj_ratio_cash
+            
+            elif event_type == 'stock_dividend':
+                stock_div_r = event_row['stock_ratio']
+                if stock_div_r > 0:
+                    adj_ratio_price = 1.0 / (1.0 + stock_div_r)
+                    adj_ratio_volume = 1.0 + stock_div_r
+
                     for col_name in ohlc_cols:
-                        df_prices.loc[target_rows_index, col_name] *= adj_ratio_cash
+                        df_prices.loc[target_rows_index, col_name] *= adj_ratio_price
+                    
+                    if 'Volume' in df_prices.columns:
+                        if not made_volume_float and df_prices['Volume'].dtype != float:
+                            df_prices['Volume'] = df_prices['Volume'].astype(float)
+                            made_volume_float = True
+                        df_prices.loc[target_rows_index, 'Volume'] *= adj_ratio_volume
             
-            # Apply stock dividend adjustment
-            if stock_div_r > 0:
-                any_stock_dividend_applied = True # Mark that a stock dividend occurred.
-                # Stock dividend adjustment: P_adj = P_orig / (1 + stock_div_r)
-                # Example: 10% stock dividend (stock_div_r = 0.1), new price is old price / 1.1
-                adj_ratio_stock = 1.0 / (1.0 + stock_div_r)
+            elif event_type == 'capital_reduction':
+                price_adj = event_row['price_adj_factor']
+                volume_adj = event_row['volume_adj_factor']
 
-                # Temporarily convert Volume to float if it's int, to allow fractional results during adjustment,
-                # before rounding back to int later.
-                if 'Volume' in df_prices.columns and df_prices['Volume'].dtype == 'int':
-                     df_prices['Volume'] = df_prices['Volume'].astype(float)
-
-                # Apply the stock adjustment ratio to OHLC prices for all days before the ex-dividend date.
                 for col_name in ohlc_cols:
-                    df_prices.loc[target_rows_index, col_name] *= adj_ratio_stock
+                    df_prices.loc[target_rows_index, col_name] *= price_adj
                 
-                # Adjust volume: V_adj = V_orig * (1 + stock_div_r)
-                # This is equivalent to V_adj = V_orig / adj_ratio_stock
                 if 'Volume' in df_prices.columns:
-                    df_prices.loc[target_rows_index, 'Volume'] /= adj_ratio_stock # Or *= (1.0 + stock_div_r)
+                    if not made_volume_float and df_prices['Volume'].dtype != float:
+                        df_prices['Volume'] = df_prices['Volume'].astype(float)
+                        made_volume_float = True
+                    df_prices.loc[target_rows_index, 'Volume'] *= volume_adj
 
         # 6. Post-Adjustment Processing
-        # If any stock dividend was applied, Volume might be float; round and convert back to int.
-        if 'Volume' in df_prices.columns and any_stock_dividend_applied:
+        if 'Volume' in df_prices.columns and made_volume_float:
             df_prices['Volume'] = df_prices['Volume'].round().astype(int)
 
-        # Round OHLC prices to a reasonable number of decimal places (e.g., 4).
         for col_name in ohlc_cols:
             if col_name in df_prices.columns:
                 df_prices[col_name] = df_prices[col_name].round(4) 
 
         if 'Change' in df_prices.columns:
-            # Recalculate the 'Change' column based on the adjusted 'Close' prices.
-            # 'Change' is the difference between the current day's close and the previous day's close.
-            prev_close = df_prices['Close'].shift(1) # Get previous day's close for each row.
+            prev_close = df_prices['Close'].shift(1)
             df_prices['Change'] = df_prices['Close'] - prev_close
-            
-            # The 'Change' for the first day in the series should be 0, as there's no prior day to compare.
             if not df_prices.empty and len(df_prices.index) > 0:
                  df_prices.loc[df_prices.index[0], 'Change'] = 0.0
 
@@ -553,6 +585,69 @@ class FindMind(DataProvider):
 
 
 if __name__ == "__main__":
+    def compare_days_around(df_old, df_new, ticker_symbol, target_date_str_arg, days_before=15, days_after=15):
+        """
+        Compares slices of two DataFrames (df_old, df_new) around a target date.
+        df_old: DataFrame containing original data.
+        df_new: DataFrame containing adjusted (or new) data.
+        ticker_symbol: The stock ticker symbol (for print statements).
+        target_date_str_arg: The target event date string ('YYYY-MM-DD').
+        days_before: Number of days before target_date_str_arg to start the slice.
+        days_after: Number of days after target_date_str_arg to end the slice.
+        """
+        try:
+            target_dt = pd.to_datetime(target_date_str_arg)
+        except Exception as e:
+            print(f"Error converting target_date_str_arg '{target_date_str_arg}' to datetime: {e}")
+            return
+
+        start_slice_dt = target_dt - pd.Timedelta(days=days_before)
+        end_slice_dt = target_dt + pd.Timedelta(days=days_after)
+
+        start_slice_date_str = start_slice_dt.strftime('%Y-%m-%d')
+        end_slice_date_str = end_slice_dt.strftime('%Y-%m-%d')
+
+        print(f"\nComparing data for ticker {ticker_symbol} around event date {target_date_str_arg}")
+        print(f"Displaying slice from {start_slice_date_str} to {end_slice_date_str}:")
+
+        print(f"\nOriginal data (df_old) for {ticker_symbol}:")
+        if df_old.empty:
+            print("Original data (df_old) is empty.")
+        else:
+            try:
+                if not isinstance(df_old.index, pd.DatetimeIndex):
+                    print("Warning: df_old index is not DatetimeIndex. Slicing might fail or be incorrect.")
+                
+                date_slice_old = df_old.loc[start_slice_date_str:end_slice_date_str]
+                if not date_slice_old.empty:
+                    print(date_slice_old)
+                else:
+                    print(f"No original data found in the range {start_slice_date_str} to {end_slice_date_str}.")
+            except KeyError:
+                print(f"Could not slice original data for dates {start_slice_date_str} to {end_slice_date_str} (KeyError).")
+                print("Consider checking if the dates exist and the DataFrame index is sorted.")
+            except Exception as e:
+                print(f"Error slicing original data: {e}")
+        
+        print(f"\nAdjusted data (df_new) for {ticker_symbol}:")
+        if df_new.empty:
+            print("Adjusted data (df_new) is empty.")
+        else:
+            try:
+                if not isinstance(df_new.index, pd.DatetimeIndex):
+                    print("Warning: df_new index is not DatetimeIndex. Slicing might fail or be incorrect.")
+
+                date_slice_new = df_new.loc[start_slice_date_str:end_slice_date_str]
+                if not date_slice_new.empty:
+                    print(date_slice_new)
+                else:
+                    print(f"No adjusted data found in the range {start_slice_date_str} to {end_slice_date_str}.")
+            except KeyError:
+                print(f"Could not slice adjusted data for dates {start_slice_date_str} to {end_slice_date_str} (KeyError).")
+                print("Consider checking if the dates exist and the DataFrame index is sorted.")
+            except Exception as e:
+                print(f"Error slicing adjusted data: {e}")
+
     fm = FindMind()
     
     # Example usage for fetch_dividend_result (can be used for debugging)
@@ -560,90 +655,72 @@ if __name__ == "__main__":
 
     # Example usage for fetch_adjusted_data:
     ticker_to_test = '2881' # Fuban
+    fetch_period_years_2881 = 2 # Fetch 2 years to ensure '2023-07-20' is covered
 
-    print(f"Fetching adjusted data for {ticker_to_test} for the last 1 year...")
-    df_adj_period = fm.fetch_adjusted_data(ticker=ticker_to_test, period=1)
-    if not df_adj_period.empty:
-        print(f"Adjusted data for {ticker_to_test} (last 1 year):")
-        print(df_adj_period.head())
-        print("...")
-        print(df_adj_period.tail())
-    else:
-        print(f"No adjusted data returned for {ticker_to_test} with period=1.")
+    print(f"\nFetching original and adjusted data for {ticker_to_test} for the last {fetch_period_years_2881} years...")
+    df_adj_period_2881 = fm.fetch_adjusted_data(ticker=ticker_to_test, period=fetch_period_years_2881)
+    df_ori_data_2881 = fm.fetch_data(ticker=ticker_to_test, period=fetch_period_years_2881) # Fetch original data
 
-    # start_date_test = datetime(2023, 1, 1)
-    ticker_to_test = '8069'
-    start_date_test = datetime(1995, 1, 1)
-    print(f"\nFetching adjusted data for {ticker_to_test} from {start_date_test.strftime('%Y-%m-%d')}...")
-    df_adj_start_date = fm.fetch_adjusted_data(ticker=ticker_to_test, start_date=start_date_test)
-    if not df_adj_start_date.empty:
-        print(f"Adjusted data for {ticker_to_test} (from {start_date_test.strftime('%Y-%m-%d')}):")
-        print(df_adj_start_date.head())
-        print("...")
-        print(df_adj_start_date.tail())
-    else:
-        print(f"No adjusted data returned for {ticker_to_test} with start_date {start_date_test.strftime('%Y-%m-%d')}.")
+    if not df_adj_period_2881.empty and not df_ori_data_2881.empty:
+        print(f"\nOverview of fetched data for {ticker_to_test}:")
+        # print(f"Original data for {ticker_to_test} - Head:")
+        # print(df_ori_data_2881.head())
+        # print(f"Adjusted data for {ticker_to_test} - Head:")
+        # print(df_adj_period_2881.head())
 
-    # Test with a stock known for significant dividends/splits, e.g., '2603' (Evergreen Marine)
-    ticker_evt_test = '2603'
-    fetch_period_years = 10 # Ensure '2024-06-27' is covered from 2025-05-10
-    print(f"\nFetching adjusted data for {ticker_evt_test} for the last {fetch_period_years} years...")
-    df_adj_evt = fm.fetch_adjusted_data(ticker=ticker_evt_test, period=fetch_period_years)
-    df_evt = fm.fetch_data(ticker=ticker_evt_test, period=fetch_period_years)
-    if not df_adj_evt.empty:
-        # print(df_adj_evt) # Print entire dataframe
-        print(df_adj_evt.head())
+        # Event for '2881' (Fubon) - Ex-dividend date 2023-07-20
+        target_date_2881_str = '2024-09-09'
+        compare_days_around(df_old=df_ori_data_2881, 
+                              df_new=df_adj_period_2881, 
+                              ticker_symbol=ticker_to_test, 
+                              target_date_str_arg=target_date_2881_str, 
+                              days_before=5, 
+                              days_after=5)
+        # debug early return.
+
+        # Event for '2881' (Fubon) - Ex-dividend date 2023-07-20
+        target_date_2881_str = '2024-07-19'
+        compare_days_around(df_old=df_ori_data_2881, 
+                              df_new=df_adj_period_2881, 
+                              ticker_symbol=ticker_to_test, 
+                              target_date_str_arg=target_date_2881_str, 
+                              days_before=5, 
+                              days_after=5)
+    elif df_ori_data_2881.empty and df_adj_period_2881.empty:
+        print(f"Neither original nor adjusted data returned for {ticker_to_test} with period={fetch_period_years_2881}.")
+    elif df_ori_data_2881.empty:
+        print(f"No original data returned for {ticker_to_test} with period={fetch_period_years_2881}.")
+    elif df_adj_period_2881.empty:
+        print(f"No adjusted data returned for {ticker_to_test} with period={fetch_period_years_2881}.")
+
+    # Test for '8069'
+    ticker_to_test_8069 = '8069'
+    start_date_8069 = datetime(1995, 1, 1) # Fetching a long period
+    print(f"\nFetching original and adjusted data for {ticker_to_test_8069} from {start_date_8069.strftime('%Y-%m-%d')}...")
+    df_adj_data_8069 = fm.fetch_adjusted_data(ticker=ticker_to_test_8069, start_date=start_date_8069)
+    df_ori_data_8069 = fm.fetch_data(ticker=ticker_to_test_8069, start_date=start_date_8069)
+
+    if not df_adj_data_8069.empty and not df_ori_data_8069.empty:
+        print(f"\nOverview of fetched data for {ticker_to_test_8069}:")
+        # print(f"Original data for {ticker_to_test_8069} - Head:")
+        # print(df_ori_data_8069.head())
+        # print(f"Adjusted data for {ticker_to_test_8069} - Head:")
+        # print(df_adj_data_8069.head())
         
-        # Print data around '2024-06-27'
-        target_date_str = '2024-06-27'
-        start_slice_date = '2024-06-20'
-        end_slice_date = '2024-07-05' # Give a bit of a window
-
-        print(f"Original data for {ticker_evt_test} (last {fetch_period_years} years):")
-        try:
-            date_slice = df_evt.loc[start_slice_date:end_slice_date]
-            if not date_slice.empty:
-                print(date_slice)
-            else:
-                print(f"No data found in the range {start_slice_date} to {end_slice_date}.")
-                # Fallback to printing head/tail if specific slice is empty but df is not
-                print("\nShowing head and tail of the full dataset instead:")
-                print(df_evt.head())
-                print("...")
-                print(df_evt.tail())
-
-        except KeyError:
-            print(f"Could not slice data for dates {start_slice_date} to {end_slice_date}. The dates might not exist in the index, or index is not sorted.")
-            print("\nShowing head and tail of the full dataset instead:")
-            print(df_evt.head())
-            print("...")
-            print(df_evt.tail())
-        
-        print(f"Adjusted data for {ticker_evt_test} (last {fetch_period_years} years):")
-        print(f"\nData for {ticker_evt_test} around {target_date_str}:")
-        try:
-            date_slice = df_adj_evt.loc[start_slice_date:end_slice_date]
-            if not date_slice.empty:
-                print(date_slice)
-            else:
-                print(f"No data found in the range {start_slice_date} to {end_slice_date}.")
-                # Fallback to printing head/tail if specific slice is empty but df is not
-                print("\nShowing head and tail of the full dataset instead:")
-                print(df_adj_evt.head())
-                print("...")
-                print(df_adj_evt.tail())
-
-        except KeyError:
-            print(f"Could not slice data for dates {start_slice_date} to {end_slice_date}. The dates might not exist in the index, or index is not sorted.")
-            print("\nShowing head and tail of the full dataset instead:")
-            print(df_adj_evt.head())
-            print("...")
-            print(df_adj_evt.tail())
-
-        # You can compare df_adj_evt['Close'] with unadjusted close from a direct fetch_data call
-        # or a financial website to verify adjustments.
-    else:
-        print(f"No adjusted data returned for {ticker_evt_test} with period={fetch_period_years}.")
+        # Arbitrary recent date for '8069' for comparison
+        target_date_8069_str = '2023-09-01' 
+        compare_days_around(df_old=df_ori_data_8069, 
+                              df_new=df_adj_data_8069, 
+                              ticker_symbol=ticker_to_test_8069, 
+                              target_date_str_arg=target_date_8069_str, 
+                              days_before=5, 
+                              days_after=5)
+    elif df_ori_data_8069.empty and df_adj_data_8069.empty:
+        print(f"Neither original nor adjusted data returned for {ticker_to_test_8069} with start_date {start_date_8069.strftime('%Y-%m-%d')}.")
+    elif df_ori_data_8069.empty:
+        print(f"No original data returned for {ticker_to_test_8069} with start_date {start_date_8069.strftime('%Y-%m-%d')}.")
+    elif df_adj_data_8069.empty:
+        print(f"No adjusted data returned for {ticker_to_test_8069} with start_date {start_date_8069.strftime('%Y-%m-%d')}.")
 
     # Example usage for fetch_capital_reduction_data:
     # Note: Capital reduction events are less frequent than dividends.
@@ -664,5 +741,59 @@ if __name__ == "__main__":
             print(df_reduction.tail())
     else:
         print(f"No capital reduction data returned for {ticker_reduction_test} from {start_date_reduction_test.strftime('%Y-%m-%d')}.")
+
+    # integration test.
+    # Test with a stock known for significant dividends/splits, e.g., '2603' (Evergreen Marine)
+    ticker_evt_test = '2603'
+    fetch_period_years = 5 # Ensure '2024-06-27' is covered from 2025-05-10
+    print(f"\nFetching original and adjusted data for {ticker_evt_test} for the last {fetch_period_years} years...")
+    df_adj_evt = fm.fetch_adjusted_data(ticker=ticker_evt_test, period=fetch_period_years)
+    df_evt = fm.fetch_data(ticker=ticker_evt_test, period=fetch_period_years)
+    if not df_adj_evt.empty and not df_evt.empty:
+        print(f"\nOverview of fetched data for {ticker_evt_test}:")
+        # print("Original data (df_evt) - Head:")
+        # print(df_evt.head())
+        # print("\nAdjusted data (df_adj_evt) - Head:")
+        # print(df_adj_evt.head())
+        
+        # Event 1: Capital Reduction for '2603'
+        # Known event date: 2022-09-19 (Cash refund from API example in fetch_capital_reduction_data)
+        target_date_reduction_str = '2022-09-19'
+        # Window to match original example: '2022-09-01' to '2022-09-30'
+        # days_before = 19 (target day) - 1 (start day) = 18
+        # days_after = 30 (end day) - 19 (target day) = 11
+        compare_days_around(df_old=df_evt, 
+                              df_new=df_adj_evt, 
+                              ticker_symbol=ticker_evt_test, 
+                              target_date_str_arg=target_date_reduction_str, 
+                              days_before=18, 
+                              days_after=11)
+
+        # Event 2: Dividend for '2603'
+        # Example ex-dividend date for '2603' from FinMind: 2023-06-29 (Cash Dividend: 70.0)
+        target_date_dividend_str = '2023-06-29' 
+        # Example window: approx. 2 weeks before and 2 weeks after (e.g., 2023-06-15 to 2023-07-13)
+        # days_before = 14 (target_date_dividend_str is 29th, 29-14 = 15th)
+        # days_after = 14 (target_date_dividend_str is 29th, 29+14 = 13th of next month)
+        compare_days_around(df_old=df_evt, 
+                              df_new=df_adj_evt, 
+                              ticker_symbol=ticker_evt_test, 
+                              target_date_str_arg=target_date_dividend_str, 
+                              days_before=14, 
+                              days_after=14)
+
+    elif df_evt.empty and df_adj_evt.empty:
+        print(f"Neither original (df_evt) nor adjusted (df_adj_evt) data returned for {ticker_evt_test} with period={fetch_period_years}.")
+    elif df_evt.empty:
+        print(f"No original data (df_evt) returned for {ticker_evt_test} with period={fetch_period_years}. Cannot perform full comparison.")
+        if not df_adj_evt.empty: # If adjusted data exists, show its head
+            print("\nAdjusted data (df_adj_evt) - Head:")
+            print(df_adj_evt.head())
+    elif df_adj_evt.empty:
+        print(f"No adjusted data (df_adj_evt) returned for {ticker_evt_test} with period={fetch_period_years}. Cannot perform full comparison.")
+        if not df_evt.empty: # If original data exists, show its head
+            print("\nOriginal data (df_evt) - Head:")
+            print(df_evt.head())
+
 
 

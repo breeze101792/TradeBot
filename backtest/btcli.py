@@ -52,7 +52,7 @@ class BTCLI(CommandLineInterface):
         self.regist_cmd("market", self.cmd_market, description=f"Change market(data provider). Ops: {self.total_mkt_op_list}, Data:{self.total_mkt_type_list}", arg_list = self.total_mkt_op_list +self.total_mkt_type_list, group='setting')
 
         self.total_data_list = ['t5', 't10', 't20', 't50', 'y20', 'y10', 'y05', 'y00']
-        self.total_data_op_list = ['set', 'add', 'list', 'del']
+        self.total_data_op_list = ['set', 'add', 'list', 'del', 'number']
         self.regist_cmd("data", self.cmd_data, description=f"Change database, test list stored. Ops: {self.total_data_op_list}, Data:{self.total_data_list}", arg_list = self.total_data_list +self.total_data_op_list, group='setting')
 
         # self.total_strategy_list = ['MovingAverageCrossover', 'BreakoutMomentum']
@@ -185,6 +185,10 @@ class BTCLI(CommandLineInterface):
                 self.print(f"product_list  : {self.product_list}")
                 return True
             elif args['1'] == 'list':
+                self.print(f"product_list  : {self.product_list}")
+                return True
+            elif args['1'] == 'number':
+                self.product_list = self.market.get_data_list()[:int(args['2'])]
                 self.print(f"product_list  : {self.product_list}")
                 return True
         self.print(f"product_list  : {self.product_list}")

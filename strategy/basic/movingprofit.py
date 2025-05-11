@@ -11,8 +11,8 @@ class MovingProfitStrategy(BasicStrategy):
         # ("trailing_stop_pct", 0.05),  # Trailing stop percentage (5%)
         # ("trailing_takeprofit_pct", 0.05),  # Trailing take profit percentage (5%)
         ("risk_per_trade", 0.8),  # Max risk per trade (20%)
-        ("trailing_stop_pct", 0.05),  # Trailing stop percentage (5%)
-        ("trailing_takeprofit_pct", 0.15),  # Trailing take profit percentage (15%)
+        ("trailing_stop_pct", 0.06),  # Trailing stop percentage (5%)
+        ("trailing_takeprofit_pct", 0.16),  # Trailing take profit percentage (15%)
     )
 
     def __init__(self):
@@ -59,6 +59,10 @@ class MovingProfitStrategy(BasicStrategy):
                     # strategy safty.
                     self.sell(data=data, size=pos.size)
                     dbg_trace(f"📉 [{self.data.datetime.date(0)}]{data._name} Exit Signal (Strategy Stop Loss) @ {price:.2f}, pos:{pos.size}") # Improved log message
+                # elif price > self.take_profit[data]:
+                #     # strategy safty.
+                #     self.sell(data=data, size=pos.size)
+                #     dbg_trace(f"🏆 [{self.data.datetime.date(0)}]{data._name} Take Profit hit @ {price:.2f}")
                 elif price < self.trailing_stop[data]:
                     # trailing stop loss.
 
@@ -99,7 +103,7 @@ class MovingProfitStrategy(BasicStrategy):
                     self.stop_loss[data] = max(self.stop_loss[data], price * (1 - self.params.trailing_stop_pct))  # Adjust trailing stop loss
 
                     # update trailing stop, devide 2 so we could make a difference between stop_loss and trailing_stop
-                    self.trailing_stop[data] = price * (1 - self.params.trailing_stop_pct/2)  # Set initial trailing stop loss (5% down)
+                    self.trailing_stop[data] = price * (1 - self.params.trailing_stop_pct / 2)  # Set initial trailing stop loss (5% down)
 
                     dbg_trace(f"🏆 [{self.data.datetime.date(0)}]{data._name} Trailing Take Profit hit @ {price:.2f}")
 

@@ -178,11 +178,23 @@ class BasicStrategy(bt.Strategy):
 
                     dbg_trace(f"Updated Active Trade {code}: Remaining Size: {pos['remaining_size']}, Remaining Cost: {pos['total_cost']:.2f}")
 
-
                     # Check if position is fully closed (handle potential float inaccuracies)
                     if pos['remaining_size'] == 0: # Consider position closed if remaining size is negligible
                         dbg_trace(f"Closed Active Trade {code} fully.")
+                        # Assume -5% to stop lose, so -5% + (10%) will be max.
+                        if pnl / entry_cost_portion < -0.15:
+                            if self.trading_history: # Ensure trading_history is not empty
+                                trade_details = self.trading_history[-1]
+                                dbg_warning(f"PNL smaller then -10% ({pnl / entry_cost_portion:.2%})"
+                                            f"Loss Trade Details: Code: {trade_details['code']}, "
+                                            f"Entry: {trade_details['entry_date']} @{trade_details['avg_entry_price']:.2f}, "
+                                            f"Exit: {trade_details['exit_date']} @{trade_details['exit_price']:.2f}, "
+                                            f"Size: {trade_details['size']}, PNL: {trade_details['pnl']:.2f}")
+                            else:
+                                dbg_warning(f"PNL smaller then -10% ({pnl / entry_cost_portion:.2%}). code:{code}, entry_date: {entry_date}, exec_date: {exec_date}")
+
                         del self.active_trades[data]
+
                 else:
                     # This might happen if selling logic triggers without a corresponding buy recorded
                     # or if handling short positions (not implemented here)
