@@ -1,6 +1,7 @@
 import json
 import os
-from datetime import date, datetime, time # Import date for tracking open date
+import datetime as dt
+from datetime import date, time # Import date for tracking open date
 from utility.debug import *
 
 from market.market import *
@@ -8,7 +9,7 @@ from market.provider.twse import *
 
 class Position:
     """Represents a holding in a specific asset."""
-    def __init__(self, symbol: str, size: int = 0, average_entry_price: float = 0.0, initial_entry_price: float = 0.0, open_date: date | None = None):
+    def __init__(self, symbol: str, size: int = 0, average_entry_price: float = 0.0, initial_entry_price: float = 0.0, open_date: datetime.date = None):
         self.symbol = symbol
         self.size = size
         self.average_entry_price = average_entry_price
@@ -104,8 +105,8 @@ class BaseBroker:
             return False
 
         # Define market open and close times
-        market_open_time = time(9, 0, 0)
-        market_close_time = time(13, 25, 0) # Market closes at 13:25 for matching
+        market_open_time = dt.time(9, 0, 0)
+        market_close_time = dt.time(13, 25, 0) # Market closes at 13:25 for matching
 
         if market_open_time <= current_time <= market_close_time:
             dbg_trace("Market is open.")
@@ -385,8 +386,21 @@ class BaseBroker:
 
 
 if __name__ == "__main__":
-    # --- Example Usage ---
     dbg_info("--- Starting Broker Example ---")
+
+    # Test is_market_open
+    print("\n--- Checking Market Status ---")
+    # Create a temporary broker instance just for this check
+    # It doesn't need specific cash or commission for this test.
+    market_status_checker_broker = BaseBroker()
+    if market_status_checker_broker.is_market_open():
+        print("Market is currently OPEN.")
+    else:
+        print("Market is currently CLOSED.")
+    # Clean up the temporary instance if it created any state files (though unlikely for this simple check)
+    # For BaseBroker, disconnect might try to save state. If state_filepath is default and no trades, it's fine.
+    # Or, we can simply let it go out of scope if no side effects are expected from __init__ or is_market_open.
+    # For this specific test, we don't need to call disconnect().
 
     # 1. Initialize Broker
     broker1 = BaseBroker(initial_cash=50000, commission_per_trade=4.95)
@@ -463,38 +477,9 @@ if __name__ == "__main__":
         print(f"  {pos}")
     broker2.disconnect() # Disconnect broker2 (saves state again, optional here)
 
-    # 7. Demonstrate Custom Filepath with connect/disconnect
-    print("\n--- Demonstrating Custom Filepath with connect/disconnect ---")
-    custom_path = "data/custom_broker_state.json"
-    # Initialize broker_custom with the custom path
-    broker_custom = BaseBroker(initial_cash=75000, commission_per_trade=1.00, state_filepath=custom_path)
-    print(f"\nCreated broker_custom. Initial Cash: ${broker_custom.get_cash():,.2f}, State File: {broker_custom.state_filepath}")
-    # Perform some actions
-    broker_custom.place_order(symbol="AAPL", action="buy", size=50)
-    print("broker_custom Positions after buy:")
-    for symbol, pos in broker_custom.get_all_positions().items(): print(f"  {pos}")
-    # Disconnect broker_custom (saves state to custom_path)
-    print("Disconnecting broker_custom (saves state)...")
-    broker_custom.disconnect()
-
-    # Create broker3, using the custom path, and connect
-    print("\nCreating broker3 with custom path and Connecting...")
-    broker3 = BaseBroker(initial_cash=1000, commission_per_trade=1.00, state_filepath=custom_path)
-    print(f"broker3 Initial Cash (before connect): ${broker3.get_cash():,.2f}")
-    broker3.connect() # Connects and loads state from custom_path
-
-    # Verify loaded state in broker3
-    print(f"broker3 Loaded Cash from {custom_path}: ${broker3.get_cash():,.2f}")
-    print("broker3 Loaded Positions:")
-    loaded_positions_b3 = broker3.get_all_positions()
-    if not loaded_positions_b3:
-        print("  No positions loaded.")
-    for symbol, pos in loaded_positions_b3.items():
-        print(f"  {pos}")
-    broker3.disconnect() # Disconnect broker3
-
     # Clean up the created state files if desired
     default_state_file = "./broker_state.json"
+    custom_path = "data/custom_broker_state.json" # Keep custom_path definition for cleanup
     try:
         if os.path.exists(default_state_file):
             os.remove(default_state_file)
@@ -510,4 +495,3 @@ if __name__ == "__main__":
         print(f"\nError cleaning up state files/directory: {e}")
 
     dbg_info("--- Broker Example Finished ---")
-
