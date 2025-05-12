@@ -8,6 +8,7 @@ from core.core import *
 from core.config import *
 from market.market import *
 from backtest.btcli import *
+from testutility.testcli import *
 
 def main():
 
@@ -28,7 +29,7 @@ def main():
     # trading mode
     parser.add_argument("-m", "--trade-mode", action="store",
         dest="trading_mode", default="trade",
-        choices=['backtest', 'trade'],
+        choices=['backtest', 'trade', 'test'],
         help="Trading mode")
 
     # Shortcut flag for backtest mode
@@ -49,6 +50,11 @@ def main():
         # DebugSetting.setDbgLevel("all")
         dbg_warning('Enable development mode')
         cm.set('path.broker', "broker_development")
+        cm.set('debug.development', True)
+    elif args.trading_mode == 'test':
+        # DebugSetting.setDbgLevel("all")
+        dbg_warning('Enable development mode')
+        cm.set('path.broker', "broker_test")
         cm.set('debug.development', True)
     else:
         ans = input("!!! It's a NOT in development mode, are you sure you want to proceed, or try with development mode.?(y/N, enter to goto development mode.):")
@@ -74,6 +80,10 @@ def main():
     elif args.trading_mode == "backtest":
         btcli = BTCLI()
         btcli.run()
+    elif args.trading_mode == "test":
+        dbg_info("Test Utility Starting.")
+        tcli = TestCLI()
+        tcli.run()
 
     dbg_info("Trade Bot finished.")
     cm.save()
