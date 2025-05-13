@@ -6,6 +6,11 @@ from broker.brokermanager import BrokerManager, Position # Assuming Position is 
 from utility.debug import dbg_info, dbg_warning, dbg_error, dbg_trace
 import traceback
 
+# ANSI color codes
+RED = "\033[91m"
+GREEN = "\033[92m"
+RESET = "\033[0m"
+
 # Define a default ticker and other constants for tests
 DEFAULT_BROKER_TEST_TICKER = '2330' # TSMC
 DEFAULT_BROKER_TEST_QTY = 10
@@ -108,7 +113,7 @@ def test_place_buy_order_sufficient_cash(broker_manager: BrokerManager, symbol=D
         dbg_error(traceback.format_exc())
         return False
 
-def test_place_buy_order_insufficient_cash(broker_manager: BrokerManager, symbol="VERY_EXPENSIVE_STOCK", qty=100) -> bool:
+def test_place_buy_order_insufficient_cash(broker_manager: BrokerManager, symbol=DEFAULT_BROKER_TEST_TICKER, qty=100) -> bool:
     dbg_info(f"--- Running Test: Place Buy Order ({symbol}, {qty}) - Insufficient Cash ---")
     try:
         original_cash = broker_manager.broker.cash
@@ -150,14 +155,15 @@ def test_get_position(broker_manager: BrokerManager, symbol=DEFAULT_BROKER_TEST_
 def test_place_sell_order_sufficient_position(broker_manager: BrokerManager, symbol=DEFAULT_BROKER_TEST_TICKER, qty_to_sell=5) -> bool:
     dbg_info(f"--- Running Test: Place Sell Order ({symbol}, {qty_to_sell}) - Sufficient Position ---")
     try:
-        initial_position = broker_manager.get_position_by_symbol(symbol)
-        if initial_position.size < qty_to_sell:
-            dbg_warning(f"Cannot run sell test: initial position size {initial_position.size} < qty to sell {qty_to_sell}. Placing a buy order first.")
-            buy_result = broker_manager.place_order(symbol, "buy", qty_to_sell * 2, None)
+        # since we get the object, we copy the size only, otherwise it changed by trasaction after.
+        initial_position_size = broker_manager.get_position_by_symbol(symbol).size
+        if initial_position_size < qty_to_sell:
+            dbg_warning(f"Cannot run sell test: initial position size {initial_position_size} < qty to sell {qty_to_sell}. Placing a buy order first.")
+            buy_result = broker_manager.place_order(symbol, "buy", qty_to_sell, None)
             if not buy_result:
                  dbg_error("Failed to place preliminary buy order for sell test.")
                  return False
-            initial_position = broker_manager.get_position_by_symbol(symbol)
+            initial_position_size = broker_manager.get_position_by_symbol(symbol).size
 
         initial_cash = broker_manager.get_cash()
         result = broker_manager.place_order(symbol, "sell", qty_to_sell, price=None)
@@ -175,7 +181,7 @@ def test_place_sell_order_sufficient_position(broker_manager: BrokerManager, sym
             return False
         
         final_position = broker_manager.get_position_by_symbol(symbol)
-        if final_position.size != (initial_position.size - qty_to_sell):
+        if final_position.size != (initial_position_size - qty_to_sell):
             dbg_error(f"Position size after sell incorrect. Expected {initial_position.size - qty_to_sell}, Got {final_position.size}")
             return False
             
@@ -234,8 +240,9 @@ def test_save_load_state(test_id_for_files="saveload") -> bool:
         os.remove(tx_log_for_load_test) # Clean up before test
 
     try:
-        broker_save.place_order("MSFT", "buy", 20, None)
-        broker_save.place_order("GOOG", "buy", 5, None)
+        # Using the same ticker for both orders. This will result in one aggregated position.
+        broker_save.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", 20, None)
+        broker_save.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", 5, None) # Buys more of the same stock
         cash_before_save = broker_save.get_cash()
         positions_before_save = broker_save.get_all_positions()
         dbg_info(f"State before save - Cash: {cash_before_save}, Positions: {len(positions_before_save)}")
@@ -284,8 +291,8 @@ def test_transaction_logging(test_id_for_files="txlog") -> bool:
     broker = _create_test_broker(test_name=test_id_for_files)
     tx_log_path = broker.transaction_log_path
     try:
-        broker.place_order("TXLOGSMBL", "buy", 10, None)
-        broker.place_order("TXLOGSMBL", "sell", 5, None)
+        broker.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", 10, None)
+        broker.place_order(DEFAULT_BROKER_TEST_TICKER, "sell", 5, None)
         
         transactions = broker.get_transactions()
         if len(transactions) < 2:
@@ -353,13 +360,13 @@ def run_broker_tests(test_names: list[str]):
     
     sequential_tests = {
         "initial_state": lambda bm: test_initial_state(bm, initial_cash_expected=100000.0),
-        "buy_sufficient_cash": lambda bm: test_place_buy_order_sufficient_cash(bm, symbol="SEQBUY", qty=10),
-        "get_position_after_buy": lambda bm: test_get_position(bm, symbol="SEQBUY", expected_size=10),
-        "sell_sufficient_position": lambda bm: test_place_sell_order_sufficient_position(bm, symbol="SEQBUY", qty_to_sell=5),
-        "get_position_after_sell": lambda bm: test_get_position(bm, symbol="SEQBUY", expected_size=5),
+        "buy_sufficient_cash": lambda bm: test_place_buy_order_sufficient_cash(bm, symbol=DEFAULT_BROKER_TEST_TICKER, qty=10),
+        "get_position_after_buy": lambda bm: test_get_position(bm, symbol=DEFAULT_BROKER_TEST_TICKER, expected_size=10),
+        "sell_sufficient_position": lambda bm: test_place_sell_order_sufficient_position(bm, symbol=DEFAULT_BROKER_TEST_TICKER, qty_to_sell=5),
+        "get_position_after_sell": lambda bm: test_get_position(bm, symbol=DEFAULT_BROKER_TEST_TICKER, expected_size=5),
         "portfolio_value": test_portfolio_value,
-        "buy_insufficient_cash": lambda bm: test_place_buy_order_insufficient_cash(bm, symbol="HIGHVAL", qty=1),
-        "sell_insufficient_position": lambda bm: test_place_sell_order_insufficient_position(bm, symbol="SEQBUY"),
+        "buy_insufficient_cash": lambda bm: test_place_buy_order_insufficient_cash(bm, symbol=DEFAULT_BROKER_TEST_TICKER, qty=1),
+        "sell_insufficient_position": lambda bm: test_place_sell_order_insufficient_position(bm, symbol=DEFAULT_BROKER_TEST_TICKER),
         "summarize_positions": test_summarize_positions,
         "summarize_transactions": test_summarize_transactions,
     }
@@ -395,7 +402,8 @@ def run_broker_tests(test_names: list[str]):
             results[name] = result
             if result:
                 total_passed += 1
-            dbg_info(f"--- Test Result [{name}]: {'PASS' if result else 'FAIL'} ---")
+            status_str = f"{GREEN}PASS{RESET}" if result else f"{RED}FAIL{RESET}"
+            dbg_info(f"--- Test Result [{name}]: {status_str} ---")
         except Exception as e:
             dbg_error(f"!!! Exception during test [{name}]: {e} !!!")
             dbg_error(traceback.format_exc())
@@ -420,9 +428,12 @@ def run_broker_tests(test_names: list[str]):
 
     dbg_info("=== Broker Tests Summary ===")
     for name, result in results.items():
-        dbg_info(f"  {name:<30}: {'PASS' if result else 'FAIL'}")
+        status_str = f"{GREEN}PASS{RESET}" if result else f"{RED}FAIL{RESET}"
+        dbg_info(f"  {name:<30}: {status_str}")
     total_failed = len(tests_to_run_names) - total_passed
-    dbg_info(f"Total Tests Run: {len(tests_to_run_names)}, Passed: {total_passed}, Failed: {total_failed}")
+    passed_str = f"{GREEN}Passed: {total_passed}{RESET}"
+    failed_str = f"{RED}Failed: {total_failed}{RESET}" if total_failed > 0 else f"Failed: {total_failed}"
+    dbg_info(f"Total Tests Run: {len(tests_to_run_names)}, {passed_str}, {failed_str}")
     dbg_info("==========================")
     return {"total": len(tests_to_run_names), "passed": total_passed, "failed": total_failed}
 

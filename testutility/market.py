@@ -4,6 +4,11 @@ from market.market import Market
 from utility.debug import dbg_info, dbg_warning, dbg_error, dbg_trace
 import traceback # Import traceback for detailed error logging
 
+# ANSI color codes
+RED = "\033[91m"
+GREEN = "\033[92m"
+RESET = "\033[0m"
+
 # Define a default ticker for tests requiring one
 DEFAULT_TEST_TICKER = '2330' # TSMC
 
@@ -183,7 +188,8 @@ def run_market_tests(market_instance: Market, test_names: list[str]):
             results[name] = result
             if result:
                 total_passed += 1
-            dbg_info(f"--- Test Result [{name}]: {'PASS' if result else 'FAIL'} ---")
+            status_str = f"{GREEN}PASS{RESET}" if result else f"{RED}FAIL{RESET}"
+            dbg_info(f"--- Test Result [{name}]: {status_str} ---")
         except Exception as e:
             dbg_error(f"!!! Exception during test [{name}]: {e} !!!")
             dbg_error(traceback.format_exc())
@@ -192,8 +198,11 @@ def run_market_tests(market_instance: Market, test_names: list[str]):
 
     dbg_info(f"=== Market Tests Summary ===")
     for name, result in results.items():
-        dbg_info(f"  {name:<20}: {'PASS' if result else 'FAIL'}")
+        status_str = f"{GREEN}PASS{RESET}" if result else f"{RED}FAIL{RESET}"
+        dbg_info(f"  {name:<20}: {status_str}")
     total_failed = len(tests_to_run) - total_passed
-    dbg_info(f"Total Tests Run: {len(tests_to_run)}, Passed: {total_passed}, Failed: {total_failed}")
+    passed_str = f"{GREEN}Passed: {total_passed}{RESET}"
+    failed_str = f"{RED}Failed: {total_failed}{RESET}" if total_failed > 0 else f"Failed: {total_failed}"
+    dbg_info(f"Total Tests Run: {len(tests_to_run)}, {passed_str}, {failed_str}")
     dbg_info("==========================")
     return {"total": len(tests_to_run), "passed": total_passed, "failed": total_failed}

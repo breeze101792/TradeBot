@@ -37,6 +37,7 @@ class TWSE(DataProvider):
         result = None
         # this is for mock broker, don't use it on real code.
         try:
+            # dbg_info(f'get_current_price : {symbol}')
             result = twstock.realtime.get(symbol)
             # dbg_info('Realtime info:', result)
             trade = result.get('realtime').get('latest_trade_price')
@@ -52,6 +53,7 @@ class TWSE(DataProvider):
             dbg_debug(f'[{symbol}] value error: {result}')
             return 0.0
         except Exception as e:
+            dbg_error(f'Erorr found on {symbol}')
             dbg_error(e)
         
             traceback_output = traceback.format_exc()

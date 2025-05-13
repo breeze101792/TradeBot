@@ -13,7 +13,7 @@ from core.config import *
 class Evaluate:
     # threshold
     BUY_CANDIDATE_PROFIT_THRESHOLD = 1
-    def __init__(self):
+    def __init__(self, development = False):
         # TODO, add multiple strategy support.
         stra_mgr = StrategyManager()
         self.default_strategy = stra_mgr.get_default_strategy()
@@ -22,15 +22,16 @@ class Evaluate:
         self.cm = AppConfigManager()
 
         # debug mode
-        self.flag_development = False
+        self.flag_development = development
         if self.flag_development and self.cm.get('debug.development') is True:
             dbg_warning('Enable debug mode.')
             # Buy
-            self.test_buy_list = ['2028', '8404']
+            self.test_buy_list = ['0050', '2330', '2454', '2028', '8404']
             # Sell
             self.test_sell_list = []
             # self.test_sell_list.append({'symbol':'2330', 'open_date':date.today().isoformat(), 'size':5, 'initial_entry_price':2000, 'strategy': self.default_strategy.NAME})
             # self.test_sell_list.append({'symbol':'2454', 'open_date':date.today().isoformat(), 'size':5, 'initial_entry_price':1500, 'strategy': self.default_strategy.NAME})
+
     def __buy_find_candidate(self):
 
         candidate_dict = dict()
@@ -148,6 +149,7 @@ class Evaluate:
 
         return buying_dict
     def __get_realtime_data_list(self, symbol):
+        # we append the last day to daily data for evaluation.
         market = Market()
         trade_broker = BrokerManager()
 
@@ -188,8 +190,7 @@ class Evaluate:
         current_day_data['Low'] = price
         current_day_data['Close'] = price
 
-        # TODO, remove me when it's stable enough.
-        dbg_info(f"Target data for {symbol} (tail after modification), current price: {price}")
+        dbg_info(f"{symbol} tail data to daily list, current price: {price}")
         
         # Fake other critical data if necessary.
         # For 'Change', if it represents (Close - Open), it would be 0.

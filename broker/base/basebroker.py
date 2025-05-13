@@ -87,7 +87,7 @@ class BaseBroker:
         self.positions: dict[str, Position] = {}
         self.market = Market()
         self.data_provider = TWSE()
-        self._state_changed: bool = False # Flag to track if state has changed since last load/save
+        # self._state_changed: bool = False # Flag to track if state has changed since last load/save
         # dbg_info(f"Broker initialized with Cash: ${self.cash:,.2f}, Commission: ${self.commission_per_trade:.2f}/trade. State file: {self.state_filepath}")
 
     def is_market_open(self) -> bool:
@@ -184,7 +184,8 @@ class BaseBroker:
             if symbol not in self.positions:
                 self.positions[symbol] = Position(symbol)
             self.positions[symbol].update(action, size, market_price) # Use market_price here
-            self._state_changed = True
+            # self._state_changed = True
+            self._save_state() # Save state using the configured filepath
             dbg_info(f"Executed BUY: {symbol}, Size: {size}, Price: {market_price:.2f}. New Position: {self.positions[symbol]}")
 
         elif action == 'sell':
@@ -200,7 +201,8 @@ class BaseBroker:
 
             # Update position
             self.positions[symbol].update(action, size, market_price) # Use market_price here
-            self._state_changed = True
+            # self._state_changed = True
+            self._save_state() # Save state using the configured filepath
             dbg_info(f"Executed SELL: {symbol}, Size: {size}, Price: {market_price:.2f}. New Position: {self.positions[symbol]}")
 
             # Clean up position if size becomes zero
@@ -378,11 +380,13 @@ class BaseBroker:
         Disconnects the simulated broker. For BaseBroker, this means saving the current state
         if it has changed since the last load or save.
         """
-        if self._state_changed:
-            dbg_trace(f"Disconnecting BaseBroker: State changed, saving state to {self.state_filepath}...")
-            self._save_state() # Save state using the configured filepath
-        else:
-            dbg_trace(f"Disconnecting BaseBroker: State unchanged since last load/save, skipping save to {self.state_filepath}.")
+        # We save it immediately in to file.
+        # if self._state_changed:
+        #     dbg_trace(f"Disconnecting BaseBroker: State changed, saving state to {self.state_filepath}...")
+        #     self._save_state() # Save state using the configured filepath
+        # else:
+        #     dbg_trace(f"Disconnecting BaseBroker: State unchanged since last load/save, skipping save to {self.state_filepath}.")
+        pass
 
 
 if __name__ == "__main__":

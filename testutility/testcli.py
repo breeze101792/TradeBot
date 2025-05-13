@@ -9,12 +9,29 @@ from utility.cli import CommandLineInterface
 from market.market import Market # Import Market class
 from testutility.market import run_market_tests # Import the test runner
 from testutility.broker import run_broker_tests # Import the broker test runner
+from trading.evaluate import Evaluate # Import Evaluate class
+from testutility.trading import run_trading_tests # Import the trading test runner
 import traceback # For detailed error logging in cmd_market
+
+# ANSI color codes
+RED = "\033[91m"
+GREEN = "\033[92m"
+RESET = "\033[0m"
 
 class TestCLI(CommandLineInterface):
     def __init__(self):
         super().__init__(promote='test') # Initialize parent CLI
         self.market = Market() # Instantiate Market for testing
+        self.evaluate_instance = Evaluate(development = True) # Instantiate Evaluate for testing
+        # For testing purposes, we often want to use controlled/smaller datasets
+        # or specific test paths within the Evaluate class.
+        # Setting flag_development to True can enable this if Evaluate is designed accordingly.
+        # self.evaluate_instance.flag_development = True
+        dbg_info(f"TestCLI: Evaluate instance created with flag_development={self.evaluate_instance.flag_development}")
+        if self.evaluate_instance.flag_development:
+            dbg_info(f"  Evaluate test_buy_list: {self.evaluate_instance.test_buy_list}")
+            dbg_info(f"  Evaluate test_sell_list: {self.evaluate_instance.test_sell_list}")
+
         self._register_test_commands()
 
     def _register_test_commands(self):
@@ -33,6 +50,20 @@ class TestCLI(CommandLineInterface):
             self.cmd_market,
             description=f"Run tests for market.py. Sub-tests: {', '.join(self.market_sub_tests)}",
             arg_list=self.market_sub_tests,
+            group='testing'
+        )
+
+        # Define available trading sub-tests
+        self.trading_sub_tests = [
+            "buying_evaluation",
+            "selling_evaluation",
+            "all" # Special command
+        ]
+        self.regist_cmd(
+            "trading",
+            self.cmd_trading,
+            description=f"Run tests for trading/evaluate.py. Sub-tests: {', '.join(self.trading_sub_tests)}",
+            arg_list=self.trading_sub_tests,
             group='testing'
         )
 
@@ -61,12 +92,12 @@ class TestCLI(CommandLineInterface):
         )
 
         # Define top-level test groups
-        self.test_groups = ["market", "broker", "all"]
+        self.test_groups = ["market", "broker", "trading", "all"]
         self.regist_cmd(
             "test",
             self.cmd_test,
             description=f"Run specified test groups or all tests (default). Groups: {', '.join(g for g in self.test_groups if g != 'all')}",
-            arg_list=self.test_groups,
+            arg_list=self.test_groups, # arg_list will now include 'trading'
             group='testing' # Group for the master test command
         )
         # Add other command registrations if needed
@@ -104,6 +135,40 @@ class TestCLI(CommandLineInterface):
             dbg_error(f"An error occurred while running market tests: {e}")
             dbg_error(traceback.format_exc())
             return False # Indicate command execution failure
+
+    def cmd_trading(self, args):
+        """Command handler for 'trading' tests."""
+        if args['#'] == 0:
+            dbg_error("Please specify a trading sub-test or 'all'.")
+            dbg_info(f"Available sub-tests: {', '.join(self.trading_sub_tests)}")
+            return False
+
+        tests_to_run = []
+        for i in range(1, args['#'] + 1):
+            sub_cmd = args[str(i)]
+            if sub_cmd in self.trading_sub_tests:
+                tests_to_run.append(sub_cmd)
+            else:
+                self.print_warning(f"Unknown trading sub-test '{sub_cmd}', ignoring.")
+
+        if not tests_to_run:
+            dbg_error("No valid trading sub-tests specified.")
+            return False
+
+        if "all" in tests_to_run:
+            tests_to_run = ["all"]
+
+        dbg_info(f"Running trading tests: {', '.join(tests_to_run)}")
+        try:
+            # Ensure evaluate_instance.flag_development is True for test runs
+            # This is now set in __init__, but can be double-checked or set here if needed per-run
+            # self.evaluate_instance.flag_development = True
+            run_trading_tests(self.evaluate_instance, tests_to_run)
+            return True # Command execution success (tests pass/fail internally)
+        except Exception as e:
+            dbg_error(f"An error occurred while running trading tests: {e}")
+            dbg_error(traceback.format_exc())
+            return False # Command execution failure
 
     def cmd_broker(self, args):
         """Command handler for 'broker' tests."""
@@ -155,7 +220,8 @@ class TestCLI(CommandLineInterface):
         if not run_all_tests:
             valid_groups = [group for group in requested_groups if group in self.test_groups and group != "all"]
             if not valid_groups:
-                dbg_error(f"No valid test groups specified in: {requested_groups}. Available: market, broker.")
+                valid_group_names = [g for g in self.test_groups if g != 'all']
+                dbg_error(f"No valid test groups specified in: {requested_groups}. Available: {', '.join(valid_group_names)}.")
                 return False
             requested_groups = valid_groups # Use only valid groups
 
@@ -178,6 +244,20 @@ class TestCLI(CommandLineInterface):
                     if market_results.get("failed", 0) > 0:
                         overall_success = False # Mark overall as failed if any suite fails
                 dbg_info("=== Market Test Suite Complete ===\n")
+
+            if run_all_tests or "trading" in requested_groups:
+                dbg_info("\n=== Running Trading Test Suite (all) ===")
+                # Ensure evaluate_instance.flag_development is True for these tests
+                # self.evaluate_instance.flag_development = True # Set in __init__
+                trading_results = run_trading_tests(self.evaluate_instance, ["all"])
+                if trading_results:
+                    results_summary["Trading"] = trading_results
+                    total_tests_run += trading_results.get("total", 0)
+                    total_tests_passed += trading_results.get("passed", 0)
+                    total_tests_failed += trading_results.get("failed", 0)
+                    if trading_results.get("failed", 0) > 0:
+                        overall_success = False
+                dbg_info("=== Trading Test Suite Complete ===\n")
 
             if run_all_tests or "broker" in requested_groups:
                 dbg_info("\n=== Running Broker Test Suite (all) ===")
@@ -215,9 +295,15 @@ class TestCLI(CommandLineInterface):
         dbg_info("Overall Test Summary:")
         dbg_info("-" * 40)
         for suite, results in results_summary.items():
-            dbg_info(f"  {suite:<10}: Ran={results.get('total', 0)}, Passed={results.get('passed', 0)}, Failed={results.get('failed', 0)}")
+            passed_count = results.get('passed', 0)
+            failed_count = results.get('failed', 0)
+            passed_str = f"{GREEN}Passed={passed_count}{RESET}"
+            failed_str = f"{RED}Failed={failed_count}{RESET}" if failed_count > 0 else f"Failed={failed_count}"
+            dbg_info(f"  {suite:<10}: Ran={results.get('total', 0)}, {passed_str}, {failed_str}")
         dbg_info("-" * 40)
-        dbg_info(f"  {'Total':<10}: Ran={total_tests_run}, Passed={total_tests_passed}, Failed={total_tests_failed}")
+        total_passed_str = f"{GREEN}Passed={total_tests_passed}{RESET}"
+        total_failed_str = f"{RED}Failed={total_tests_failed}{RESET}" if total_tests_failed > 0 else f"Failed={total_tests_failed}"
+        dbg_info(f"  {'Total':<10}: Ran={total_tests_run}, {total_passed_str}, {total_failed_str}")
         dbg_info("=" * 40)
 
         # Return True if the command ran without crashing AND all tests passed, False otherwise.
