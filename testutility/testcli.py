@@ -10,6 +10,7 @@ from market.market import Market # Import Market class
 from testutility.market import run_market_tests # Import the test runner
 from testutility.broker import run_broker_tests # Import the broker test runner
 from trading.evaluate import Evaluate # Import Evaluate class
+from trading.trading import Trading # Import Trading class
 from testutility.trading import run_trading_tests # Import the trading test runner
 import traceback # For detailed error logging in cmd_market
 
@@ -23,6 +24,7 @@ class TestCLI(CommandLineInterface):
         super().__init__(promote='test') # Initialize parent CLI
         self.market = Market() # Instantiate Market for testing
         self.evaluate_instance = Evaluate(development = True) # Instantiate Evaluate for testing
+        self.trading_instance = Trading() # Instantiate Trading for testing
         # For testing purposes, we often want to use controlled/smaller datasets
         # or specific test paths within the Evaluate class.
         # Setting flag_development to True can enable this if Evaluate is designed accordingly.
@@ -55,14 +57,18 @@ class TestCLI(CommandLineInterface):
 
         # Define available trading sub-tests
         self.trading_sub_tests = [
-            "buying_evaluation",
-            "selling_evaluation",
-            "all" # Special command
+            "eval_buying",       # Was buying_evaluation, tests Evaluate.buying_evaluation
+            "eval_selling",      # Was selling_evaluation, tests Evaluate.selling_evaluation
+            "exec_buying",       # Tests Trading.buying_exec
+            "exec_selling",      # Tests Trading.selling_exec
+            "flow_trading_eval", # Tests Trading.trading_eval flow
+            "flow_selling_eval", # Tests Trading.selling_eval flow
+            "all"                # Special command to run all trading related tests
         ]
         self.regist_cmd(
             "trading",
             self.cmd_trading,
-            description=f"Run tests for trading/evaluate.py. Sub-tests: {', '.join(self.trading_sub_tests)}",
+            description=f"Run tests for trading (Evaluate & Trading classes). Sub-tests: {', '.join(self.trading_sub_tests)}",
             arg_list=self.trading_sub_tests,
             group='testing'
         )
@@ -163,7 +169,13 @@ class TestCLI(CommandLineInterface):
             # Ensure evaluate_instance.flag_development is True for test runs
             # This is now set in __init__, but can be double-checked or set here if needed per-run
             # self.evaluate_instance.flag_development = True
-            run_trading_tests(self.evaluate_instance, tests_to_run)
+
+            # Pass both instances; run_trading_tests will determine which to use for each specific test
+            run_trading_tests(
+                tests_to_run,
+                evaluate_instance=self.evaluate_instance,
+                trading_instance=self.trading_instance
+            )
             return True # Command execution success (tests pass/fail internally)
         except Exception as e:
             dbg_error(f"An error occurred while running trading tests: {e}")
@@ -249,7 +261,12 @@ class TestCLI(CommandLineInterface):
                 dbg_info("\n=== Running Trading Test Suite (all) ===")
                 # Ensure evaluate_instance.flag_development is True for these tests
                 # self.evaluate_instance.flag_development = True # Set in __init__
-                trading_results = run_trading_tests(self.evaluate_instance, ["all"])
+                # Pass both instances to run all applicable trading tests
+                trading_results = run_trading_tests(
+                    ["all"],
+                    evaluate_instance=self.evaluate_instance,
+                    trading_instance=self.trading_instance
+                )
                 if trading_results:
                     results_summary["Trading"] = trading_results
                     total_tests_run += trading_results.get("total", 0)
