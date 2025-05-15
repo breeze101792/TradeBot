@@ -18,6 +18,7 @@ class MovingAverageCrossover(BasicStrategy):
     )
 
     def __init__(self):
+        super().__init__()
         self.sma_short = {data: bt.indicators.SimpleMovingAverage(data, period=self.params.short_period) for data in self.datas}
         self.sma_long = {data: bt.indicators.SimpleMovingAverage(data, period=self.params.long_period) for data in self.datas}
         self.stop_loss = {}  # 記錄止損價格
@@ -65,6 +66,7 @@ class MovingAverageCrossoverEn(BasicStrategy):
     )
 
     def __init__(self):
+        super().__init__()
         self.sma_short = {data: bt.indicators.SimpleMovingAverage(data, period=self.params.short_period) for data in self.datas}
         self.sma_long = {data: bt.indicators.SimpleMovingAverage(data, period=self.params.long_period) for data in self.datas}
         self.stop_loss = {}  # Record stop loss prices
@@ -124,6 +126,7 @@ class BreakoutMomentum(BasicStrategy):
     )
 
     def __init__(self):
+        super().__init__()
         self.highest_high = {data: bt.ind.Highest(data.high, period=self.params.breakout_period) for data in self.datas}
         self.stop_loss = {}  # 記錄止損價格
         self.take_profit = {}  # 記錄止盈價格
@@ -162,6 +165,7 @@ class BreakoutMomentum(BasicStrategy):
     )
 
     def __init__(self):
+        super().__init__()
         self.highest_high = {data: bt.ind.Highest(data.high, period=self.params.breakout_period) for data in self.datas}
         self.stop_loss = {}  # 記錄止損價格
         self.take_profit = {}  # 記錄止盈價格
@@ -199,6 +203,7 @@ class BreakoutMomentumEn(BasicStrategy):
     }
 
     def __init__(self):
+        super().__init__()
         self.highest_high = {data: bt.ind.Highest(data.high, period=self.params.breakout_period) for data in self.datas}
         self.trailing_stop = {}
         self.trailing_takeprofit = {}

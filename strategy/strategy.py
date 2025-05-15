@@ -19,10 +19,10 @@ class StrategyManager:
         self.strategy_dict = dict()
         
         # adjust for win rate/profit.
+        self.register_strategy(MovingAverageCrossoverStrategy)
+        self.register_strategy(BreakoutMomentumStrategy)
         self.register_strategy(RelativeStrengthIndexStrategy)
         self.register_strategy(BollingerMeanReversionStrategy)
-        self.register_strategy(BreakoutMomentumStrategy)
-        self.register_strategy(MovingAverageCrossoverStrategy)
 
         if False:
             # Strategy registration.
@@ -41,7 +41,7 @@ class StrategyManager:
             # self.register_strategy(ADLineStrategy)
             # self.register_strategy(PriceVolumeBreakoutStrategy)
             # self.register_strategy(CMFStrategy)
-            # self.register_strategy(VolumeSpikeStrategy)
+            self.register_strategy(VolumeSpikeStrategy)
 
             # Test
             # self.register_strategy(TestStrategy)

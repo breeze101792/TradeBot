@@ -2,9 +2,9 @@ import backtrader as bt
 import pandas as pd
 from math import ceil
 from utility.debug import *
-from strategy.basic.basicstrategy import BasicStrategy
+from strategy.basic.basicstrategy import BasicExitStrategy
 
-class MovingProfitStrategy(BasicStrategy):
+class MovingProfitStrategy(BasicExitStrategy):
     NAME="MovingProfit"
     params = (
         # ("risk_per_trade", 0.8),  # Max risk per trade (20%)
@@ -27,13 +27,6 @@ class MovingProfitStrategy(BasicStrategy):
 
         # stra initial
         self.stra_initial()
-
-    def stra_initial(self):
-        raise NotImplementedError("Subclasses must implement this method.")
-    def stra_buy_in(self, data):
-        raise NotImplementedError("Subclasses must implement this method.")
-    def stra_sell_out(self, data):
-        raise NotImplementedError("Subclasses must implement this method.")
 
     def next(self):
         if not self.is_trading_date(self.datas[0].datetime.date(0)):

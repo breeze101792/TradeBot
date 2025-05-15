@@ -115,7 +115,7 @@ class BasicStrategy(bt.Strategy):
             code = data._name
 
             if order.isbuy():
-                dbg_trace(f'BUY EXECUTED: {code}, Price: {exec_price:.2f}, Size: {exec_size}, Cost: {exec_cost:.2f}, Comm: {exec_comm:.2f}, Date: {exec_date}')
+                dbg_trace(f'BUY EXECUTED: {code}, Price: {exec_price:.2f}, Size: {exec_size}, Comm: {exec_comm:.2f}, Date: {exec_date}')
 
                 if data in self.active_trades:
                     # Add to existing position
@@ -136,12 +136,12 @@ class BasicStrategy(bt.Strategy):
                         'remaining_size': exec_size,
                         'total_cost': exec_cost
                     }
-                    dbg_trace(f"Opened Active Trade {code}: Entry Price: {exec_price:.2f}, Size: {exec_size}")
+                    # Removed dbg_trace for "Opened Active Trade" as info is in "BUY EXECUTED"
 
             elif order.issell():
                 # when sell, exec_size shows negative number
                 exec_size = -exec_size
-                dbg_trace(f'SELL EXECUTED: {code}, Price: {exec_price:.2f}, Size: {exec_size}, Value: {exec_cost:.2f}, Comm: {exec_comm:.2f}, Date: {exec_date}')
+                dbg_trace(f'SELL EXECUTED: {code}, Price: {exec_price:.2f}, Size: {exec_size}, Comm: {exec_comm:.2f}, Date: {exec_date}')
 
                 if data in self.active_trades:
                     pos = self.active_trades[data]
@@ -156,7 +156,7 @@ class BasicStrategy(bt.Strategy):
                     entry_cost_portion = avg_entry_price * exec_size
                     pnl = (exec_price * exec_size - entry_cost_portion) - exec_comm # Simplified PNL calc
                     is_win = pnl > 0
-                    dbg_trace(f"Sell calc: avg/{avg_entry_price}, size/{exec_size}, exec_price/{exec_price}")
+                    # Removed dbg_trace for "Sell calc" as it's too detailed
 
                     # Record the completed portion
                     self.trading_history.append({
@@ -169,7 +169,7 @@ class BasicStrategy(bt.Strategy):
                         'pnl': pnl,
                         'is_win': is_win
                     })
-                    dbg_trace(f"Recorded Trade Portion: {code}, Size: {exec_size}, PNL: {pnl:.2f}, Win: {is_win}")
+                    # dbg_trace(f"Recorded Trade Portion: {code}, Size: {exec_size}, PNL: {pnl:.2f}, Win: {is_win}")
 
                     # Update remaining position
                     pos['remaining_size'] -= exec_size
@@ -182,6 +182,7 @@ class BasicStrategy(bt.Strategy):
                     if pos['remaining_size'] == 0: # Consider position closed if remaining size is negligible
                         dbg_trace(f"Closed Active Trade {code} fully.")
                         # Assume -5% to stop lose, so -5% + (10%) will be max.
+                        # the backtrader will sell the stock after you make the decidsion. so it may loos 10% more.
                         if pnl / entry_cost_portion < -0.15:
                             if self.trading_history: # Ensure trading_history is not empty
                                 trade_details = self.trading_history[-1]
@@ -316,3 +317,12 @@ class BasicStrategy(bt.Strategy):
 
         self.order = super().buy(data=data, size=size)
         return self.order
+
+class BasicExitStrategy(BasicStrategy):
+    def stra_initial(self):
+        raise NotImplementedError("Subclasses must implement this method.")
+    def stra_buy_in(self, data):
+        raise NotImplementedError("Subclasses must implement this method.")
+    def stra_sell_out(self, data):
+        raise NotImplementedError("Subclasses must implement this method.")
+

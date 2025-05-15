@@ -4,8 +4,10 @@ from utility.debug import *
 from strategy.basic.basicstrategy import BasicStrategy
 from strategy.indicator import *
 
+# default strategy
+ExitStrategy = BasicStrategy
 
-class PriceVolumeStrategy(BasicStrategy):
+class PriceVolumeStrategy(ExitStrategy):
     NAME="PVS"
     params = (
         ('short_period', 5),
@@ -13,6 +15,7 @@ class PriceVolumeStrategy(BasicStrategy):
     )
 
     def __init__(self):
+        super().__init__()
         self.sma_short = bt.indicators.SimpleMovingAverage(self.data.close, period=self.params.short_period)
         self.sma_long = bt.indicators.SimpleMovingAverage(self.data.close, period=self.params.long_period)
 
@@ -28,13 +31,14 @@ class PriceVolumeStrategy(BasicStrategy):
                 dbg_log(f"Sell signal: {self.data.close[0]:.2f}")
 
 
-class OBVStrategy(BasicStrategy):
+class OBVStrategy(ExitStrategy):
     NAME="OBVS"
     params = (
         ('obv_period', 14),  # OBV 計算週期
     )
 
     def __init__(self):
+        super().__init__()
         # 初始化 OBV 指標
         self.obv = OnBalanceVolume(self.data)
         self.crossover = bt.indicators.CrossOver(self.data.close, self.obv)
@@ -54,13 +58,14 @@ class OBVStrategy(BasicStrategy):
                 dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
 
-class ADLineStrategy(BasicStrategy):
+class ADLineStrategy(ExitStrategy):
     NAME="ADLS"
     params = (
         ('ad_period', 14),  # A/D 線計算週期
     )
 
     def __init__(self):
+        super().__init__()
         # 初始化 A/D 線
         self.ad_line = AccumulationDistribution(self.data)
         self.crossover = bt.indicators.CrossOver(self.data.close, self.ad_line)
@@ -80,13 +85,14 @@ class ADLineStrategy(BasicStrategy):
                 dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
 
-class VWAPStrategy(BasicStrategy):
+class VWAPStrategy(ExitStrategy):
     NAME="VWAPS"
     params = (
         ('vwap_period', 20),  # VWAP 計算週期
     )
 
     def __init__(self):
+        super().__init__()
         # 初始化 VWAP 指標
         self.vwap = VWAP(self.data)
     
@@ -104,13 +110,14 @@ class VWAPStrategy(BasicStrategy):
                 self.sell(self.data, size=self.position.size)
                 dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
-class PriceVolumeBreakoutStrategy(BasicStrategy):
+class PriceVolumeBreakoutStrategy(ExitStrategy):
     NAME="PVBS"
     params = (
         ('breakout_threshold', 1.5),  # 當成交量超過平均量的 1.5 倍時，視為突破
     )
 
     def __init__(self):
+        super().__init__()
         self.highest_close = bt.indicators.Highest(self.data.close, period=20)  # 最高價格
         self.lowest_close = bt.indicators.Lowest(self.data.close, period=20)    # 最低價格
         self.avg_volume = bt.indicators.SimpleMovingAverage(self.data.volume, period=20)  # 平均成交量
@@ -130,13 +137,14 @@ class PriceVolumeBreakoutStrategy(BasicStrategy):
                 self.sell(self.data, size=self.position.size)
                 dbg_log(f"Breakout Sell signal at {self.data.close[0]:.2f}")
 
-class CMFStrategy(BasicStrategy):
+class CMFStrategy(ExitStrategy):
     NAME="CMFS"
     params = (
         ('cmf_period', 20),  # CMF 計算週期
     )
 
     def __init__(self):
+        super().__init__()
         # 初始化 CMF 指標
         self.cmf = ChaikinMoneyFlow(self.data, period=self.params.cmf_period)
     
@@ -154,7 +162,7 @@ class CMFStrategy(BasicStrategy):
                 self.sell(self.data, size=self.position.size)
                 dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
-class VolumeSpikeStrategy(BasicStrategy):
+class VolumeSpikeStrategy(ExitStrategy):
     NAME="VSS"
     params = (
         ('volume_spike_factor', 2),  # 成交量是過去平均量的幾倍才算劇增
@@ -162,6 +170,7 @@ class VolumeSpikeStrategy(BasicStrategy):
     )
 
     def __init__(self):
+        super().__init__()
         self.avg_volume = bt.indicators.SimpleMovingAverage(self.data.volume, period=self.params.period)
 
     def next(self):

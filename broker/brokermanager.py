@@ -204,6 +204,8 @@ class BrokerManager:
         # dbg_info(f"BrokerManager: Initiating connection for {self.broker_type} broker...")
         try:
             self.broker.connect()
+            # get initial status if file not exist.
+            self._log_transaction_init()
             dbg_trace(f"BrokerManager: Connection process completed for {self.broker_type} broker.")
         except Exception as e:
             dbg_error(f"BrokerManager: Error during connection for {self.broker_type} broker: {e}")
@@ -228,22 +230,11 @@ class BrokerManager:
         """Ensures the directory for transaction logs exists."""
         os.makedirs(os.path.dirname(self.transaction_log_path), exist_ok=True)
 
-    def _log_transaction(self, symbol: str, action: str, size: int, price: float, 
-                        commission: float, cash_balance: float):
-        """
-        Logs a transaction to the CSV file.
-        
-        Args:
-            symbol: Trading symbol
-            action: 'buy' or 'sell'
-            size: Number of shares
-            price: Execution price per share
-            commission: Commission paid
-            cash_balance: Cash balance after transaction
-        """
+    def _log_transaction_init(self):
         log_exists = os.path.exists(self.transaction_log_path)
         now_iso = datetime.now().isoformat()
 
+        # TODO, We didn't handle the transacion when the file arleady exist, but not done by this program.
         if not log_exists:
             # File doesn't exist, create it, log initial positions, then log the current transaction
             initial_positions = self.get_all_positions()
@@ -269,34 +260,79 @@ class BrokerManager:
                             cash_balance # Use current cash balance
                         ]
                         writer.writerow(initial_row)
-                else:
-                     dbg_info("Transaction log not found. No initial positions to log.")
 
-                # Now log the actual transaction that triggered this call
-                current_transaction_row = [
-                    now_iso,
-                    symbol,
-                    action,
-                    size,
-                    price,
-                    commission,
-                    cash_balance
-                ]
-                writer.writerow(current_transaction_row)
-        else:
-            # File exists, append the current transaction
-            with open(self.transaction_log_path, 'a', newline='') as f:
-                writer = csv.writer(f)
-                current_transaction_row = [
-                    now_iso,
-                    symbol,
-                    action,
-                    size,
-                    price,
-                    commission,
-                    cash_balance
-                ]
-                writer.writerow(current_transaction_row)
+    def _log_transaction(self, symbol: str, action: str, size: int, price: float, 
+                        commission: float, cash_balance: float):
+        """
+        Logs a transaction to the CSV file.
+        
+        Args:
+            symbol: Trading symbol
+            action: 'buy' or 'sell'
+            size: Number of shares
+            price: Execution price per share
+            commission: Commission paid
+            cash_balance: Cash balance after transaction
+        """
+        # log_exists = os.path.exists(self.transaction_log_path)
+        now_iso = datetime.now().isoformat()
+
+        self._log_transaction_init()
+
+        # if not log_exists:
+        #     # File doesn't exist, create it, log initial positions, then log the current transaction
+        #     initial_positions = self.get_all_positions()
+        #     with open(self.transaction_log_path, 'w', newline='') as f:
+        #         writer = csv.writer(f)
+        #         # Write header
+        #         header = ['timestamp', 'symbol', 'action', 'size', 'price', 'commission', 'cash_balance']
+        #         writer.writerow(header)
+        #
+        #         # Log existing positions as 'initial' state if any exist
+        #         if initial_positions:
+        #             dbg_info(f"Transaction log not found. Logging {len(initial_positions)} initial positions.")
+        #             for pos_symbol, pos in initial_positions.items():
+        #                 # Note: cash_balance here reflects the balance *after* the current transaction,
+        #                 # not the balance when the initial position was established.
+        #                 initial_row = [
+        #                     now_iso, # Timestamp of when the log was created/initial state recorded
+        #                     pos_symbol,
+        #                     'initial', # Special action type
+        #                     pos.size,
+        #                     pos.average_entry_price,
+        #                     0.0, # No commission for initial state logging
+        #                     cash_balance # Use current cash balance
+        #                 ]
+        #                 writer.writerow(initial_row)
+        #         else:
+        #              dbg_info("Transaction log not found. No initial positions to log.")
+        #
+        #         # Now log the actual transaction that triggered this call
+        #         current_transaction_row = [
+        #             now_iso,
+        #             symbol,
+        #             action,
+        #             size,
+        #             price,
+        #             commission,
+        #             cash_balance
+        #         ]
+        #         writer.writerow(current_transaction_row)
+        # else:
+
+        # File exists, append the current transaction
+        with open(self.transaction_log_path, 'a', newline='') as f:
+            writer = csv.writer(f)
+            current_transaction_row = [
+                now_iso,
+                symbol,
+                action,
+                size,
+                price,
+                commission,
+                cash_balance
+            ]
+            writer.writerow(current_transaction_row)
 
     def get_transactions(self) -> List[Dict[str, Any]]:
         """

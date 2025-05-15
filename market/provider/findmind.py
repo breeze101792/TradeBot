@@ -16,10 +16,41 @@ class FindMind(DataProvider):
     NAME='findmind'
     def __init__(self):
         super().__init__()
-        self.token = None
-        self.findmind = DataLoader()
-        self.download_data = self.fetch_adjusted_data
+        self.token_file = "~/.findmind.key"
+        self.token = None # Initialize token to None
+
+        self._load_token() # Load token from file
+        # Initialize DataLoader with the loaded token
+        self.findmind = DataLoader(token=self.token)
+        # self.download_data = self.fetch_adjusted_data
+        self.download_data = self.fetch_adjusted_data_api
+
         # self.download_data = self.fetch_data
+
+    def _load_token(self):
+        """
+        Reads the FinMind API token from the specified file.
+        Expands the user home directory in the file path.
+        """
+        token_filepath = os.path.expanduser(self.token_file)
+        try:
+            with open(token_filepath, 'r') as f:
+                self.token = f.read().strip()
+                if not self.token:
+                    dbg_warning(f"FinMind token file '{token_filepath}' is empty.")
+                    self.token = None # Ensure token is None if file is empty
+                else:
+                    dbg_info(f"Successfully loaded FinMind token from '{token_filepath}'.")
+        except FileNotFoundError:
+            dbg_warning(f"FinMind token file not found at '{token_filepath}'. API calls requiring a token may fail.")
+            self.token = None
+        except IOError as e:
+            dbg_error(f"Error reading FinMind token file '{token_filepath}': {e}")
+            self.token = None
+        except Exception as e:
+            dbg_error(f"An unexpected error occurred while loading FinMind token: {e}")
+            self.token = None
+
     def download_data_list(self, market: str = None, country: str = None):
         """
         Downloads a list of stocks from FinMind, mimicking twse.py structure.
@@ -229,9 +260,10 @@ class FindMind(DataProvider):
         if not self.token:
             # dbg_warning("FinMind API token is not available.")
             # return pd.DataFrame()
-            headers = {}
+            headers = {} # No auth header if no token
         else:
-            headers = {"Authorization": f"Bearer {self.findmind.token}"}
+            # Use the token loaded from the file
+            headers = {"Authorization": f"Bearer {self.token}"}
         
         params = {
             "dataset": "TaiwanStockCapitalReductionReferencePrice",
@@ -296,6 +328,150 @@ class FindMind(DataProvider):
             traceback_output = traceback.format_exc()
             dbg_error(traceback_output)
             return pd.DataFrame()
+
+    def fetch_adjusted_data_api(self, ticker: str, start_date: datetime = None, period: int = None):
+        """
+        Downloads historical adjusted stock data from FinMind using the TaiwanStockPriceAdj endpoint.
+        This endpoint is supposed to provide already adjusted OHLCV data.
+        (This method is kept for reference; the primary adjusted data fetching now uses manual calculation).
+
+        :param ticker: Stock ticker symbol.
+        :param start_date: Datetime object for the start date of the data.
+        :param period: Integer representing number of years of data to fetch.
+                       If period is 0, fetches all available data from FinMind (typically from 2000-01-01).
+                       If start_date is provided, period is ignored.
+                       If neither is provided, defaults to all available data.
+        :return: Pandas DataFrame with adjusted historical stock data.
+        """
+        api_url = "https://api.finmindtrade.com/api/v4/data"
+
+        if not self.token:
+            # dbg_warning("FinMind API token is not available.")
+            # return pd.DataFrame()
+            headers = {} # No auth header if no token
+        else:
+            # Use the token loaded from the file
+            headers = {"Authorization": f"Bearer {self.token}"}
+
+        fm_start_date_str = None
+        fm_end_date_str = datetime.now().strftime('%Y-%m-%d')
+
+        if start_date:
+            fm_start_date_str = start_date.strftime('%Y-%m-%d')
+        elif period is not None:
+            if period == 0:
+                fm_start_date_str = '2000-01-01'  # FinMind data generally available from this date
+            else:
+                calculated_start_date = datetime.now() - pd.DateOffset(years=period)
+                fm_start_date_str = calculated_start_date.strftime('%Y-%m-%d')
+        else:
+            # Default: fetch all available data if neither start_date nor period is specified
+            fm_start_date_str = '2000-01-01'
+
+        params = {
+            "dataset": "TaiwanStockPriceAdj",
+            "data_id": ticker,
+            "start_date": fm_start_date_str,
+            "end_date": fm_end_date_str
+        }
+
+        dbg_trace(f"Fetching adjusted data for {ticker} from FinMind: {fm_start_date_str} to {fm_end_date_str}")
+
+        try:
+            response = requests.get(api_url, headers=headers, params=params)
+            response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
+
+            data_json = response.json()
+
+            if data_json.get('msg') != 'success':
+                dbg_error(f"FinMind API error for adjusted data ({ticker}): {data_json.get('msg')}")
+                return pd.DataFrame()
+
+            df_adj = pd.DataFrame(data_json.get('data', []))
+
+            if df_adj.empty:
+                dbg_warning(f"No adjusted data returned from FinMind for {ticker} for the period {fm_start_date_str} to {fm_end_date_str}.")
+                return pd.DataFrame()
+
+            # Rename columns to match the expected format
+            df_adj.rename(columns={
+                'date': 'Date',
+                'open': 'Open',
+                'max': 'High',
+                'min': 'Low',
+                'close': 'Close',
+                'Trading_Volume': 'Volume',
+                'Trading_money': 'Turnover',
+                'spread': 'Change' # Note: 'spread' might not be the same as 'Change' after adjustment, but keeping for consistency with fetch_data
+            }, inplace=True)
+
+            # Add 'Transaction' column if it doesn't exist (FinMind doesn't provide it)
+            if 'Transaction' not in df_adj.columns:
+                 df_adj['Transaction'] = 0
+
+            # Ensure only relevant columns are selected, in the desired order
+            target_columns = ["Date", "Open", "High", "Low", "Close", "Volume", "Turnover", "Change", "Transaction"]
+            df_adj = df_adj[[col for col in target_columns if col in df_adj.columns]]
+
+            if 'Date' not in df_adj.columns:
+                dbg_error(f"Date column missing in adjusted data for {ticker} from FinMind.")
+                return pd.DataFrame()
+
+            df_adj['Date'] = pd.to_datetime(df_adj['Date'])
+            df_adj.set_index('Date', inplace=True)
+
+            # Convert numeric columns, handling potential errors
+            numeric_cols = ['Open', 'High', 'Low', 'Close', 'Change']
+            for col in numeric_cols:
+                if col in df_adj.columns:
+                    df_adj[col] = pd.to_numeric(df_adj[col], errors='coerce')
+
+            int_cols = ['Volume', 'Turnover', 'Transaction']
+            for col in int_cols:
+                if col in df_adj.columns:
+                    df_adj[col] = pd.to_numeric(df_adj[col], errors='coerce').fillna(0).astype(int)
+
+            # Drop rows with NaN in critical columns after conversion
+            critical_cols_for_nan_check = ['Open', 'High', 'Low', 'Close', 'Volume']
+            df_adj.dropna(subset=[col for col in critical_cols_for_nan_check if col in df_adj.columns], inplace=True)
+
+            # Drop rows with non-positive prices or negative volume
+            price_cols = ['Open', 'High', 'Low', 'Close']
+            for col in price_cols:
+                if col in df_adj.columns:
+                    df_adj = df_adj[df_adj[col] > 0]
+
+            if 'Volume' in df_adj.columns:
+                df_adj = df_adj[df_adj['Volume'] >= 0]
+
+            # Final type casting for safety
+            final_dtypes = {
+                "Open": float, "High": float, "Low": float, "Close": float,
+                "Volume": int, "Turnover": int, "Change": float, "Transaction": int,
+            }
+            for col, dtype in final_dtypes.items():
+                if col in df_adj.columns:
+                    try:
+                        df_adj[col] = df_adj[col].astype(dtype)
+                    except Exception as e:
+                        dbg_warning(f"Could not cast column {col} to {dtype} for {ticker} in adjusted data: {e}")
+
+            df_adj.sort_index(inplace=True)
+
+            # Recalculate 'Change' based on adjusted close prices for accuracy
+            if 'Change' in df_adj.columns and not df_adj.empty:
+                prev_close = df_adj['Close'].shift(1)
+                df_adj['Change'] = df_adj['Close'] - prev_close
+                if len(df_adj.index) > 0:
+                    df_adj.loc[df_adj.index[0], 'Change'] = 0.0 # First day's change is 0
+
+            return df_adj
+        except Exception as e:
+            dbg_error(e)
+        
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+        return pd.DataFrame()
 
     def fetch_adjusted_data(self, ticker: str, start_date: datetime = None, period: int = None):
         """
@@ -585,6 +761,97 @@ class FindMind(DataProvider):
 
 
 if __name__ == "__main__":
+    def compare_and_show_different(df_old, df_new, days_before=15, days_after=15):
+        """
+        Compares two DataFrames and shows the first row where they differ.
+        """
+        if df_old.equals(df_new):
+            print("\nDataFrames are identical.")
+            return
+
+        # Find the first differing row
+        # Ensure columns are in the same order for comparison
+        if not df_old.columns.equals(df_new.columns):
+             print("\nDataFrames have different columns. Cannot compare.")
+             print("df_old columns:", df_old.columns.tolist())
+             print("df_new columns:", df_new.columns.tolist())
+             return
+
+        # Align indices before comparison
+        common_index = df_old.index.intersection(df_new.index)
+        df_old_aligned = df_old.loc[common_index]
+        df_new_aligned = df_new.loc[common_index]
+
+        # Check for rows present in one but not the other
+        diff_index_old_only = df_old.index.difference(df_new.index)
+        diff_index_new_only = df_new.index.difference(df_old.index)
+
+        if not diff_index_old_only.empty:
+            print(f"\nFirst index present only in df_old: {diff_index_old_only[0]}")
+            print("Row from df_old:")
+            print(df_old.loc[[diff_index_old_only[0]]])
+            return # Show the first difference found
+
+        if not diff_index_new_only.empty:
+            print(f"\nFirst index present only in df_new: {diff_index_new_only[0]}")
+            print("Row from df_new:")
+            print(df_new.loc[[diff_index_new_only[0]]])
+            return # Show the first difference found
+
+        # Compare aligned data
+        comparison_result = df_old_aligned.ne(df_new_aligned)
+        
+        # Find the index of the first row with any difference
+        first_diff_row_index = comparison_result.any(axis=1).idxmax()
+
+        if pd.isna(first_diff_row_index):
+             print("\nDataFrames are identical (after alignment).") # Should not happen if equals() was false, but as a safeguard
+             return
+
+        print(f"\nFirst differing row at index: {first_diff_row_index}")
+        print("\nRow from df_old:")
+        print(df_old.loc[[first_diff_row_index]])
+        print("\nRow from df_new:")
+        print(df_new.loc[[first_diff_row_index]])
+
+        # Optional: Show which columns differ in this row
+        diff_columns = comparison_result.loc[first_diff_row_index][comparison_result.loc[first_diff_row_index]].index.tolist()
+        print(f"\nDiffering columns in this row: {diff_columns}")
+
+        # --- Add code to show data around the first differing row ---
+        try:
+            first_diff_date = first_diff_row_index # The index is already a datetime
+            start_slice_dt = first_diff_date - pd.Timedelta(days=days_before)
+            end_slice_dt = first_diff_date + pd.Timedelta(days=days_after)
+
+            print(f"\nShowing data around the first differing row ({first_diff_date.strftime('%Y-%m-%d')}):")
+            print(f"Slice range: {start_slice_dt.strftime('%Y-%m-%d')} to {end_slice_dt.strftime('%Y-%m-%d')}")
+
+            print("\nOriginal data (df_old) slice:")
+            try:
+                slice_old = df_old.loc[start_slice_dt:end_slice_dt]
+                if not slice_old.empty:
+                    print(slice_old)
+                else:
+                    print("No original data in this slice range.")
+            except KeyError:
+                 print("Could not slice original data (KeyError).")
+
+            print("\nAdjusted data (df_new) slice:")
+            try:
+                slice_new = df_new.loc[start_slice_dt:end_slice_dt]
+                if not slice_new.empty:
+                    print(slice_new)
+                else:
+                    print("No adjusted data in this slice range.")
+            except KeyError:
+                print("Could not slice adjusted data (KeyError).")
+
+        except Exception as e:
+            dbg_error(f"Error displaying slice around first differing row: {e}")
+        # --- End of added code ---
+
+
     def compare_days_around(df_old, df_new, ticker_symbol, target_date_str_arg, days_before=15, days_after=15):
         """
         Compares slices of two DataFrames (df_old, df_new) around a target date.
@@ -781,6 +1048,13 @@ if __name__ == "__main__":
                               target_date_str_arg=target_date_dividend_str, 
                               days_before=14, 
                               days_after=14)
+
+        compare_days_around(df_old=df_evt, 
+                              df_new=df_adj_evt, 
+                              ticker_symbol=ticker_evt_test, 
+                              target_date_str_arg=target_date_reduction_str, 
+                              days_before=18, 
+                              days_after=11)
 
     elif df_evt.empty and df_adj_evt.empty:
         print(f"Neither original (df_evt) nor adjusted (df_adj_evt) data returned for {ticker_evt_test} with period={fetch_period_years}.")

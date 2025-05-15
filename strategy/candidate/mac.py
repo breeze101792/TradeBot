@@ -8,7 +8,7 @@ from strategy.basic.movingprofit import MovingProfitStrategy
 class MovingAverageCrossoverStrategy(MovingProfitStrategy):
     NAME="MovingAverageCrossover"
     params = (
-        ("short_period", 10),  # Short period for moving average (5 days)
+        ("short_period", 5),  # Short period for moving average (5 days)
         ("long_period", 20),  # Long period for moving average (20 days)
         # ("short_period", 50),  # Short period for moving average (50 days)
         # ("long_period", 200),  # Long period for moving average (200 days)

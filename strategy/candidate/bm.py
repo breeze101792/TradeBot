@@ -17,12 +17,13 @@ class BreakoutMomentumStrategy(MovingProfitStrategy):
     )
 
     def stra_initial(self):
-        # self.sma_short = {data: bt.indicators.SimpleMovingAverage(data, period=self.params.short_period) for data in self.datas}
-        # self.sma_long = {data: bt.indicators.SimpleMovingAverage(data, period=self.params.long_period) for data in self.datas}
-
         self.highest_high = {data: bt.ind.Highest(data.high, period=self.params.breakout_period) for data in self.datas}
+        self.vol_short = {data: bt.indicators.SimpleMovingAverage(self.data.volume, period=self.params.breakout_period) for data in self.datas}
 
     def stra_buy_in(self, data):
+        # we only intrest the popular product.
+        if self.vol_short[data][0] < 100:
+            return False
         price = data.close[0]
         return price > self.highest_high[data][-1]
 
