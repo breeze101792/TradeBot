@@ -279,47 +279,6 @@ class BrokerManager:
 
         self._log_transaction_init()
 
-        # if not log_exists:
-        #     # File doesn't exist, create it, log initial positions, then log the current transaction
-        #     initial_positions = self.get_all_positions()
-        #     with open(self.transaction_log_path, 'w', newline='') as f:
-        #         writer = csv.writer(f)
-        #         # Write header
-        #         header = ['timestamp', 'symbol', 'action', 'size', 'price', 'commission', 'cash_balance']
-        #         writer.writerow(header)
-        #
-        #         # Log existing positions as 'initial' state if any exist
-        #         if initial_positions:
-        #             dbg_info(f"Transaction log not found. Logging {len(initial_positions)} initial positions.")
-        #             for pos_symbol, pos in initial_positions.items():
-        #                 # Note: cash_balance here reflects the balance *after* the current transaction,
-        #                 # not the balance when the initial position was established.
-        #                 initial_row = [
-        #                     now_iso, # Timestamp of when the log was created/initial state recorded
-        #                     pos_symbol,
-        #                     'initial', # Special action type
-        #                     pos.size,
-        #                     pos.average_entry_price,
-        #                     0.0, # No commission for initial state logging
-        #                     cash_balance # Use current cash balance
-        #                 ]
-        #                 writer.writerow(initial_row)
-        #         else:
-        #              dbg_info("Transaction log not found. No initial positions to log.")
-        #
-        #         # Now log the actual transaction that triggered this call
-        #         current_transaction_row = [
-        #             now_iso,
-        #             symbol,
-        #             action,
-        #             size,
-        #             price,
-        #             commission,
-        #             cash_balance
-        #         ]
-        #         writer.writerow(current_transaction_row)
-        # else:
-
         # File exists, append the current transaction
         with open(self.transaction_log_path, 'a', newline='') as f:
             writer = csv.writer(f)

@@ -49,6 +49,7 @@ class Backtest:
         # every run cached.
         self.cached_validated_history = []
         self.cached_last_tradding_day = None
+        self.cached_stra_params = []
 
     # --- Property Getters/Setters for Configuration ---
 
@@ -194,7 +195,7 @@ class Backtest:
         # Add analyzer
         dbg_trace('Add analyzer.')
         cerebro.addanalyzer(bt.analyzers.AnnualReturn, _name="annual_return")
-        cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe", riskfreerate=0.02)
+        cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe", riskfreerate=0.05)
         cerebro.addanalyzer(bt.analyzers.DrawDown, _name="drawdown")
         cerebro.addanalyzer(bt.analyzers.SQN, _name="sqn")
         cerebro.addanalyzer(bt.analyzers.VWR, _name="vwr")
@@ -221,9 +222,14 @@ class Backtest:
         # result_list = []
 
         for each_strategy in strategy_list:
+            if isinstance(each_strategy, list):
+                # dbg_print("Opt?, Remove list: ", each_strategy)
+                each_strategy = each_strategy[0]
+
             result_item = {}
             result_item['data'] = self.data_list
-            result_item['strategy'] = [each_stra.NAME for each_stra in self.strategy_list]
+            # result_item['strategy'] = [each_stra.get_name() for each_stra in self.strategy_list]
+            result_item['strategy'] = [each_strategy.get_name()]
             # Use internal attribute for reporting initial cash
             result_item['init_cash'] = self._init_cash
             result_item['cash'] = cerebro.broker.getvalue()
@@ -246,6 +252,7 @@ class Backtest:
             # customize
             result_item['pta'] = each_strategy.analyzers.pta.get_analysis(summary = True)
 
+            # dbg_info(result_item)
             self.result_list.append(result_item)
 
     def setup(self, cerebro = None, broker = None):
@@ -259,7 +266,7 @@ class Backtest:
                 If None, the default Backtrader broker is used.
         """
         if cerebro is None:
-            self.cerebro = bt.Cerebro()
+            self.cerebro = bt.Cerebro(optreturn=False)
         else:
             self.cerebro = cerebro
         self.data_list = []
@@ -440,6 +447,31 @@ class Backtest:
         dbg_trace(f"Adding {len(self.cached_validated_history)} validated historical orders.")
         # cerebro.add_order_history(self.cached_validated_history, notify = False)
         cerebro.add_order_history(self.cached_validated_history, notify = True)
+
+    def add_optstrategy(self, target_strategy, cerebro = None, **kwargs):
+        # This only for test.
+        """
+        Adds strategies to the Cerebro engine.
+
+        Args:
+            strategy_list (list): A list of Backtrader strategy classes (not instances).
+            cerebro (bt.Cerebro, optional): The Cerebro engine instance.
+                If None, uses `self.cerebro`.
+            last_trading_day (datetime, optional): If provided, sets the
+                `trading_date` attribute on each strategy instance.
+                Defaults to None.
+        """
+        if cerebro is None:
+            cerebro = self.cerebro
+
+        dbg_trace(f"Add Opt Straegy: {target_strategy}, {kwargs}")
+        cerebro.optstrategy(target_strategy, **kwargs)
+
+        # Remove it? this function only for test.
+        self.strategy_list.append(target_strategy)
+
+        # unify settings, could be override by multiple settings
+        self.cached_last_tradding_day = None
 
     def add_strategy(self, strategy_list, cerebro = None, last_trading_day = None):
         """

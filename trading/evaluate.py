@@ -123,10 +123,9 @@ class Evaluate:
                 profit = (final_cash - init_cash) / init_cash * 100
 
                 # TODO, find a way to check in the early day.
-                # if profit > self.BUY_CANDIDATE_PROFIT_THRESHOLD:
-                #     buying_dict[each_product] = {'strategy': target_strategy, 'profit' : profit}
+                if profit > self.BUY_CANDIDATE_PROFIT_THRESHOLD:
+                    buying_dict[each_product] = {'strategy': target_strategy, 'profit' : profit}
 
-                buying_dict[each_product] = {'strategy': target_strategy, 'profit' : profit}
             except Exception as e:
                 dbg_warning(e)
             

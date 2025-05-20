@@ -1,13 +1,17 @@
 import backtrader as bt
 from collections import defaultdict
 
+def default_position():
+    return {
+        'size': 0,
+        'cum_cost': 0.0,
+        'avg_price': 0.0
+    }
+
+
 class PartialTradeAnalyzer(bt.Analyzer):
     def __init__(self):
-        self.positions = defaultdict(lambda: {
-            'size': 0,
-            'cum_cost': 0.0,
-            'avg_price': 0.0
-        })
+        self.positions = defaultdict(default_position)
         self.trades = defaultdict(list)
 
     def notify_order(self, order):

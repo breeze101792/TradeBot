@@ -17,6 +17,7 @@ from backtest.backtest import *
 from strategy.strategy import StrategyManager
 from broker.shioajibroker import ShioajiBroker
 from backtest.commands import *
+import numpy as np
 
 class BTCLI(CommandLineInterface):
     def __init__(self):
@@ -27,7 +28,7 @@ class BTCLI(CommandLineInterface):
         self.market = Market()
         self.strategyMgr = StrategyManager()
 
-        self.product_list = self.market.get_top_product_list(5)
+        self.product_list = self.market.get_top_product_list(1)
         # self.strategy_list = [MovingAverageCrossover]
         self.strategy_list=[self.strategyMgr.get_strategy_list()[0].NAME]
         self.mode = 'default'
@@ -35,6 +36,9 @@ class BTCLI(CommandLineInterface):
         self.backtest = Backtest(self.market)
 
         self.history_path = self.cm.get_path('bt_cmd_history')
+
+        # fot opt mode.
+        self.strategy_tune_param_grid = {}
 
         ## cmds
         ########################################################################
@@ -57,17 +61,20 @@ class BTCLI(CommandLineInterface):
 
         # self.total_strategy_list = ['MovingAverageCrossover', 'BreakoutMomentum']
         self.total_strategy_list = [each_stra.NAME for each_stra in self.strategyMgr.get_strategy_list()]
-        self.total_strategy_op_list = ['set', 'add', 'modify', 'list', 'del', 'all']
+        self.total_strategy_op_list = ['set', 'add', 'modify', 'list', 'del', 'all', 'tune']
         # self.regist_cmd("add_strategy", self.cmd_add_strategy, description=f"Add strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list, group='setting')
         self.regist_cmd("strategy", self.cmd_strategy, description=f"Set strategy. Ops: {self.total_strategy_op_list}, Stra:{self.total_strategy_list}", arg_list = self.total_strategy_list + self.total_strategy_op_list, group='setting')
         self.set_date_list = ['to', 'from']
         self.regist_cmd("date", self.cmd_date, description=f"Set date. ex. 20200101", arg_list = self.set_date_list, group='setting')
         # Forcus on only one mode, to reduce system complexity.
-        # self.total_mode_list = ['default', 'single', 'mix']
-        # self.regist_cmd("mode", self.cmd_mode, description=f"Set test mode. {self.total_mode_list}", arg_list = self.total_mode_list, group='setting')
+        self.total_mode_list = ['default', 'opt']
+        self.regist_cmd("mode", self.cmd_mode, description=f"Set test mode. {self.total_mode_list}", arg_list = self.total_mode_list, group='setting')
 
         self.total_test_cmd_list = ['strategy', 'shioajifake']
         self.regist_cmd("test", self.cmd_test, description=f"Set test commands. cmd:{self.total_test_cmd_list}", arg_list = self.total_test_cmd_list, group='setting')
+
+        self.total_tune_cmd_list = ['set', 'setfloat','del', 'clean']
+        self.regist_cmd("tune", self.cmd_tune, description=f"Add tuning params for strategy. Only one strategy at a time(work on opt mode.). cmd:{self.total_tune_cmd_list}", arg_list = self.total_tune_cmd_list, group='setting')
 
         ## utility
         register_commands(self)
@@ -138,6 +145,8 @@ class BTCLI(CommandLineInterface):
         self.print(f"product_list  : {self.product_list}")
         self.print(f"strategy_list : {self.strategy_list}")
         self.print(f"mode          : {self.mode}")
+        if self.mode == 'opt':
+            self.print(f"tune params   : {self.strategy_tune_param_grid}")
         self.print(f"fromdate      : {self.backtest.from_date}")
         self.print(f"todate        : {self.backtest.to_date}")
         self.print("############################################################")
@@ -242,6 +251,168 @@ class BTCLI(CommandLineInterface):
                 self.print(f"Function impling.")
                 # self.print(f"strategy_list : {self.strategy_list}")
                 return True
+            elif args['1'] == 'tune':
+                self.print(f"Function impling.")
+        return False
+    def cmd_tune(self, args):
+        total_tune_list = self.total_tune_cmd_list
+        
+        if len(self.strategy_list) == 0:
+            dbg_warning('No strategy found on list.')
+            return False
+        strategy_ins = self.strategyMgr.get_strategy_by_name(self.strategy_list[0])
+        if args['#'] == 0:
+            self.print(f"Current Paramte:{self.strategy_tune_param_grid}")
+            # self.print(f"Support Paramte:")
+            strategy_ins.dump_params(strategy_ins)
+            return True
+        
+        first_arg = args['1']
+        
+        if first_arg not in total_tune_list:
+            self.print(f"Unknow options, supported operation: {total_tune_list}")
+            return False
+        
+        if first_arg == 'set':
+            # dbg_info(args['@'])
+            if args['#'] < 3:
+                self.print("Usage: strategy set [param name] [value]")
+                self.print("Usage: strategy set [param name] [start] [end] [step]")
+                return False
+            param_name = args['2']
+
+            # check if there is a params inside strategy.
+            if strategy_ins.is_param(strategy_ins, param_name) is False:
+                dbg_warning(f'{param_name} is not a param of {strategy_ins.NAME}')
+                strategy_ins.dump_params(strategy_ins)
+                return False
+
+            if args['#'] == 3:
+                if '.' in args['3']:
+                    self.strategy_tune_param_grid[param_name] = [float(args['3'])]
+                else:
+                    self.strategy_tune_param_grid[param_name] = [int(args['3'])]
+            elif args['#'] == 4:
+                if '.' in args['3']:
+                    range_start = float(args['3'])
+                    range_end = float(args['4'])
+                    # default set to 0.5
+                    range_step = float(0.5)
+                    self.strategy_tune_param_grid[param_name] = np.arange(range_start, range_end, range_step)
+                else:
+                    # get range.
+                    range_start = int(args['3'])
+                    range_end = int(args['4'])
+                    # default set to 5
+                    range_step = int(5)
+                    self.strategy_tune_param_grid[param_name] = range(range_start, range_end, range_step)
+            elif args['#'] == 5:
+                if '.' in args['3']:
+                    range_start = float(args['3'])
+                    range_end = float(args['4'])
+                    range_step = float(args['5'])
+                    self.strategy_tune_param_grid[param_name] = np.arange(range_start, range_end, range_step)
+                else:
+                    # get range.
+                    range_start = int(args['3'])
+                    range_end = int(args['4'])
+                    range_step = int(args['5'])
+                    self.strategy_tune_param_grid[param_name] = range(range_start, range_end, range_step)
+
+            self.print(f"Current Paramte:{self.strategy_tune_param_grid}")
+            return True
+        elif first_arg == 'setfloat':
+            # dbg_info(args['@'])
+            if args['#'] < 5:
+                self.print("Usage: strategy set [param name] [start] [end] [step]")
+                return False
+            param_name = args['2']
+
+            # check if there is a params inside strategy.
+            if strategy_ins.is_param(strategy_ins, param_name) is False:
+                dbg_warning(f'{param_name} is not a param of {strategy_ins.NAME}')
+                strategy_ins.dump_params(strategy_ins)
+                return False
+
+            # get range.
+            range_start = float(args['3'])
+            range_end = float(args['4'])
+            range_step = float(args['5'])
+            self.strategy_tune_param_grid[param_name] = np.arange(range_start, range_end, range_step)
+
+            self.print(f"Current Paramte:{self.strategy_tune_param_grid}")
+            return True
+        
+        elif first_arg == 'del':
+            if args['#'] < 2:
+                self.print("Usage: strategy del [param name]")
+                return False
+
+            param_name = args['2']
+            if param_name in self.strategy_tune_param_grid.keys():
+                self.strategy_tune_param_grid.pop(param_name)
+            self.print(f"Current Paramte:{self.strategy_tune_param_grid}")
+            return True
+
+        elif first_arg == 'clean':
+
+            self.strategy_tune_param_grid = {}
+            return True
+
+        # elif first_arg == 'list':
+        #     self.print(f"Available strategies: {total_strategy_list}")
+        #     self.print(f"Current strategies: {self.strategy_list}")
+        #     return True
+        #
+        # elif first_arg == 'all':
+        #     self.strategy_list = total_strategy_list.copy()
+        #     self.print(f"All strategies loaded: {self.strategy_list}")
+        #     return True
+        #
+        # elif first_arg == 'tune':
+        #     if args['#'] < 2 or args['2'] not in total_strategy_list:
+        #         self.print("Usage: strategy tune <strategy_name> [params]=[value]")
+        #         return False
+        #
+        #     strategy_name = args['2']
+        #     strategy_ins = self.strategyMgr.get_strategy_by_name(strategy_name)
+        #
+        #     if args['#'] == 2:
+        #         strategy_ins.dump_params()
+        #     elif args['#'] >= 3:
+        #         # params_set_list = [ args[str(each_idx)] for each_idx in range(3, args['#'] + 1)]
+        #         # print(params_set_list)
+        #         for each_idx in range(3, args['#'] + 1):
+        #             param_name, param_value = args[str(each_idx)].split('=')
+        #
+        #             try:
+        #                 self.print(strategy_ins.params)
+        #                 # strategy_ins.set_param(strategy_ins, param_name, param_value)
+        #                 # for each_parm in strategy_ins.params:
+        #                 #     if each_parm[0] == param_name:
+        #                 #         each_parm[1] = param_value
+        #
+        #
+        #                 strategy_ins.params[param_name] = param_value
+        #
+        #                 # setattr(strategy_ins.params, param_name, int(param_value))
+        #                 self.print(f"[{strategy_ins.NAME}] set int {param_name} to {param_value}")
+        #                 self.print(f"{getattr(strategy_ins.params, param_name)}")
+        #
+        #             except ValueError:
+        #                 dbg_error(e)
+        #
+        #                 traceback_output = traceback.format_exc()
+        #                 dbg_error(traceback_output)
+        #
+        #
+        #         strategy_ins.dump_params()
+        #         # for each_param, each_value in strategy_ins.params._getitems():
+        #         #     print(f"{each_param:32s}:{each_value}") 
+        #
+        #     return True
+        #
+        # self.print(f"Unknown operation: {first_arg}")
         return False
 
     def cmd_mode(self, args):
@@ -325,6 +496,26 @@ class BTCLI(CommandLineInterface):
                         self.backtest.setup(broker=self.broker)
                         self.backtest.add_symbol([each_product])
                         self.backtest.add_strategy([target_strategy])
+                        self.backtest.eval()
+                    dbg_info(f'[{target_strategy.NAME}] all {len(self.product_list)} products done', prefix='\n')
+                self.backtest.show_result()
+            elif self.mode == 'opt':
+                dbg_info(f'Start opt evaluation.')
+                # will be global
+                if len(self.strategy_tune_param_grid) == 0:
+                    dbg_warning('No tuning params found.')
+                    return False
+                if len(self.strategy_list) > 1:
+                    dbg_warning('Please keep only one strategy at a test time.')
+                    return False
+                for each_strategy in self.strategy_list:
+                    target_strategy = self.strategyMgr.get_strategy_by_name(each_strategy)
+                    for idx, each_product in enumerate(self.product_list):
+                        dbg_info(f'[{target_strategy.NAME}][{idx + 1}/{len(self.product_list)}] Symbol: {each_product}', prefix='\r', end=' ' * 10)
+                        self.backtest.setup(broker=self.broker)
+                        self.backtest.add_symbol([each_product])
+                        # self.backtest.add_strategy([target_strategy])
+                        self.backtest.add_optstrategy(target_strategy, **self.strategy_tune_param_grid)
                         self.backtest.eval()
                     dbg_info(f'[{target_strategy.NAME}] all {len(self.product_list)} products done', prefix='\n')
                 self.backtest.show_result()

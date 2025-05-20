@@ -12,6 +12,7 @@ class BackResult:
             result_list (list): A list of dictionaries, where each dictionary
                                 contains the analysis results from a backtest run.
         """
+        self.def_max_len_a_cell = 72
         self.result_list = result_list if result_list is not None else []
 
     def _get_formatted_symbol_strategy(self, each_result):
@@ -25,8 +26,8 @@ class BackResult:
         strategy = ",".join(map(str, strategy_list)) if strategy_list else na_string
 
         # Basic truncation
-        symbol = (symbol[:27] + '...') if len(symbol) > 30 else symbol
-        strategy = (strategy[:27] + '...') if len(strategy) > 30 else strategy
+        symbol = (symbol[:self.def_max_len_a_cell - 3] + '...') if len(symbol) > self.def_max_len_a_cell else symbol
+        strategy = (strategy[:self.def_max_len_a_cell - 3] + '...') if len(strategy) > self.def_max_len_a_cell else strategy
         return symbol, strategy
 
     def show_analysis(self, average_only=False):
@@ -77,8 +78,8 @@ class BackResult:
 
                 # --- Extract Data ---
                 init_cash = each_result.get('init_cash', 0)
-                final_cash = each_result.get('cash', 0)
-                profit_pct = ((final_cash / init_cash - 1) * 100) if init_cash != 0 else 0.0
+                # final_cash = each_result.get('cash', 0)
+                # profit_pct = ((final_cash / init_cash - 1) * 100) if init_cash != 0 else 0.0
 
                 sharpe = each_result.get('sharpe', invalid_number)
                 if sharpe is None or not isinstance(sharpe, (int, float)): sharpe = invalid_number
@@ -97,6 +98,9 @@ class BackResult:
                 buy_total = trade_analyzer.get('total', {}).get('total', 0)
                 buy_won = trade_analyzer.get('won', {}).get('total', 0)
                 buy_winning_rate = (buy_won / buy_total * 100) if buy_total > 0 else 0.0
+
+                # dbg_info(trade_analyzer)
+                profit_pct = trade_analyzer.pnl.gross.total / init_cash * 100
 
                 # Partial Trade Analyzer (Sell side focus - from pta)
                 pta_analyzer = each_result.get('pta', {})
@@ -174,7 +178,7 @@ class BackResult:
                 avg_sell_win_pct = sum(data['sell_win_pct_values']) / len(data['sell_win_pct_values']) if data['sell_win_pct_values'] else invalid_number
 
                 # Truncate strategy_key for display in average row if it's too long
-                display_strategy_key_avg = (strategy_key[:27] + '...') if len(strategy_key) > 30 else strategy_key
+                display_strategy_key_avg = (strategy_key[:self.def_max_len_a_cell - 3] + '...') if len(strategy_key) > self.def_max_len_a_cell else strategy_key
 
                 average_row_for_strategy = [
                     "Average",

@@ -5,10 +5,11 @@ from core.config import *
 
 # NOTE. strategy should only access by backtest class, so we could ensure the thread safty.
 class BasicStrategy(bt.Strategy):
+    # PreDefine
     DEBUG_FLAG = False
     LOT_UNIT = 1000
-
     NAME="AdavanceStrategy"
+
     trading_date = None
     last_trade = {
         "date"          : None,
@@ -29,6 +30,10 @@ class BasicStrategy(bt.Strategy):
     # [{'code': str, 'entry_date': date, 'exit_date': date, 'avg_entry_price': float, 'exit_price': float, 'size': int, 'pnl': float, 'is_win': bool}]
     trading_history = []
 
+    # This will not be inherited. just keep it as placeholder.
+    params = (
+    )
+
     def __init__(self):
         super().__init__()
 
@@ -41,6 +46,50 @@ class BasicStrategy(bt.Strategy):
 
         # reset status
         # self.reset_status(clean_all = False)
+    def get_name(self):
+        # get_name also include params to add more detail on it.
+        param_dict = dict(vars(self.params))
+        param_str = ''
+        for param in param_dict.items():
+            if param[0].startswith("_"):
+                continue
+            param_str += "_" + "".join(f"{each_word.upper().replace('_','')[0]}" for each_word in param[0].split('_'))
+
+            if isinstance(param[1],float):
+                # param_str += f"_{param[0][0]}{param[0][-1]}-{param[1]:.2f}"
+                param_str += f"-{param[1]:.2f}"
+            else:
+                # param_str += f"_{param[0][0]}{param[0][-1]}-{param[1]}"
+                param_str += f"-{param[1]}"
+
+
+        # param_str = "_".join( f"{param[0][0]}{param[0][-1]}-{param[1]}" for param in param_dict.items() if not param[0].startswith("/"))
+
+        return f"{self.NAME}{param_str}"
+    def is_param(self, param_name: str) -> bool:
+        """
+        Check if a given string is one of the strategy's defined params.
+
+        :param strategy_cls: A subclass of bt.Strategy
+        :param param_name: The parameter name to check
+        :return: True if param_name is in the strategy's params, else False
+        """
+        if not issubclass(self, bt.Strategy):
+            raise TypeError("Provided class must be a subclass of bt.Strategy")
+        
+        param_names = [name for name, _ in self.params._getitems()]
+        return param_name in param_names
+    def dump_params(self):
+        # get_name also include params to add more detail on it.
+        param_dict = dict(vars(self.params))
+
+        class_name = self.__class__.__name__
+        print(f"Strategy: {class_name}")
+        print("Params:")
+        for k, v in param_dict.items():
+            if not k.startswith('_'):  # Skip internal attrs like _getkwargs
+                dbg_info(f"  {k} = {v}")
+
     def is_trading_date(self, data_date):
         if self.trading_date is None:
             return True

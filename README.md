@@ -11,6 +11,9 @@ pip install yfinance backtrader
 3. Add thread lock on backtest
 4. Check thread safty on strategy.
 
+# TODO
+1. on strategy, do profit check on real time.
+
 # Actions
 ## First milestone
 * Find way to add stock to tracking list
