@@ -30,13 +30,16 @@ class BackResult:
         strategy = (strategy[:self.def_max_len_a_cell - 3] + '...') if len(strategy) > self.def_max_len_a_cell else strategy
         return symbol, strategy
 
-    def show_analysis(self, average_only=False):
+    def show_analysis(self, mode="all"):
         """
         Displays the main backtest results in a formatted table using tabulate.
 
         Args:
-            average_only (bool): If True, only displays the average rows per strategy.
-                                 Defaults to False.
+            mode (str): Defines how results are displayed.
+                        "all": Displays all individual backtest results.
+                        "average": Displays only the average rows per strategy.
+                        "mix": Displays all individual results and their strategy averages.
+                        Defaults to "all".
 
         Returns:
             bool: True if results were displayed (or attempted), False if no
@@ -100,7 +103,8 @@ class BackResult:
                 buy_winning_rate = (buy_won / buy_total * 100) if buy_total > 0 else 0.0
 
                 # dbg_info(trade_analyzer)
-                profit_pct = trade_analyzer.pnl.gross.total / init_cash * 100
+                # profit_pct = trade_analyzer.pnl.gross.total / init_cash * 100
+                profit_pct = trade_analyzer.get('pnl', {}).get('gross', {}).get('total', 0) / init_cash * 100
 
                 # Partial Trade Analyzer (Sell side focus - from pta)
                 pta_analyzer = each_result.get('pta', {})
@@ -162,11 +166,11 @@ class BackResult:
 
         for strategy_key in sorted_strategy_keys:
             data = grouped_results[strategy_key]
-            if not average_only:
+            if mode == "all" or mode == "mix":
                 final_table_data.extend(data['rows']) # Add all rows for this strategy
 
             # Calculate averages for this strategy
-            if any(data[metric_list] for metric_list in data if metric_list.endswith('_values')): # Check if any metric data exists
+            if (mode == "average" or mode == "mix") and any(data[metric_list] for metric_list in data if metric_list.endswith('_values')): # Check if any metric data exists
                 avg_profit_pct = sum(data['profit_pct_values']) / len(data['profit_pct_values']) if data['profit_pct_values'] else invalid_number
                 avg_sharpe = sum(data['sharpe_values']) / len(data['sharpe_values']) if data['sharpe_values'] else invalid_number
                 avg_vwr = sum(data['vwr_values']) / len(data['vwr_values']) if data['vwr_values'] else invalid_number
@@ -214,13 +218,16 @@ class BackResult:
         print() # Add a blank line at the end
         return True # Indicate successful display attempt
 
-    def show_annual_return(self, average_only=False):
+    def show_annual_return(self, mode="all"):
         """
         Displays the annual returns in a formatted table using tabulate.
 
         Args:
-            average_only (bool): If True, only displays the average rows per strategy.
-                                 Defaults to False.
+            mode (str): Defines how results are displayed.
+                        "all": Displays all individual annual return results.
+                        "average": Displays only the average rows per strategy.
+                        "mix": Displays all individual results and their strategy averages.
+                        Defaults to "all".
 
         Returns:
             bool: True if results were displayed, False if no results or
@@ -301,14 +308,11 @@ class BackResult:
                 rows_for_this_strategy_group.append(row)
             
             # Add all symbol rows for this strategy to the final table
-            if not average_only:
+            if mode == "all" or mode == "mix":
                 final_table_data_for_tabulate.extend(rows_for_this_strategy_group)
 
             # Calculate and add average row for this strategy, if there were any rows
-            # Ensure average row is added if average_only is True, even if rows_for_this_strategy_group is empty (but data exists)
-            # or if not average_only and rows_for_this_strategy_group is not empty.
-            if (average_only and any(yearly_returns_accumulator_for_avg[year] for year in sorted_years)) or \
-               (not average_only and rows_for_this_strategy_group):
+            if (mode == "average" or mode == "mix") and any(yearly_returns_accumulator_for_avg[year] for year in sorted_years):
                 avg_row_for_strategy = ["Average", current_formatted_strategy] # Strategy name is already formatted
                 for year in sorted_years:
                     year_specific_values = yearly_returns_accumulator_for_avg[year]

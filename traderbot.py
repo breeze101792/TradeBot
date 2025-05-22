@@ -2,6 +2,11 @@
 # system file
 import argparse
 
+import os
+os.environ["MPLBACKEND"] = "Agg"
+# WORKAROUND, only set Agg is not use, import it, so it loads.
+# import matplotlib.pyplot as plt
+
 # Local file
 from utility.debug import *
 from core.core import *
@@ -9,6 +14,13 @@ from core.config import *
 from market.market import *
 from backtest.btcli import *
 from testutility.testcli import *
+
+def env_setup():
+    # For cli drawing, set this to Agg to avoid open window on cli.
+    os.environ["MPLBACKEND"] = "Agg"
+    import matplotlib.pyplot as plt
+
+    # print("Matplotlib backend:", matplotlib.get_backend())
 
 def main():
 
@@ -37,9 +49,13 @@ def main():
         dest="trading_mode", const="backtest", # Set trading_mode to 'backtest' if -b is used
         help="Shortcut to enable backtest mode (equivalent to -m backtest)")
 
+    # enable debug all
+    # DebugSetting.setDbgLevel('all')
+
     # Start config
     cm = AppConfigManager()
-    cm.load()
+    # load default config path
+    cm.load(cm.get_path('config'))
 
     # presetting config
     DebugSetting.setDbgPath(cm.get_path('log'))
@@ -63,6 +79,9 @@ def main():
             cm.set('path.broker', "broker_development")
         else:
             dbg_warning('Disable development mode')
+
+    # setup env
+    env_setup()
 
     # Start core.
     if args.trading_mode == "trade":

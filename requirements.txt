@@ -6,4 +6,5 @@ lxml
 shioaji
 tabulate
 wcwidth
+matlibplot
 # python-dotenv

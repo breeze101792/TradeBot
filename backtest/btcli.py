@@ -46,7 +46,7 @@ class BTCLI(CommandLineInterface):
         self.regist_cmd("info", self.cmd_info, description="Show infos.", group='tools')
         self.regist_cmd("evaluate", self.cmd_evaluate, description="excute backtesting.", group='tools')
         self.regist_cmd("update", self.cmd_update_database, description="Update local database.", arg_list = ['all', 'force'], group='tools')
-        self.report_list = ['analysis', 'annual', 'average']
+        self.report_list = ['analysis', 'annual', 'average', 'save']
         self.regist_cmd("report", self.cmd_report, description=f"Show report of backtest.", arg_list = self.report_list, group='tools')
         self.regist_cmd("clean", self.cmd_clean, description=f"Clean report of backtest.", group='tools')
 
@@ -73,7 +73,7 @@ class BTCLI(CommandLineInterface):
         self.total_test_cmd_list = ['strategy', 'shioajifake']
         self.regist_cmd("test", self.cmd_test, description=f"Set test commands. cmd:{self.total_test_cmd_list}", arg_list = self.total_test_cmd_list, group='setting')
 
-        self.total_tune_cmd_list = ['set', 'setfloat','del', 'clean']
+        self.total_tune_cmd_list = ['set','del', 'clean']
         self.regist_cmd("tune", self.cmd_tune, description=f"Add tuning params for strategy. Only one strategy at a time(work on opt mode.). cmd:{self.total_tune_cmd_list}", arg_list = self.total_tune_cmd_list, group='setting')
 
         ## utility
@@ -321,27 +321,6 @@ class BTCLI(CommandLineInterface):
 
             self.print(f"Current Paramte:{self.strategy_tune_param_grid}")
             return True
-        elif first_arg == 'setfloat':
-            # dbg_info(args['@'])
-            if args['#'] < 5:
-                self.print("Usage: strategy set [param name] [start] [end] [step]")
-                return False
-            param_name = args['2']
-
-            # check if there is a params inside strategy.
-            if strategy_ins.is_param(strategy_ins, param_name) is False:
-                dbg_warning(f'{param_name} is not a param of {strategy_ins.NAME}')
-                strategy_ins.dump_params(strategy_ins)
-                return False
-
-            # get range.
-            range_start = float(args['3'])
-            range_end = float(args['4'])
-            range_step = float(args['5'])
-            self.strategy_tune_param_grid[param_name] = np.arange(range_start, range_end, range_step)
-
-            self.print(f"Current Paramte:{self.strategy_tune_param_grid}")
-            return True
         
         elif first_arg == 'del':
             if args['#'] < 2:
@@ -457,22 +436,25 @@ class BTCLI(CommandLineInterface):
                 results_display.show_analysis()
             elif args['1'] == 'annual':
                 results_display.show_annual_return()
+            elif args['1'] == 'save':
+                # add more function of it.
+                self.backtest.save_drawing()
             else:
                 results_display.show_analysis()
         elif args['#'] == 2 and args['1'] in setting_list:
             if args['1'] == 'result':
                 if args['2'] == 'average':
-                    results_display.show_analysis(average_only = True)
+                    results_display.show_analysis(mode = 'average')
                 else:
                     results_display.show_analysis()
             elif args['1'] == 'annual':
                 if args['2'] == 'average':
-                    results_display.show_annual_return(average_only = True)
+                    results_display.show_annual_return(mode = 'average')
                 else:
                     results_display.show_annual_return()
             else:
                 if args['2'] == 'average':
-                    results_display.show_analysis(average_only = True)
+                    results_display.show_analysis(mode = 'average')
                 else:
                     results_display.show_analysis()
         else:

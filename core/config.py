@@ -14,15 +14,19 @@ class AppConfig(BasicConfig):
         tarding_database = 'tarding.db'
         log = "log"
         broker = "broker"
-        bt_cmd_history = 'backtrade_cmd.history'
         trade_cmd_history = 'trade_cmd.history'
+
+        bt_cmd_history = 'backtrade_cmd.history'
+        bt_report = 'backtest/report'
     class stock:
         lot_unit = 1000
         cash_per_trade = 10 * 10000
 
 class AppConfigManager(ConfigManager):
-    def __init__(self):
-        self.config = AppConfig
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args,config=AppConfig, **kwargs)
+
+        # self.config = AppConfig
         # some config could be seeting here.
         # self.config.set_config('investment')
-        self.set('path.root', '~/.config/investment')
+        self.set('path.root', '~/.config/investment', save = False)

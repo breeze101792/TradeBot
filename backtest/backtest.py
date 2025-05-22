@@ -2,6 +2,7 @@
 import traceback
 import time
 import threading
+import matplotlib
 
 import backtrader as bt
 import pandas as pd
@@ -12,7 +13,7 @@ from tabulate import tabulate # Import tabulate
 # Local file
 from utility.debug import *
 from utility.utils import *
-from core.database import *
+from core.config import *
 from market.market import *
 # from backtest.backtest import * # Self import removed
 from backtest.analyzer.partialtrade import *
@@ -29,27 +30,35 @@ class Backtest:
         Args:
             market: An instance of a market data provider (e.g., Market class).
         """
+        # predefine
+        self.market = market
+        self.cm = AppConfigManager()
+        self.default_strategy = MovingAverageCrossover
+        self.default_product_list = self.market.get_top_product_list()
+
         # Internal storage for configuration attributes
+        self.report_root_path = self.cm.get_path('bt_report')
         self._init_cash = 1000000000  # 10b to avoid buy fail.
         self._commission = 0.001
         self._slippage_prec = 0.001
         self._to_date = datetime.today() # Use property setter logic
         self._from_date = self.to_date - relativedelta(years=5) # Use property setter logic
 
-        self.market = market
-        self.default_strategy = MovingAverageCrossover
-        self.default_product_list = self.market.get_top_product_list()
-        self.btresult = None
 
+        # test args
         self.cerebro = None
         self.data_list = []
         self.strategy_list = []
-        self.result_list = []
 
         # every run cached.
         self.cached_validated_history = []
         self.cached_last_tradding_day = None
         self.cached_stra_params = []
+
+        # result
+        self.result_timestatmp = datetime.now()
+        self.result_analyzed_data_list = []
+        self.result_strategy_list = []
 
     # --- Property Getters/Setters for Configuration ---
 
@@ -208,7 +217,7 @@ class Backtest:
         """
         Extracts and stores analysis results from the executed strategies.
 
-        Populates `self.result_list` with dictionaries containing various
+        Populates `self.result_analyzed_data_list` with dictionaries containing various
         performance metrics for each strategy.
 
         Args:
@@ -219,7 +228,7 @@ class Backtest:
         invalid_number = 101
         if cerebro is None:
             cerebro = self.cerebro
-        # result_list = []
+        # result_analyzed_data_list = []
 
         for each_strategy in strategy_list:
             if isinstance(each_strategy, list):
@@ -253,7 +262,7 @@ class Backtest:
             result_item['pta'] = each_strategy.analyzers.pta.get_analysis(summary = True)
 
             # dbg_info(result_item)
-            self.result_list.append(result_item)
+            self.result_analyzed_data_list.append(result_item)
 
     def setup(self, cerebro = None, broker = None):
         """
@@ -279,7 +288,8 @@ class Backtest:
 
     def clean_result(self):
         """Clears the stored backtest results."""
-        self.result_list = []
+        self.result_analyzed_data_list = []
+        self.result_strategy_list = []
     def show_result(self):
         results_display = BackResult(self.get_analysis())
         results_display.show_analysis()
@@ -298,10 +308,10 @@ class Backtest:
                   the analysis results for a strategy run. Returns None
                   if no results are available.
         """
-        if not self.result_list:
+        if not self.result_analyzed_data_list:
             return None
         else:
-            return self.result_list
+            return self.result_analyzed_data_list
 
     def add_data_frame(self, symbol_data_list, cerebro = None):
         """
@@ -496,6 +506,25 @@ class Backtest:
         # unify settings, could be override by multiple settings
         self.cached_last_tradding_day = last_trading_day
 
+    def save_drawing(self):
+        # TODO, move this function to backresult.py
+        # NOTE. We set AGG on the pre-init on the program entry, so it will not trigger open window.
+        # os.environ["MPLBACKEND"] = "Agg"
+        # matplotlib.use('Agg')
+        # print("Matplotlib backend:", matplotlib.get_backend())
+        report_path = os.path.join(self.report_root_path, self.result_timestatmp.strftime("%Y%m%d_%H%M%S"))
+        os.makedirs(report_path, exist_ok=True)
+
+        plots = self.cerebro.plot(iplot=False, style='candlestick')
+        for i, strat_fig in enumerate(plots):
+            strategy_instance = self.result_strategy_list[i]
+            strategy_name = strategy_instance.get_name()
+
+            fig = strat_fig[0].figure
+            filename = os.path.join(report_path, f"bt_plot_{strategy_name}.png")
+            fig.savefig(filename)
+        dbg_info(f"Image Saved in {report_path}")
+
     def eval(self, cerebro = None):
         """
         Runs the backtest evaluation using the Cerebro engine.
@@ -525,6 +554,10 @@ class Backtest:
                 cerebro = self.cerebro
                 stra_list = cerebro.run()
                 self.__analyze(stra_list)
+
+                # update result data.
+                self.result_timestatmp = datetime.now()
+                self.result_strategy_list = stra_list
         except Exception as e:
             dbg_error(e)
         
