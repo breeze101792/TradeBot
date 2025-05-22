@@ -142,7 +142,10 @@ class BTCLI(CommandLineInterface):
         self.print("## Info")
         self.print("############################################################")
         self.print(f"market        : {self.market.get_provider()}")
-        self.print(f"product_list  : {self.product_list}")
+        if len(self.product_list) > 20:
+            self.print(f"product_list  : {self.product_list[:20]} (Number: {len(self.product_list)})")
+        else:
+            self.print(f"product_list  : {self.product_list} (Number: {len(self.product_list)})")
         self.print(f"strategy_list : {self.strategy_list}")
         self.print(f"mode          : {self.mode}")
         if self.mode == 'opt':
@@ -176,7 +179,7 @@ class BTCLI(CommandLineInterface):
                 self.product_list = self.market.get_data_list()
             else:
                 self.product_list = [args['1']]
-            self.print(f"product_list  : {self.product_list}")
+            self.print(f"product_list({len(self.product_list)}) : {self.product_list}")
             return True
         elif args['#'] >= 2 and args['1'] in operation_list:
             if args['1'] == 'set' or args['1'] == 'add':
@@ -186,23 +189,24 @@ class BTCLI(CommandLineInterface):
                     product_code = args[each_arg.__str__()]
                     if product_code not in self.product_list:
                         self.product_list.append(product_code)
-                self.print(f"product_list  : {self.product_list}")
+                self.print(f"product_list({len(self.product_list)}) : {self.product_list}")
                 return True
             elif args['1'] == 'del':
                 for each_arg in range(2, args['#'] + 1):
                     product_code = args[each_arg.__str__()]
                     if product_code in self.product_list:
                         self.product_list.remove(product_code)
-                self.print(f"product_list  : {self.product_list}")
+                self.print(f"product_list({len(self.product_list)}) : {self.product_list}")
                 return True
             elif args['1'] == 'list':
-                self.print(f"product_list  : {self.product_list}")
+                self.print(f"product_list({len(self.product_list)}) : {self.product_list}")
                 return True
             elif args['1'] == 'number':
                 self.product_list = self.market.get_data_list()[:int(args['2'])]
-                self.print(f"product_list  : {self.product_list}")
+                self.print(f"product_list({len(self.product_list)}) : {self.product_list}")
                 return True
-        self.print(f"product_list  : {self.product_list}")
+
+        self.print(f"product_list({len(self.product_list)}) : {self.product_list}")
         return False
 
     def cmd_strategy(self, args):

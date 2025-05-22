@@ -73,6 +73,7 @@ class FindMind(DataProvider):
         for index, row in df_info.iterrows():
             fm_type = row.get('type')
             stock_id = row.get('stock_id')
+            industry_category = row.get('industry_category')
             
             mapped_market = None
             if fm_type == 'twse':
@@ -80,9 +81,16 @@ class FindMind(DataProvider):
             elif fm_type == 'otc':
                 mapped_market = 'otc'
             # Add more mappings if FinMind introduces other types like 'emerging'
-            # else:
-            #     dbg_warning(f"Unrecognized FinMind stock type: {fm_type} for {stock_id}")
-            #     continue # Skip unrecognized types
+            else:
+                # dbg_warning(f"Unrecognized FinMind stock type: {fm_type} for {stock_id}")
+                continue # Skip unrecognized types
+
+            if industry_category == 'ETF' or industry_category == 'Index' or industry_category == '大盤' or industry_category == '存託憑證' or industry_category == '所有證券' or industry_category == 'ETN' or  industry_category == 'tpex'  :
+                # NOTE. For now, ignore it.
+                continue
+            if stock_id.isdigit() is False:
+                # print(f"{stock_id} {row}")
+                continue
 
             # If a specific market is requested (e.g. 'listed', 'otc')
             if market:

@@ -153,7 +153,7 @@ class MarketTime:
 
 class Market:
     def __init__(self, market = None):
-        self.__market_list = [ TWSE, Yahoo , FindMind]
+        self.__market_list = [FindMind, TWSE, Yahoo]
         self.instance = None
         self.cached_stock_info_frame = None
 
