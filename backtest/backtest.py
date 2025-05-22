@@ -3,6 +3,7 @@ import traceback
 import time
 import threading
 import matplotlib
+import matplotlib.pyplot as plt
 
 import backtrader as bt
 import pandas as pd
@@ -506,6 +507,19 @@ class Backtest:
         # unify settings, could be override by multiple settings
         self.cached_last_tradding_day = last_trading_day
 
+    def show_drawing(self):
+        # current only show for the lastest one.
+        try:
+            self.cerebro.plot()
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            dbg_error(e)
+
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+        finally:
+            plt.close('all')
     def save_drawing(self):
         # TODO, move this function to backresult.py
         # NOTE. We set AGG on the pre-init on the program entry, so it will not trigger open window.

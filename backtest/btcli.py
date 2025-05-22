@@ -46,7 +46,7 @@ class BTCLI(CommandLineInterface):
         self.regist_cmd("info", self.cmd_info, description="Show infos.", group='tools')
         self.regist_cmd("evaluate", self.cmd_evaluate, description="excute backtesting.", group='tools')
         self.regist_cmd("update", self.cmd_update_database, description="Update local database.", arg_list = ['all', 'force'], group='tools')
-        self.report_list = ['analysis', 'annual', 'average', 'save']
+        self.report_list = ['analysis', 'annual', 'average', 'save', 'draw']
         self.regist_cmd("report", self.cmd_report, description=f"Show report of backtest.", arg_list = self.report_list, group='tools')
         self.regist_cmd("clean", self.cmd_clean, description=f"Clean report of backtest.", group='tools')
 
@@ -440,6 +440,8 @@ class BTCLI(CommandLineInterface):
                 results_display.show_analysis()
             elif args['1'] == 'annual':
                 results_display.show_annual_return()
+            elif args['1'] == 'draw':
+                self.backtest.show_drawing()
             elif args['1'] == 'save':
                 # add more function of it.
                 self.backtest.save_drawing()

@@ -6,5 +6,8 @@ lxml
 shioaji
 tabulate
 wcwidth
-matlibplot
+matplotlib
+tabulate
+FinMind
+tqdm
 # python-dotenv
