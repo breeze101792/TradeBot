@@ -153,7 +153,8 @@ class MarketTime:
 
 class Market:
     def __init__(self, market = None):
-        self.__market_list = [FindMind, TWSE, Yahoo]
+        # TODO, after solving cache issue, swtich to FindMind by default.
+        self.__market_list = [TWSE, FindMind, Yahoo]
         self.instance = None
         self.cached_stock_info_frame = None
 
