@@ -153,8 +153,7 @@ class MarketTime:
 
 class Market:
     def __init__(self, market = None):
-        # TODO, after solving cache issue, swtich to FindMind by default.
-        self.__market_list = [TWSE, FindMind, Yahoo]
+        self.__market_list = [FindMind, TWSE, Yahoo]
         self.instance = None
         self.cached_stock_info_frame = None
 
@@ -216,12 +215,6 @@ class Market:
         if number > 50:
             dbg_warning('Number should not bigger then 50.')
             number = 50
-        # top_tw_stocks = [
-        #     "2330", "2454", "2317", "2881", "2308",
-        #     "2882", "2412", "2382", "2891", "3711",
-        #     "2886", "2303", "1301", "1303", "1216",
-        #     "2884", "6669", "2885", "5880", "3045"
-        # ]
         top_tw_stocks = [
             '2330', '2454', '2317', '2308', '2382', '2891', '2303', '2881', '3711', '6505',
             '2412', '2882', '2886', '2327', '3034', '2884', '6669', '2885', '5880', '3045',
@@ -240,17 +233,14 @@ class Market:
             # dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
             product_list.append(each_product_row['code'])
         return product_list
-    # def get_data_list_filtered(self, market: str = None, country: str = None):
-    #     # return self.instance(market = market, conuntry = country)
-    #     product_frame_list = self.instance(market = market, conuntry = country)
-    #     product_list = []
-    #     for _, each_product_row in product_frame_list.iterrows():
-    #         # dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
-    #         product_list.append(each_product_row['code'])
-    #     return product_list
 
     def get_data_list(self, market: str = None, country: str = None):
+
+        # NOTE, it's more easy to get data form TWSE. all we want is listed data.
+        # twse_ins = TWSE()
+        # product_frame_list = twse_ins.get_data_list(market = market, country = country)
         product_frame_list = self.instance.get_data_list(market = market, country = country)
+
         self.cached_stock_info_frame = product_frame_list
         product_list = []
         for _, each_product_row in product_frame_list.iterrows():
@@ -258,9 +248,9 @@ class Market:
             product_list.append(each_product_row['code'])
         return product_list
 
-    def get_data(self, product_id: str, period: str = None, force_update: bool = False):
+    def get_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None, period: str = None, force_update: bool = False):
         # FIXME, sanity check product_id.
-        return self.instance.get_data(product_id=product_id, period=period, force_update = force_update)
+        return self.instance.get_data(product_id=product_id, start_date=start_date, end_date=end_date,force_update = force_update)
 
     def get_data_info(self, product_id):
         # return the following info.
@@ -279,21 +269,22 @@ class Market:
             dbg_error(traceback_output)
             return None
 
-    def update_data(self, force_update: bool = False):
-        product_frame_list = self.instance.get_data_list()
-        product_amount = len(product_frame_list)
-        dbg_info(f"Start update data.")
-        for idx, each_product_row in product_frame_list.iterrows():
-            # Use space to avoid error message been erase.
-            dbg_info(f"[{idx}/{product_amount}] Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}", prefix='\r', end=' ' * 10)
-            try:
-                self.instance.get_data(product_id = each_product_row['code'], force_update = force_update)
-            except Exception as e:
-                dbg_error(f"Error updateing stock: {each_product_row['code']}")
-                dbg_error(e)
-                time.sleep(1)
-                continue
-        dbg_info(f"All {product_amount} has been update to date.", prefix='\n')
+    def update_data(self, product_list = [], force_update: bool = False):
+        return self.instance.update_data(product_list = product_list, force_update = force_update)
+        # product_frame_list = self.instance.get_data_list()
+        # product_amount = len(product_frame_list)
+        # dbg_info(f"Start update data.")
+        # for idx, each_product_row in product_frame_list.iterrows():
+        #     # Use space to avoid error message been erase.
+        #     dbg_info(f"[{idx}/{product_amount}] Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}", prefix='\r', end=' ' * 10)
+        #     try:
+        #         self.instance.get_data(product_id = each_product_row['code'], force_update = force_update)
+        #     except Exception as e:
+        #         dbg_error(f"Error updateing stock: {each_product_row['code']}")
+        #         dbg_error(e)
+        #         time.sleep(1)
+        #         continue
+        # dbg_info(f"All {product_amount} has been update to date.", prefix='\n')
 
     # This method seems redundant now that the logic is in MarketTime.get_next_market_update_time
     # Consider removing it or calling the MarketTime method from here if needed.

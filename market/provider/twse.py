@@ -116,37 +116,38 @@ class TWSE(DataProvider):
         return market_map.get(market_str, "unknown")
 
     # 1. Get history data
-    def download_data(self, ticker: str, start_date: datetime = None, period: str = None):
-        if start_date is not None:
-            # fetch_start_year = datetime.strptime(start_date, "%Y/%m/%d").year
-            # fetch_start_month = datetime.strptime(start_date, "%Y/%m/%d").month
+    def download_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None):
+        fetch_start_year = 2000
+        fetch_start_month = 1
+
+        if start_date:
             fetch_start_year = start_date.year
             fetch_start_month = start_date.month
-        elif period is not None:
-            fetch_start_year = datetime.now().year - period
-            fetch_start_month = 1
-        # elif period == 0:
-        elif period == 0:
-            # print(twstock.codes[ticker].start)
-            # fetch_start_year = datetime(twstock.codes[ticker].start).year
-            fetch_start_year = datetime.strptime(twstock.codes[ticker].start, "%Y/%m/%d").year
-            # NOTE, so we wont have the full data of it. but at least we will have near full data of it.
-            fetch_start_month = datetime.strptime(twstock.codes[ticker].start, "%Y/%m/%d").month + 1
         else:
-            # print(twstock.codes[ticker].start)
-            # fetch_start_year = datetime(twstock.codes[ticker].start).year
-            fetch_start_year = datetime.strptime(twstock.codes[ticker].start, "%Y/%m/%d").year
-            # NOTE, so we wont have the full data of it. but at least we will have near full data of it.
-            fetch_start_month = datetime.strptime(twstock.codes[ticker].start, "%Y/%m/%d").month + 1
+            # If start_date is not provided, try to get the earliest available date for the stock
+            stock_info = twstock.codes.get(product_id)
+            if stock_info and stock_info.start:
+                try:
+                    stock_start_dt = datetime.strptime(stock_info.start, "%Y/%m/%d")
+                    fetch_start_year = stock_start_dt.year
+                    fetch_start_month = stock_start_dt.month
+                except ValueError:
+                    dbg_warning(f"Could not parse start date for {product_id}: {stock_info.start}. Defaulting to 2000/1.")
+                    fetch_start_year = 2000
+                    fetch_start_month = 1
+            else:
+                dbg_warning(f"No start date found for {product_id}. Defaulting to 2000/1.")
+                fetch_start_year = 2000
+                fetch_start_month = 1
 
+        # Ensure we don't try to fetch before 2000, as twstock data typically doesn't go back further
         if fetch_start_year < 2000:
             fetch_start_year = 2000
             fetch_start_month = 1
-        dbg_trace(f"Download {ticker} start from {fetch_start_year}/{fetch_start_month} to {datetime.now().year}/{datetime.now().month}")
 
-        # dbg_debug(f"get {ticker} from TWSE")
-        stock = Stock(ticker)
-        # dbg_debug(f"Done getting {ticker}")
+        dbg_trace(f"Download {product_id} start from {fetch_start_year}/{fetch_start_month} to {end_date if end_date else 'current date'}")
+
+        stock = Stock(product_id)
         data_list = []
 
         # 取得歷史資料
@@ -202,9 +203,11 @@ class TWSE(DataProvider):
             "Change": float,
             "Transaction": int,
         })
-        # print(df.head())
+
+        # Filter by end_date if provided
+        if end_date:
+            df = df[df.index.date <= end_date]
+
         # prevent been ban
-        # dbg_debug("Sleeping for 1 seconds.")
         time.sleep(1)
-        # save_to_csv(df, ticker_local_file, folder=cache_data_name)
         return df

@@ -1,7 +1,7 @@
 import pandas as pd
 import traceback
 import os
-
+from time import sleep
 from datetime import datetime, timedelta
 
 from utility.debug import *
@@ -9,9 +9,11 @@ from utility.debug import *
 class DataProvider:
     NAME = 'provider'
     CACHED_DATA_PATH = './.data'
+    SUPPORTED_ADJUSTED_DATA = False
     def __init__(self):
         self.cache_data_name = f'./{self.NAME}'
         self.cache_data_root_path = self.CACHED_DATA_PATH
+
     @staticmethod
     def save_to_csv(df: pd.DataFrame, filename: str, folder: str = './'):
         """
@@ -54,82 +56,212 @@ class DataProvider:
         if date_column and date_column in df.columns:
             df[date_column] = pd.to_datetime(df[date_column])
             df.set_index(date_column, inplace=True)
+            # Ensure index is sorted
+            df.sort_index(inplace=True)
+
 
         # print(f"DataFrame loaded from {file_path}")
         return df
 
-    def download_data(self, product_id: str, start_date: str = None, period: str = None):
+    # Impl API.
+    ###########################################################################
+    def get_quota(self):
+        # it's a fake api, if provider have quota limit, rewrite this api.
+        return 10
+    def download_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None, period: str = None):
         dbg_error("Function not impl.")
         raise
 
     def download_data_list(self, market: str = None, country: str = None):
         dbg_error("Function not impl.")
         raise
+    ###########################################################################
 
-    def get_data_list_filtered(self, market: str = None, country: str = None):
-        return self.download_data_list(market = market, country = country)
+    def get_data_list(self, market: str = None, country: str = None, force_update: bool = False):
+        data_list_cache_folder = os.path.join(self.cache_data_root_path, self.cache_data_name, 'lists')
+        filename_prefix = "data_list"
+        today_str = datetime.now().strftime('%Y%m%d')
+        current_day_filename = f"{filename_prefix}_{today_str}.csv"
+        file_path = os.path.join(data_list_cache_folder, current_day_filename)
 
-    def get_data_list(self, market: str = None, country: str = None):
-        return self.download_data_list(market = market, country = country)
+        df = None
+        needs_update = force_update
 
-    def get_data(self, product_id: str, period: str = None, force_update: bool = False):
-        ticker_local_file = product_id.__str__() + ".csv"
-        ticker_local_path = f"{self.cache_data_root_path}/{self.cache_data_name}"
-        today = datetime.now()
-
-        # Load existing data
-        df = self.load_from_csv(ticker_local_file, 'Date', folder=ticker_local_path)
-        
-        # Check if we need to update (missing data or forced update)
-        needs_update = force_update or df is None
-        last_date = None
-        last_trading_day = None
-
-        # Check if there is new data on the market.
-        last_trading_day = datetime.now().replace(hour=13, minute=40, second=0, microsecond=0)
-        while last_trading_day.weekday() >= 5:
-            last_trading_day -= timedelta(days=1)
-
-        # check df data
-        if df is not None:
-            if not df.empty: # Check if DataFrame is not empty
-                try:
-                    # Attempt to get the latest date from the index
-                    last_date = df.index.max().date()
-
-                    if last_date < last_trading_day.date() and datetime.now() >= last_trading_day:
-                        needs_update = True
-                except Exception as e:
-                    dbg_error(f"Error getting max date from index for {product_id}: {e}")
-                    # If we can't get the last date, assume an update is needed
-                    needs_update = True
+        # Check if today's cached file exists
+        if os.path.exists(file_path):
+            df = self.load_from_csv(current_day_filename, folder=data_list_cache_folder)
+            if df is not None and not df.empty:
+                dbg_debug(f"Loaded data list from cache: {file_path}")
             else:
-                # DataFrame loaded but is empty, definitely needs update
-                dbg_debug(f"Loaded DataFrame for {product_id} is empty.")
+                # File exists but is empty or failed to load
+                dbg_debug(f"Cached data list {file_path} is empty or corrupted, forcing update.")
                 needs_update = True
+        else:
+            dbg_debug(f"No cached data list for today found at {file_path}, forcing update.")
+            needs_update = True
 
         if needs_update:
-            dbg_trace(f'Update {product_id} info, from {last_date} to {last_trading_day.date()}')
-            # Download new data
-            new_df = self.download_data(product_id, start_date = last_date)
-            if not new_df.empty:
-                if df is not None:
-                    # Update the old data, if updated.
-                    df.update(new_df)
+            dbg_trace(f"Downloading new data list for market={market}, country={country}")
+            new_df = self.download_data_list(market=market, country=country)
+            if new_df is not None and not new_df.empty:
+                self.save_to_csv(new_df, current_day_filename, folder=data_list_cache_folder)
+                df = new_df
+            else:
+                dbg_error(f"Failed to download data list for market={market}, country={country}.")
+                # If download fails, try to load any existing older file as a fallback
+                # For simplicity, if download fails and no valid cache, return empty.
+                if df is None: # If df is still None (no valid cache was loaded initially)
+                    return pd.DataFrame() # Return empty DataFrame
 
-                    # Merge old and new data, keeping the most recent
-                    df = pd.concat([df, new_df]).drop_duplicates(keep='last')
+        if df is None or df.empty:
+             dbg_error(f"No data list available for market={market}, country={country} after attempting load/download.")
+             return pd.DataFrame()
+
+        return df
+
+    def get_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None, force_update: bool = False):
+        data_cache_folder = ""
+        if self.SUPPORTED_ADJUSTED_DATA is True:
+            today_str = datetime.now().strftime('%Y%m%d')
+            data_cache_folder = os.path.join(self.cache_data_root_path, self.cache_data_name, 'datas', today_str)
+        else:
+            data_cache_folder = os.path.join(self.cache_data_root_path, self.cache_data_name, 'datas')
+
+        ticker_local_path = f"{data_cache_folder}"
+        ticker_local_file = product_id.__str__() + ".csv"
+
+        # Convert start_date and end_date to datetime.date objects if they are not None
+        if isinstance(start_date, str):
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        if isinstance(end_date, str):
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+        # Load existing data from cache
+        df = self.load_from_csv(ticker_local_file, 'Date', folder=ticker_local_path)
+
+        # Determine if a download is required
+        download_required = force_update
+
+        # Get today's date and last trading day
+        today = datetime.now().date()
+        last_trading_day = datetime.now().replace(hour=13, minute=40, second=0, microsecond=0).date()
+        while last_trading_day.weekday() >= 5: # Skip weekends
+            last_trading_day -= timedelta(days=1)
+
+        # Determine download range
+        download_start_date = None
+        download_end_date = None
+
+        if df is None or df.empty:
+            dbg_debug(f"No cached data for {product_id} or cache is empty. Full download required.")
+            download_required = True
+            download_start_date = start_date if start_date else datetime(1900, 1, 1).date() # Default to very old date
+            download_end_date = end_date if end_date else today
+        else:
+            cached_min_date = df.index.min().date()
+            cached_max_date = df.index.max().date()
+
+            # Check if cached data covers the requested range
+            if start_date and cached_min_date > start_date:
+                dbg_debug(f"Cached data for {product_id} starts after requested start_date. Download required from {start_date}.")
+                download_required = True
+                download_start_date = start_date
+                download_end_date = cached_min_date - timedelta(days=1) # Download up to the day before cached data starts
+            
+            if end_date and cached_max_date < end_date:
+                dbg_debug(f"Cached data for {product_id} ends before requested end_date. Download required up to {end_date}.")
+                download_required = True
+                if download_start_date is None: # If not already set by start_date check
+                    download_start_date = cached_max_date + timedelta(days=1)
+                download_end_date = end_date
+            elif not end_date and cached_max_date < last_trading_day:
+                dbg_debug(f"Cached data for {product_id} is not up to last trading day. Download required.")
+                download_required = True
+                if download_start_date is None: # If not already set by start_date check
+                    download_start_date = cached_max_date + timedelta(days=1)
+                download_end_date = last_trading_day # Update to last trading day
+
+            # If download_start_date is still None, it means we only need to update from the end of cached data
+            if download_required and download_start_date is None:
+                download_start_date = cached_max_date + timedelta(days=1)
+                download_end_date = end_date if end_date else last_trading_day
+
+            # Ensure download_start_date is not after download_end_date
+            if download_required and download_start_date and download_end_date and download_start_date > download_end_date:
+                dbg_debug(f"Calculated download_start_date {download_start_date} is after download_end_date {download_end_date}. No download needed for this range.")
+                download_required = False
+
+
+        if download_required:
+            dbg_trace(f'Downloading data for {product_id} from {download_start_date} to {download_end_date}')
+            new_df = self.download_data(product_id, start_date=download_start_date, end_date=download_end_date)
+
+            if new_df is not None and not new_df.empty:
+                if df is not None and not df.empty:
+                    # Combine old and new data, remove duplicates, and sort by index
+                    df = pd.concat([df, new_df]).drop_duplicates(keep='last').sort_index()
                 else:
                     df = new_df
                 self.save_to_csv(df, ticker_local_file, folder=ticker_local_path)
-        else:
-            dbg_debug(f"DataFrame loaded from {ticker_local_file}")
+            else:
+                dbg_debug(f"No new data downloaded for {product_id} in range {download_start_date} to {download_end_date}.")
 
         # Ensure df is not None before checking if it's empty
         if df is None or df.empty:
              dbg_error(f"No data available for {product_id} after attempting load/download.")
-             # Optionally raise an error or return an empty DataFrame
-             # raise ValueError(f"No data available for {product_id}.")
-             return pd.DataFrame() # Return empty DataFrame instead of raising error immediately
+             return pd.DataFrame() # Return empty DataFrame
 
+        # Filter the DataFrame by the requested start_date and end_date
+        if start_date:
+            df = df[df.index.date >= start_date]
+        if end_date:
+            df = df[df.index.date <= end_date]
+
+        if df.empty:
+            dbg_debug(f"No data for {product_id} in the requested range {start_date} to {end_date}.")
+            return pd.DataFrame()
+
+        dbg_debug(f"DataFrame for {product_id} loaded and filtered from {df.index.min().date()} to {df.index.max().date()}")
         return df
+    def wait_quota(self, require_quota = 1):
+        flag_wait = False
+        # check quota if 
+        while self.get_quota() < require_quota:
+            try:
+                # record we wait.
+                flag_wait = True
+                # sleep 10m
+                dbg_info(f"[datetime.now()] Wiat for another 10 Minutes.", prefix='\r', end=' ' * 10)
+                sleep(10*60)
+            except Exception as e:
+                raise e
+        if flag_wait is True:
+            dbg_info(f"Get new quota {self.get_quota()}", prefix='\n')
+        else:
+            dbg_info(f"Remain Quota: {self.get_quota()}", prefix='\n')
+
+    def update_data(self, product_list = [], force_update: bool = False):
+        if len(product_list) == 0:
+            product_list = [ each_product_row['code'] for _, each_product_row in self.get_data_list() ]
+
+        product_amount = len(product_list)
+
+        quota_group = 100
+        dbg_info(f"Start update data.")
+        for idx, each_product in enumerate(product_list):
+            if idx % quota_group == 0:
+                self.wait_quota(quota_group)
+
+            # Use space to avoid error message been erase.
+            dbg_info(f"[{idx+1}/{product_amount}] Download code:{each_product}", prefix='\r', end=' ' * 10)
+            try:
+                # When updating all data, we don't specify start_date/end_date,
+                # so it will update from last cached date to last trading day.
+                self.get_data(product_id = each_product, force_update = force_update)
+            except Exception as e:
+                dbg_error(f"Error updateing stock: {each_product}")
+                dbg_error(e)
+                # if the issue on quota, we wait it.
+                self.wait_quota(idx % quota_group)
+                continue
+        dbg_info(f"All {product_amount} has been update to date.", prefix='\n')

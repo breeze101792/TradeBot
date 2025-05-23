@@ -10,10 +10,12 @@ from utility.debug import *
 from market.dataprovider import *
 
 from FinMind.data import DataLoader
+from FinMind.data import FinMindApi
 
 # This still be the experimental provider. don't use it, since it's not all verfied with other trusted data.
 class FindMind(DataProvider):
     NAME='findmind'
+    SUPPORTED_ADJUSTED_DATA = True
     def __init__(self):
         super().__init__()
         self.token_file = "~/.findmind.key"
@@ -26,6 +28,16 @@ class FindMind(DataProvider):
         self.download_data = self.fetch_adjusted_data_api
 
         # self.download_data = self.fetch_data
+
+    def get_quota(self):
+        safty_cnt = 100
+        api = FinMindApi()
+        api.login_by_token(self.token)
+        remain_quota = api.api_usage_limit - api.api_usage - safty_cnt
+
+        if remain_quota < 50:
+            dbg_info('Quota less then 50')
+        return remain_quota
 
     def _load_token(self):
         """
@@ -58,6 +70,8 @@ class FindMind(DataProvider):
         FinMind data is specific to Taiwan.
         """
         try:
+            df_delisted_info = self.findmind.taiwan_stock_delisting()
+
             df_info = self.findmind.taiwan_stock_info()
         except Exception as e:
             dbg_error(f"Error fetching taiwan_stock_info from FinMind: {e}")
@@ -75,12 +89,16 @@ class FindMind(DataProvider):
             stock_id = row.get('stock_id')
             industry_category = row.get('industry_category')
             
+            if stock_id in df_delisted_info["stock_id"].values:
+                # dbg_info(f'{stock_id} is delisted.')
+                continue
+
             mapped_market = None
             if fm_type == 'twse':
                 mapped_market = 'listed'
             elif fm_type == 'otc':
                 mapped_market = 'otc'
-            # Add more mappings if FinMind introduces other types like 'emerging'
+                # Add more mappings if FinMind introduces other types like 'emerging'
             else:
                 # dbg_warning(f"Unrecognized FinMind stock type: {fm_type} for {stock_id}")
                 continue # Skip unrecognized types
@@ -123,31 +141,16 @@ class FindMind(DataProvider):
         df_result = pd.DataFrame(product_list)
         return df_result
 
-    def fetch_data(self, ticker: str, start_date: datetime = None, period: int = None):
+    def fetch_data(self, ticker: str, start_date: datetime.date = None, end_date: datetime.date = None):
         """
         Downloads historical stock data from FinMind.
         :param ticker: Stock ticker symbol.
-        :param start_date: Datetime object for the start date of the data.
-        :param period: Integer representing number of years of data to fetch.
-                       If period is 0, fetches all available data from FinMind (typically from 2000-01-01).
-                       If start_date is provided, period is ignored.
-                       If neither is provided, defaults to all available data.
+        :param start_date: Datetime.date object for the start date of the data.
+        :param end_date: Datetime.date object for the end date of the data.
         :return: Pandas DataFrame with historical stock data.
         """
-        fm_start_date_str = None
-        fm_end_date_str = datetime.now().strftime('%Y-%m-%d')
-
-        if start_date:
-            fm_start_date_str = start_date.strftime('%Y-%m-%d')
-        elif period is not None:
-            if period == 0:
-                fm_start_date_str = '2000-01-01'  # FinMind data generally available from this date
-            else:
-                calculated_start_date = datetime.now() - pd.DateOffset(years=period)
-                fm_start_date_str = calculated_start_date.strftime('%Y-%m-%d')
-        else:
-            # Default: fetch all available data if neither start_date nor period is specified
-            fm_start_date_str = '2000-01-01'
+        fm_start_date_str = (start_date if start_date else datetime(2000, 1, 1).date()).strftime('%Y-%m-%d')
+        fm_end_date_str = (end_date if end_date else datetime.now().date()).strftime('%Y-%m-%d')
 
         dbg_trace(f"Downloading {ticker} from FinMind: {fm_start_date_str} to {fm_end_date_str}")
 
@@ -337,18 +340,15 @@ class FindMind(DataProvider):
             dbg_error(traceback_output)
             return pd.DataFrame()
 
-    def fetch_adjusted_data_api(self, ticker: str, start_date: datetime = None, period: int = None):
+    def fetch_adjusted_data_api(self, ticker: str, start_date: datetime.date = None, end_date: datetime.date = None):
         """
         Downloads historical adjusted stock data from FinMind using the TaiwanStockPriceAdj endpoint.
         This endpoint is supposed to provide already adjusted OHLCV data.
         (This method is kept for reference; the primary adjusted data fetching now uses manual calculation).
 
         :param ticker: Stock ticker symbol.
-        :param start_date: Datetime object for the start date of the data.
-        :param period: Integer representing number of years of data to fetch.
-                       If period is 0, fetches all available data from FinMind (typically from 2000-01-01).
-                       If start_date is provided, period is ignored.
-                       If neither is provided, defaults to all available data.
+        :param start_date: Datetime.date object for the start date of the data.
+        :param end_date: Datetime.date object for the end date of the data.
         :return: Pandas DataFrame with adjusted historical stock data.
         """
         api_url = "https://api.finmindtrade.com/api/v4/data"
@@ -361,20 +361,8 @@ class FindMind(DataProvider):
             # Use the token loaded from the file
             headers = {"Authorization": f"Bearer {self.token}"}
 
-        fm_start_date_str = None
-        fm_end_date_str = datetime.now().strftime('%Y-%m-%d')
-
-        if start_date:
-            fm_start_date_str = start_date.strftime('%Y-%m-%d')
-        elif period is not None:
-            if period == 0:
-                fm_start_date_str = '2000-01-01'  # FinMind data generally available from this date
-            else:
-                calculated_start_date = datetime.now() - pd.DateOffset(years=period)
-                fm_start_date_str = calculated_start_date.strftime('%Y-%m-%d')
-        else:
-            # Default: fetch all available data if neither start_date nor period is specified
-            fm_start_date_str = '2000-01-01'
+        fm_start_date_str = (start_date if start_date else datetime(2000, 1, 1).date()).strftime('%Y-%m-%d')
+        fm_end_date_str = (end_date if end_date else datetime.now().date()).strftime('%Y-%m-%d')
 
         params = {
             "dataset": "TaiwanStockPriceAdj",
@@ -481,7 +469,7 @@ class FindMind(DataProvider):
             dbg_error(traceback_output)
         return pd.DataFrame()
 
-    def fetch_adjusted_data(self, ticker: str, start_date: datetime = None, period: int = None):
+    def fetch_adjusted_data(self, ticker: str, start_date: datetime.date = None, end_date: datetime.date = None):
         """
         Downloads historical stock data from FinMind and adjusts OHLC prices for dividends and stock splits.
         The 'Close' price in the returned DataFrame is the adjusted close price.
@@ -510,16 +498,13 @@ class FindMind(DataProvider):
         6. After all adjustments, round prices and recalculate the 'Change' column based on the adjusted 'Close' prices.
         Other OHLC prices (Open, High, Low) are also adjusted. Volume is adjusted for stock splits/dividends.
         :param ticker: Stock ticker symbol.
-        :param start_date: Datetime object for the start date of the data.
-        :param period: Integer representing number of years of data to fetch.
-                       If period is 0, fetches all available data from FinMind.
-                       If start_date is provided, period is ignored.
-                       If neither is provided, defaults to all available data.
+        :param start_date: Datetime.date object for the start date of the data.
+        :param end_date: Datetime.date object for the end date of the data.
         :return: Pandas DataFrame with adjusted historical stock data.
         """
         # 1. Fetch daily stock data using the existing fetch_data method
         # This provides the raw, unadjusted OHLCV data.
-        df_prices = self.fetch_data(ticker, start_date, period)
+        df_prices = self.fetch_data(ticker, start_date, end_date)
         if df_prices.empty:
             dbg_warning(f"No price data for {ticker}, cannot calculate adjusted prices.")
             return pd.DataFrame()
@@ -930,11 +915,13 @@ if __name__ == "__main__":
 
     # Example usage for fetch_adjusted_data:
     ticker_to_test = '2881' # Fuban
-    fetch_period_years_2881 = 2 # Fetch 2 years to ensure '2023-07-20' is covered
+    # Define start and end dates for testing
+    test_start_date_2881 = datetime(2023, 1, 1).date()
+    test_end_date_2881 = datetime.now().date()
 
-    print(f"\nFetching original and adjusted data for {ticker_to_test} for the last {fetch_period_years_2881} years...")
-    df_adj_period_2881 = fm.fetch_adjusted_data(ticker=ticker_to_test, period=fetch_period_years_2881)
-    df_ori_data_2881 = fm.fetch_data(ticker=ticker_to_test, period=fetch_period_years_2881) # Fetch original data
+    print(f"\nFetching original and adjusted data for {ticker_to_test} from {test_start_date_2881.strftime('%Y-%m-%d')} to {test_end_date_2881.strftime('%Y-%m-%d')}...")
+    df_adj_period_2881 = fm.fetch_adjusted_data(ticker=ticker_to_test, start_date=test_start_date_2881, end_date=test_end_date_2881)
+    df_ori_data_2881 = fm.fetch_data(ticker=ticker_to_test, start_date=test_start_date_2881, end_date=test_end_date_2881) # Fetch original data
 
     if not df_adj_period_2881.empty and not df_ori_data_2881.empty:
         print(f"\nOverview of fetched data for {ticker_to_test}:")
@@ -962,18 +949,19 @@ if __name__ == "__main__":
                               days_before=5, 
                               days_after=5)
     elif df_ori_data_2881.empty and df_adj_period_2881.empty:
-        print(f"Neither original nor adjusted data returned for {ticker_to_test} with period={fetch_period_years_2881}.")
+        print(f"Neither original nor adjusted data returned for {ticker_to_test} with start_date={test_start_date_2881} and end_date={test_end_date_2881}.")
     elif df_ori_data_2881.empty:
-        print(f"No original data returned for {ticker_to_test} with period={fetch_period_years_2881}.")
+        print(f"No original data returned for {ticker_to_test} with start_date={test_start_date_2881} and end_date={test_end_date_2881}.")
     elif df_adj_period_2881.empty:
-        print(f"No adjusted data returned for {ticker_to_test} with period={fetch_period_years_2881}.")
+        print(f"No adjusted data returned for {ticker_to_test} with start_date={test_start_date_2881} and end_date={test_end_date_2881}.")
 
     # Test for '8069'
     ticker_to_test_8069 = '8069'
-    start_date_8069 = datetime(1995, 1, 1) # Fetching a long period
-    print(f"\nFetching original and adjusted data for {ticker_to_test_8069} from {start_date_8069.strftime('%Y-%m-%d')}...")
-    df_adj_data_8069 = fm.fetch_adjusted_data(ticker=ticker_to_test_8069, start_date=start_date_8069)
-    df_ori_data_8069 = fm.fetch_data(ticker=ticker_to_test_8069, start_date=start_date_8069)
+    start_date_8069 = datetime(1995, 1, 1).date() # Fetching a long period
+    end_date_8069 = datetime.now().date()
+    print(f"\nFetching original and adjusted data for {ticker_to_test_8069} from {start_date_8069.strftime('%Y-%m-%d')} to {end_date_8069.strftime('%Y-%m-%d')}...")
+    df_adj_data_8069 = fm.fetch_adjusted_data(ticker=ticker_to_test_8069, start_date=start_date_8069, end_date=end_date_8069)
+    df_ori_data_8069 = fm.fetch_data(ticker=ticker_to_test_8069, start_date=start_date_8069, end_date=end_date_8069)
 
     if not df_adj_data_8069.empty and not df_ori_data_8069.empty:
         print(f"\nOverview of fetched data for {ticker_to_test_8069}:")
@@ -991,11 +979,11 @@ if __name__ == "__main__":
                               days_before=5, 
                               days_after=5)
     elif df_ori_data_8069.empty and df_adj_data_8069.empty:
-        print(f"Neither original nor adjusted data returned for {ticker_to_test_8069} with start_date {start_date_8069.strftime('%Y-%m-%d')}.")
+        print(f"Neither original nor adjusted data returned for {ticker_to_test_8069} with start_date {start_date_8069.strftime('%Y-%m-%d')} and end_date {end_date_8069.strftime('%Y-%m-%d')}.")
     elif df_ori_data_8069.empty:
-        print(f"No original data returned for {ticker_to_test_8069} with start_date {start_date_8069.strftime('%Y-%m-%d')}.")
+        print(f"No original data returned for {ticker_to_test_8069} with start_date {start_date_8069.strftime('%Y-%m-%d')} and end_date {end_date_8069.strftime('%Y-%m-%d')}.")
     elif df_adj_data_8069.empty:
-        print(f"No adjusted data returned for {ticker_to_test_8069} with start_date {start_date_8069.strftime('%Y-%m-%d')}.")
+        print(f"No adjusted data returned for {ticker_to_test_8069} with start_date {start_date_8069.strftime('%Y-%m-%d')} and end_date {end_date_8069.strftime('%Y-%m-%d')}.")
 
     # Example usage for fetch_capital_reduction_data:
     # Note: Capital reduction events are less frequent than dividends.
@@ -1020,10 +1008,12 @@ if __name__ == "__main__":
     # integration test.
     # Test with a stock known for significant dividends/splits, e.g., '2603' (Evergreen Marine)
     ticker_evt_test = '2603'
-    fetch_period_years = 5 # Ensure '2024-06-27' is covered from 2025-05-10
-    print(f"\nFetching original and adjusted data for {ticker_evt_test} for the last {fetch_period_years} years...")
-    df_adj_evt = fm.fetch_adjusted_data(ticker=ticker_evt_test, period=fetch_period_years)
-    df_evt = fm.fetch_data(ticker=ticker_evt_test, period=fetch_period_years)
+    # Define start and end dates for testing
+    integration_test_start_date = datetime(2020, 1, 1).date() # Ensure relevant events are covered
+    integration_test_end_date = datetime.now().date()
+    print(f"\nFetching original and adjusted data for {ticker_evt_test} from {integration_test_start_date.strftime('%Y-%m-%d')} to {integration_test_end_date.strftime('%Y-%m-%d')}...")
+    df_adj_evt = fm.fetch_adjusted_data(ticker=ticker_evt_test, start_date=integration_test_start_date, end_date=integration_test_end_date)
+    df_evt = fm.fetch_data(ticker=ticker_evt_test, start_date=integration_test_start_date, end_date=integration_test_end_date)
     if not df_adj_evt.empty and not df_evt.empty:
         print(f"\nOverview of fetched data for {ticker_evt_test}:")
         # print("Original data (df_evt) - Head:")
@@ -1065,14 +1055,14 @@ if __name__ == "__main__":
                               days_after=11)
 
     elif df_evt.empty and df_adj_evt.empty:
-        print(f"Neither original (df_evt) nor adjusted (df_adj_evt) data returned for {ticker_evt_test} with period={fetch_period_years}.")
+        print(f"Neither original (df_evt) nor adjusted (df_adj_evt) data returned for {ticker_evt_test} with start_date={integration_test_start_date} and end_date={integration_test_end_date}.")
     elif df_evt.empty:
-        print(f"No original data (df_evt) returned for {ticker_evt_test} with period={fetch_period_years}. Cannot perform full comparison.")
+        print(f"No original data (df_evt) returned for {ticker_evt_test} with start_date={integration_test_start_date} and end_date={integration_test_end_date}. Cannot perform full comparison.")
         if not df_adj_evt.empty: # If adjusted data exists, show its head
             print("\nAdjusted data (df_adj_evt) - Head:")
             print(df_adj_evt.head())
     elif df_adj_evt.empty:
-        print(f"No adjusted data (df_adj_evt) returned for {ticker_evt_test} with period={fetch_period_years}. Cannot perform full comparison.")
+        print(f"No adjusted data (df_adj_evt) returned for {ticker_evt_test} with start_date={integration_test_start_date} and end_date={integration_test_end_date}. Cannot perform full comparison.")
         if not df_evt.empty: # If original data exists, show its head
             print("\nOriginal data (df_evt) - Head:")
             print(df_evt.head())

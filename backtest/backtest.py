@@ -370,7 +370,7 @@ class Backtest:
 
         for each_product in product_list:
             try:
-                df = self.market.get_data(each_product)
+                df = self.market.get_data(each_product, start_date = self._from_date.date(), end_date = self._to_date.date())
                 # Use internal attributes for date range
                 data = bt.feeds.PandasData(dataname=df, fromdate=self._from_date, todate=self._to_date)
 
@@ -525,6 +525,7 @@ class Backtest:
         # NOTE. We set AGG on the pre-init on the program entry, so it will not trigger open window.
         # os.environ["MPLBACKEND"] = "Agg"
         # matplotlib.use('Agg')
+        # import matplotlib.pyplot as plt
         # print("Matplotlib backend:", matplotlib.get_backend())
         report_path = os.path.join(self.report_root_path, self.result_timestatmp.strftime("%Y%m%d_%H%M%S"))
         os.makedirs(report_path, exist_ok=True)
