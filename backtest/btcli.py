@@ -6,6 +6,8 @@ import backtrader as bt
 import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from tabulate import tabulate
+import json # Added for pretty printing dict
 
 # Local file
 from core.config import *
@@ -46,7 +48,7 @@ class BTCLI(CommandLineInterface):
         self.regist_cmd("info", self.cmd_info, description="Show infos.", group='tools')
         self.regist_cmd("evaluate", self.cmd_evaluate, description="excute backtesting.", group='tools')
         self.regist_cmd("update", self.cmd_update_database, description="Update local database.", arg_list = ['all', 'force'], group='tools')
-        self.report_list = ['analysis', 'annual', 'average', 'save', 'draw']
+        self.report_list = ['analysis', 'annual', 'average', 'save', 'draw', 'info']
         self.regist_cmd("report", self.cmd_report, description=f"Show report of backtest.", arg_list = self.report_list, group='tools')
         self.regist_cmd("clean", self.cmd_clean, description=f"Clean report of backtest.", group='tools')
 
@@ -76,6 +78,9 @@ class BTCLI(CommandLineInterface):
         self.total_tune_cmd_list = ['set','del', 'clean']
         self.regist_cmd("tune", self.cmd_tune, description=f"Add tuning params for strategy. Only one strategy at a time(work on opt mode.). cmd:{self.total_tune_cmd_list}", arg_list = self.total_tune_cmd_list, group='setting')
 
+        self.total_attr_cmd_list = ['cash']
+        self.regist_cmd("attr", self.cmd_attr, description=f"Set attr of backtest commands. cmd:{self.total_attr_cmd_list}", arg_list = self.total_attr_cmd_list, group='setting')
+
         ## utility
         register_commands(self)
 
@@ -85,16 +90,30 @@ class BTCLI(CommandLineInterface):
         if args['#'] == 1 and args['1'] in operation_list:
             if args['1'] == 'strategy':
                 # for easy to trace, set to two month
-                self.backtest.to_date = datetime.today()
-                self.backtest.from_date = datetime.today() - relativedelta(months=2)
-                dbg_info(f"{datetime.today()},{relativedelta(month=3)}")
-                self.strategy_list=['TEST']
+                # self.backtest.to_date = datetime.today()
+                # self.backtest.from_date = datetime.today() - relativedelta(months=2)
+                # dbg_info(f"{datetime.today()},{relativedelta(month=3)}")
+                self.strategy_list=['Test']
+                self.product_list=['6505']
                 self.cmd_info()
                 return True
             elif args['1'] == 'shioajifake':
                 self.broker = ShioajiBroker
                 return True
         return False
+    def cmd_attr(self, args):
+        attr_list = self.total_attr_cmd_list
+
+        if args['#'] == 1:
+            if args['1'] == 'cash':
+                self.print(f"init cash: {self.backtest.init_cash}")
+        elif args['#'] == 2 and args['1'] in attr_list:
+            if args['1'] == 'cash':
+                self.backtest.init_cash = int(args['2'])
+        else:
+            self.print('usage: attr [attriable name] [attr value]')
+            return False
+        return True
     def cmd_market(self, args):
         operation_list = ['set']
         # market_list = ['twse', 'yahoo']
@@ -139,20 +158,34 @@ class BTCLI(CommandLineInterface):
         return True
 
     def cmd_info(self, args = None):
-        self.print("## Info")
-        self.print("############################################################")
-        self.print(f"market        : {self.market.get_provider()}")
+        table_data = []
+
+        table_data.append(["market", self.market.get_provider()])
+
+        # Handle product_list display
         if len(self.product_list) > 20:
-            self.print(f"product_list  : {self.product_list[:20]} (Number: {len(self.product_list)})")
+            product_string = f"{self.product_list[:20]} ... (Total: {len(self.product_list)})"
         else:
-            self.print(f"product_list  : {self.product_list} (Number: {len(self.product_list)})")
-        self.print(f"strategy_list : {self.strategy_list}")
-        self.print(f"mode          : {self.mode}")
+            product_string = f"{self.product_list} (Total: {len(self.product_list)})"
+        table_data.append(["product_list", product_string])
+
+        table_data.append(["strategy_list", self.strategy_list])
+        table_data.append(["mode", self.mode])
+        table_data.append(["init cash", self.backtest.init_cash])
+        table_data.append(["fromdate", self.backtest.from_date])
+        table_data.append(["todate", self.backtest.to_date])
+
+        headers = ["Info Item", "Value"]
+
+        # Print the table using tabulate with left alignment
+        self.print(tabulate(table_data, headers=headers, tablefmt="pretty", numalign="left", stralign="left"))
+
+        # Print tune params separately if in opt mode
         if self.mode == 'opt':
-            self.print(f"tune params   : {self.strategy_tune_param_grid}")
-        self.print(f"fromdate      : {self.backtest.from_date}")
-        self.print(f"todate        : {self.backtest.to_date}")
-        self.print("############################################################")
+            self.print("\n## Tune Parameters") # Add a header for tune params
+            # Use json.dumps for pretty printing the dictionary
+            self.print(json.dumps(self.strategy_tune_param_grid, indent=4))
+
         return True
 
     def cmd_data(self, args):
@@ -445,6 +478,8 @@ class BTCLI(CommandLineInterface):
             elif args['1'] == 'save':
                 # add more function of it.
                 self.backtest.save_drawing()
+            elif args['1'] == 'info':
+                results_display.show_info()
             else:
                 results_display.show_analysis()
         elif args['#'] == 2 and args['1'] in setting_list:
@@ -476,7 +511,7 @@ class BTCLI(CommandLineInterface):
         try:
             self.backtest.clean_result()
             if self.mode == 'default':
-                dbg_info(f'Start evaluation.')
+                dbg_debug(f'Start evaluation.')
                 for each_strategy in self.strategy_list:
                     target_strategy = self.strategyMgr.get_strategy_by_name(each_strategy)
                     for idx, each_product in enumerate(self.product_list):
@@ -488,7 +523,7 @@ class BTCLI(CommandLineInterface):
                     dbg_info(f'[{target_strategy.NAME}] all {len(self.product_list)} products done', prefix='\n')
                 self.backtest.show_result()
             elif self.mode == 'opt':
-                dbg_info(f'Start opt evaluation.')
+                dbg_debug(f'Start opt evaluation.')
                 # will be global
                 if len(self.strategy_tune_param_grid) == 0:
                     dbg_warning('No tuning params found.')

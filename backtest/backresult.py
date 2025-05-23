@@ -15,6 +15,40 @@ class BackResult:
         self.def_max_len_a_cell = 72
         self.result_list = result_list if result_list is not None else []
 
+    def show_info(self):
+        """
+        Displays descriptions of the key indicators shown in the analysis table
+        using tabulate for formatting.
+        """
+        info_data = [
+            ["SQN (System Quality Number)", "Measures the quality of a trading system based on the ratio of the average profit per trade to the standard deviation of trade profits. Higher SQN values (e.g., > 2) generally indicate a better system."],
+            ["VRW (Volatility Ratio Weighted)", "A metric related to volatility and returns, often used in conjunction with SQN. Higher VRW values are generally preferred."],
+            ["Sharpe Ratio", "Measures risk-adjusted return. It is the average return earned in excess of the risk-free rate per unit of volatility (total risk). Higher Sharpe ratio values are better."],
+            ["Max DD (Maximum Drawdown)", "The largest peak-to-trough decline in the value of an investment during a specific period. Represents the maximum loss from a peak before a new peak is attained. Lower Max DD is better."],
+            ["Profit", "The total profit percentage relative to the initial cash."],
+            ["Buys", "The total number of buy trades executed."],
+            ["Buy Win%", "The percentage of buy trades that were profitable."],
+            ["Sells", "The total number of sell trades executed."],
+            ["Sell Win%", "The percentage of sell trades that were profitable."],
+            ["Avg Duration", "The average duration (in bars/periods) of trades."]
+        ]
+
+        headers = ["Indicator", "Description"]
+
+        print("\n--- Indicator Descriptions ---")
+        try:
+            table_str = tabulate(
+                info_data,
+                headers=headers,
+                tablefmt="grid", # Use grid format for clear separation
+                maxcolwidths=[None, self.def_max_len_a_cell] # Limit description width
+            )
+            print(table_str)
+        except Exception as e:
+            dbg_error(f"Error generating info table with tabulate: {e}")
+            print("\nError: Could not generate indicator descriptions table.")
+        print() # Add a blank line at the end
+
     def _get_formatted_symbol_strategy(self, each_result):
         """
         Extracts and formats symbol and strategy strings from a result item.
@@ -50,8 +84,8 @@ class BackResult:
             return False
 
         headers = [
-            "Symbol", "Strategy", "Profit %", "Sharpe", "VWR",
-            "Max DD %", "SQN", "Buys", "Buy Win %", "Sells", "Sell Win %"
+            "Symbol", "Strategy", "Profit", "Sharpe", "VWR",
+            "Max DD", "SQN", "Buys", "Buy Win%", "Sells", "Sell Win%", "Avg Duration" # Added Avg Duration header
         ]
         
         invalid_number = float('nan') # Use NaN for missing numeric data
@@ -74,7 +108,8 @@ class BackResult:
                         'rows': [],
                         'profit_pct_values': [], 'sharpe_values': [], 'vwr_values': [],
                         'max_dd_values': [], 'sqn_values': [], 'buy_total_values': [],
-                        'buy_win_pct_values': [], 'sell_total_values': [], 'sell_win_pct_values': []
+                        'buy_win_pct_values': [], 'sell_total_values': [], 'sell_win_pct_values': [],
+                        'average_duration_values': [] # Added list for average duration
                     }
                 
                 current_group = grouped_results[original_strategy_key]
@@ -101,6 +136,7 @@ class BackResult:
                 buy_total = trade_analyzer.get('total', {}).get('total', 0)
                 buy_won = trade_analyzer.get('won', {}).get('total', 0)
                 buy_winning_rate = (buy_won / buy_total * 100) if buy_total > 0 else 0.0
+                average_duration = trade_analyzer.get('len', {}).get('average', 0)
 
                 # dbg_info(trade_analyzer)
                 # profit_pct = trade_analyzer.pnl.gross.total / init_cash * 100
@@ -126,7 +162,8 @@ class BackResult:
                     buy_total,
                     buy_winning_rate,
                     sell_total,
-                    sell_winning_rate
+                    sell_winning_rate,
+                    average_duration # Added average_duration to the row
                 ]
                 current_group['rows'].append(row)
 
@@ -140,6 +177,7 @@ class BackResult:
                 if isinstance(buy_winning_rate, (int, float)): current_group['buy_win_pct_values'].append(buy_winning_rate)
                 if isinstance(sell_total, (int, float)): current_group['sell_total_values'].append(sell_total)
                 if isinstance(sell_winning_rate, (int, float)): current_group['sell_win_pct_values'].append(sell_winning_rate)
+                if isinstance(average_duration, (int, float)): current_group['average_duration_values'].append(average_duration) # Added average_duration to accumulator
 
             except Exception as e:
                 dbg_error(f"Error processing result item index {i}: {e}")
@@ -154,10 +192,11 @@ class BackResult:
                      grouped_results[original_strategy_key_err] = {
                         'rows': [], 'profit_pct_values': [], 'sharpe_values': [], 'vwr_values': [],
                         'max_dd_values': [], 'sqn_values': [], 'buy_total_values': [],
-                        'buy_win_pct_values': [], 'sell_total_values': [], 'sell_win_pct_values': []
+                        'buy_win_pct_values': [], 'sell_total_values': [], 'sell_win_pct_values': [],
+                        'average_duration_values': [] # Added list for average duration in error handling
                     }
                 grouped_results[original_strategy_key_err]['rows'].append([
-                    'ERROR', f'Check Logs (Index {i})', None, None, None, None, None, None, None, None, None
+                    'ERROR', f'Check Logs (Index {i})', None, None, None, None, None, None, None, None, None, None # Added None for Avg Duration
                 ])
         
         # --- Assemble Final Table Data with Per-Strategy Averages ---
@@ -180,6 +219,7 @@ class BackResult:
                 avg_buy_win_pct = sum(data['buy_win_pct_values']) / len(data['buy_win_pct_values']) if data['buy_win_pct_values'] else invalid_number
                 avg_sell_total = sum(data['sell_total_values']) / len(data['sell_total_values']) if data['sell_total_values'] else invalid_number
                 avg_sell_win_pct = sum(data['sell_win_pct_values']) / len(data['sell_win_pct_values']) if data['sell_win_pct_values'] else invalid_number
+                avg_average_duration = sum(data['average_duration_values']) / len(data['average_duration_values']) if data['average_duration_values'] else invalid_number # Calculate average duration
 
                 # Truncate strategy_key for display in average row if it's too long
                 display_strategy_key_avg = (strategy_key[:self.def_max_len_a_cell - 3] + '...') if len(strategy_key) > self.def_max_len_a_cell else strategy_key
@@ -188,7 +228,8 @@ class BackResult:
                     "Average",
                     display_strategy_key_avg, # Use the (potentially truncated) strategy key
                     avg_profit_pct, avg_sharpe, avg_vwr, avg_max_dd, avg_sqn,
-                    avg_buy_total, avg_buy_win_pct, avg_sell_total, avg_sell_win_pct
+                    avg_buy_total, avg_buy_win_pct, avg_sell_total, avg_sell_win_pct,
+                    avg_average_duration # Added average duration to the average row
                 ]
                 final_table_data.append(average_row_for_strategy)
 

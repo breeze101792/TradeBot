@@ -7,12 +7,13 @@ from strategy.candidate.mac import MovingAverageCrossoverStrategy
 from strategy.candidate.bm import BreakoutMomentumStrategy
 from strategy.candidate.rsi import RelativeStrengthIndexStrategy
 from strategy.candidate.bmr import BollingerMeanReversionStrategy
+from strategy.candidate.multisignal import MultiSignalStrategy
 
 # experiment
 from strategy.experiment.experiment import *
 from strategy.experiment.volumn import *
-from strategy.experiment.test import TestStrategy
 from strategy.experiment.bollinger import BollingerRebound
+from strategy.experiment.test import *
 
 class StrategyManager:
     def __init__(self, test = 0):
@@ -23,6 +24,8 @@ class StrategyManager:
         self.register_strategy(BreakoutMomentumStrategy)
         self.register_strategy(RelativeStrengthIndexStrategy)
         self.register_strategy(BollingerMeanReversionStrategy)
+
+        self.register_strategy(MultiSignalStrategy)
 
         if False:
             # Strategy registration.
@@ -45,6 +48,7 @@ class StrategyManager:
 
             # Test
             # self.register_strategy(TestStrategy)
+            # self.register_strategy(Test2Strategy)
             # self.register_strategy(HighWinRateStrategy)
 
         # print(f'Init StrategyManager {self.strategy_dict}, {test}', )

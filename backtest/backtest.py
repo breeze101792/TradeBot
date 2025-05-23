@@ -42,9 +42,9 @@ class Backtest:
         self._init_cash = 1000000000  # 10b to avoid buy fail.
         self._commission = 0.001
         self._slippage_prec = 0.001
-        self._to_date = datetime.today() # Use property setter logic
+        # by setting _to_date to 5days ago, it will reduce the frequency that download data.
+        self._to_date = datetime.today() - relativedelta(days=5) # Use property setter logic
         self._from_date = self.to_date - relativedelta(years=5) # Use property setter logic
-
 
         # test args
         self.cerebro = None
