@@ -69,7 +69,7 @@ class BTCLI(CommandLineInterface):
         self.set_date_list = ['to', 'from', 'd1', 'd2', 'd3', 'd4', 'd5']
         self.regist_cmd("date", self.cmd_date, description=f"Set date. ex. 20200101, or 5 Years test d1(from 2000), d2(from 2005), d3(from 2010), d4(from 2015), d5(from 2020).", arg_list = self.set_date_list, group='setting')
         # Forcus on only one mode, to reduce system complexity.
-        self.total_mode_list = ['default', 'opt']
+        self.total_mode_list = ['default', 'opt', 'year']
         self.regist_cmd("mode", self.cmd_mode, description=f"Set test mode. {self.total_mode_list}", arg_list = self.total_mode_list, group='setting')
 
         self.total_stock_cmd_list = ['info', 'data']
@@ -601,6 +601,59 @@ class BTCLI(CommandLineInterface):
                         self.backtest.eval()
                     dbg_info(f'[{target_strategy.NAME}] all {len(self.product_list)} products done', prefix='\n')
                 self.backtest.show_result()
+            elif self.mode == 'year':
+                dbg_debug(f'Start yearly evaluation.')
+
+                overall_from_date = self.backtest.from_date
+                overall_to_date = self.backtest.to_date
+
+                if not overall_from_date or not overall_to_date:
+                    dbg_error("Please set 'from' and 'to' dates using the 'date' command before running yearly evaluation.")
+                    return False
+
+                # Store original dates to restore them after the yearly loop
+                original_backtest_from_date = self.backtest.from_date
+                original_backtest_to_date = self.backtest.to_date
+
+                # New logic for monthly shifted yearly evaluation
+                current_segment_start = overall_from_date
+                
+                while current_segment_start <= overall_to_date:
+                    segment_end_date = current_segment_start + relativedelta(years=1) - relativedelta(days=1)
+
+                    # Ensure the segment does not go beyond the overall_to_date
+                    if segment_end_date > overall_to_date:
+                        segment_end_date = overall_to_date
+                    
+                    # If the segment start date itself is beyond the overall_to_date, break
+                    if current_segment_start > overall_to_date:
+                        break
+
+                    self.print(f"\n--- Evaluating for period: {current_segment_start.strftime('%Y-%m-%d')} to {segment_end_date.strftime('%Y-%m-%d')} ---")
+                    
+                    # Set backtest dates for the current yearly segment
+                    # Add extra 6 months before test. feeds enough data for test.
+                    self.backtest.from_date = current_segment_start - relativedelta(months=6)
+                    self.backtest.to_date = segment_end_date
+
+                    for each_strategy in self.strategy_list:
+                        target_strategy = self.strategyMgr.get_strategy_by_name(each_strategy)
+                        for idx, each_product in enumerate(self.product_list):
+                            dbg_info(f'[{target_strategy.NAME}][{idx + 1}/{len(self.product_list)}] Symbol: {each_product}', prefix='\r', end=' ' * 10)
+                            self.backtest.setup(broker=self.broker) # Setup for each product/strategy combination
+                            self.backtest.add_symbol([each_product])
+                            self.backtest.add_strategy([target_strategy])
+                            self.backtest.eval()
+                        dbg_info(f'[{target_strategy.NAME}] all {len(self.product_list)} products done for {current_segment_start.strftime("%Y-%m-%d")} to {segment_end_date.strftime("%Y-%m-%d")}', prefix='\n')
+                    
+                    # Move to the next segment (shift by one month)
+                    current_segment_start += relativedelta(months=1)
+                
+                # Restore original dates after all yearly evaluations are complete
+                self.backtest.from_date = original_backtest_from_date
+                self.backtest.to_date = original_backtest_to_date
+
+                self.backtest.show_result() # Show overall result after all yearly evaluations
             elif self.mode == 'opt':
                 dbg_debug(f'Start opt evaluation.')
                 # will be global

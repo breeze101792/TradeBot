@@ -84,7 +84,8 @@ class BackResult:
         if not self.result_list:
             return None, None
 
-        self.result_list.sort(key=lambda x: x.get('score', float('-inf')), reverse=True)
+        # disable sort by default.
+        # self.result_list.sort(key=lambda x: x.get('score', float('-inf')), reverse=True)
 
         headers = [
             "Symbol", "Strategy", "Score", "Profit", "Sharpe", "VWR",

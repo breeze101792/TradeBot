@@ -215,7 +215,8 @@ class Backtest:
         cerebro.addanalyzer(PartialTradeAnalyzer, _name="pta")
 
     def __score_calc(self, analysis_result):
-        invalid_number = float('nan')
+        # for avoid 0 happen.
+        invalid_number = 0
 
         profit = analysis_result.get('profit', invalid_number)
 
