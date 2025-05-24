@@ -214,6 +214,26 @@ class Backtest:
         # customize analyzer
         cerebro.addanalyzer(PartialTradeAnalyzer, _name="pta")
 
+    def __score_calc(self, analysis_result):
+        invalid_number = float('nan')
+
+        profit = analysis_result.get('profit', invalid_number)
+
+        sharpe = analysis_result.get('sharpe', invalid_number)
+        if sharpe is None or not isinstance(sharpe, (int, float)): sharpe = invalid_number
+
+        vwr = analysis_result.get('vwr', invalid_number)
+        if vwr is None or not isinstance(vwr, (int, float)): vwr = invalid_number
+
+        drawdown = analysis_result.get('drawdown', {}).get('max', {}).get('drawdown', invalid_number)
+        if drawdown is None or not isinstance(drawdown, (int, float)): drawdown = invalid_number
+
+        sqn = analysis_result.get('sqn', {}).get('sqn', invalid_number)
+        if sqn is None or not isinstance(sqn, (int, float)): sqn = invalid_number
+
+        score = 0.4*vwr + 0.3*(profit - drawdown)/100 + 0.2*sharpe + 0.1*sqn
+
+        return score
     def __analyze(self, strategy_list, cerebro = None):
         """
         Extracts and stores analysis results from the executed strategies.
@@ -262,6 +282,11 @@ class Backtest:
             # customize
             result_item['pta'] = each_strategy.analyzers.pta.get_analysis(summary = True)
 
+            # clac profit and score
+            gross_total_pnl = result_item['trade_analyzer'].get('pnl', {}).get('gross', {}).get('total', 0)
+            result_item['profit'] = ((gross_total_pnl / self._init_cash) * 100) if self._init_cash != 0 else 0
+
+            result_item['score'] = self.__score_calc(result_item)
             # dbg_info(result_item)
             self.result_analyzed_data_list.append(result_item)
 
@@ -291,6 +316,51 @@ class Backtest:
         """Clears the stored backtest results."""
         self.result_analyzed_data_list = []
         self.result_strategy_list = []
+    
+    def save_report(self):
+        """
+        Saves the backtest results and plots to files.
+        This includes the main analysis table and annual returns table as CSVs,
+        and strategy plots as images.
+        """
+        if not self.result_analyzed_data_list:
+            dbg_info("No results to save.")
+            return
+
+        report_path = os.path.join(self.report_root_path, self.result_timestatmp.strftime("%Y%m%d_%H%M%S"))
+        os.makedirs(report_path, exist_ok=True)
+
+        results_display = BackResult(self.get_analysis())
+
+        # Save main analysis table to CSV
+        headers, data_rows = results_display._prepare_analysis_data(mode="all")
+        if headers and data_rows:
+            try:
+                df_analysis = pd.DataFrame(data_rows, columns=headers)
+                analysis_filename = os.path.join(report_path, "backtest_analysis_summary.csv")
+                df_analysis.to_csv(analysis_filename, index=False)
+                dbg_info(f"Analysis summary saved to {analysis_filename}")
+            except Exception as e:
+                dbg_error(f"Error saving analysis summary to CSV: {e}")
+                traceback_output = traceback.format_exc()
+                dbg_error(traceback_output)
+
+        # Save annual returns table to CSV
+        annual_headers, annual_data_rows = results_display._prepare_annual_return_data(mode="all")
+        if annual_headers and annual_data_rows:
+            try:
+                df_annual = pd.DataFrame(annual_data_rows, columns=annual_headers)
+                annual_filename = os.path.join(report_path, "backtest_annual_returns.csv")
+                df_annual.to_csv(annual_filename, index=False)
+                dbg_info(f"Annual returns saved to {annual_filename}")
+            except Exception as e:
+                dbg_error(f"Error saving annual returns to CSV: {e}")
+                traceback_output = traceback.format_exc()
+                dbg_error(traceback_output)
+
+        # Save drawing (plots)
+        self.save_drawing()
+
     def show_result(self):
         results_display = BackResult(self.get_analysis())
         results_display.show_analysis()

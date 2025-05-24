@@ -229,9 +229,9 @@ class Market:
         product_frame_list = self.instance.get_data_list()
         self.__filter_by_start_date(product_frame_list, start_date, "start")
         product_list = []
-        for _, each_product_row in product_frame_list.iterrows():
+        for each_key, each_product_row in product_frame_list.iterrows():
             # dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
-            product_list.append(each_product_row['code'])
+            product_list.append(each_key)
         return product_list
 
     def get_data_list(self, market: str = None, country: str = None):
@@ -243,9 +243,10 @@ class Market:
 
         self.cached_stock_info_frame = product_frame_list
         product_list = []
-        for _, each_product_row in product_frame_list.iterrows():
+        for each_key, each_product_row in product_frame_list.iterrows():
+            # dbg_info(each_key)
             # dbg_info(f"Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}")
-            product_list.append(each_product_row['code'])
+            product_list.append(each_key)
         return product_list
 
     def get_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None, period: str = None, force_update: bool = False):
@@ -261,7 +262,7 @@ class Market:
 
         try:
             pd_info = self.cached_stock_info_frame
-            return pd_info[pd_info['code'] == product_id].iloc[0].to_dict()
+            return pd_info.loc[product_id].to_dict()
         except Exception as e:
             dbg_error(e)
         
@@ -271,23 +272,3 @@ class Market:
 
     def update_data(self, product_list = [], force_update: bool = False):
         return self.instance.update_data(product_list = product_list, force_update = force_update)
-        # product_frame_list = self.instance.get_data_list()
-        # product_amount = len(product_frame_list)
-        # dbg_info(f"Start update data.")
-        # for idx, each_product_row in product_frame_list.iterrows():
-        #     # Use space to avoid error message been erase.
-        #     dbg_info(f"[{idx}/{product_amount}] Download code:{each_product_row['code']}, type:{each_product_row['type']}, name:{each_product_row['name']}, market:{each_product_row['market']}", prefix='\r', end=' ' * 10)
-        #     try:
-        #         self.instance.get_data(product_id = each_product_row['code'], force_update = force_update)
-        #     except Exception as e:
-        #         dbg_error(f"Error updateing stock: {each_product_row['code']}")
-        #         dbg_error(e)
-        #         time.sleep(1)
-        #         continue
-        # dbg_info(f"All {product_amount} has been update to date.", prefix='\n')
-
-    # This method seems redundant now that the logic is in MarketTime.get_next_market_update_time
-    # Consider removing it or calling the MarketTime method from here if needed.
-    # def get_next_market_date(self):
-    #     return MarketTime.get_next_market_update_time()
-

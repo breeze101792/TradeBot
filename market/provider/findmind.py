@@ -52,7 +52,7 @@ class FindMind(DataProvider):
                     dbg_warning(f"FinMind token file '{token_filepath}' is empty.")
                     self.token = None # Ensure token is None if file is empty
                 else:
-                    dbg_info(f"Successfully loaded FinMind token from '{token_filepath}'.")
+                    dbg_debug(f"Successfully loaded FinMind token from '{token_filepath}'.")
         except FileNotFoundError:
             dbg_warning(f"FinMind token file not found at '{token_filepath}'. API calls requiring a token may fail.")
             self.token = None
@@ -84,6 +84,8 @@ class FindMind(DataProvider):
             return pd.DataFrame()
 
         product_list = []
+        seen_stock_ids = set() # To track unique stock_ids
+
         for index, row in df_info.iterrows():
             fm_type = row.get('type')
             stock_id = row.get('stock_id')
@@ -91,6 +93,12 @@ class FindMind(DataProvider):
             
             if stock_id in df_delisted_info["stock_id"].values:
                 # dbg_info(f'{stock_id} is delisted.')
+                continue
+
+            # Check for duplicate stock_id
+            if stock_id in seen_stock_ids:
+                # BUG, there is an issue with findind, lost of data listed as duplicated.
+                # dbg_warning(f"Duplicate stock_id '{stock_id}' found in FinMind data. Skipping this entry.")
                 continue
 
             mapped_market = None
@@ -131,14 +139,18 @@ class FindMind(DataProvider):
                 "code": stock_id,
                 "type": "股票",  # FinMind taiwan_stock_info lists stocks
                 "name": row.get('stock_name'),
+                # FIXME, this is an update date, not a start date.
                 "start": row.get('date'),  # Format 'YYYY-MM-DD'
                 "market": mapped_market,
                 "category": row.get('industry_category'),
                 "country": "TW",
             }
             product_list.append(product_data)
+            seen_stock_ids.add(stock_id) # Add to set to track uniqueness
         
         df_result = pd.DataFrame(product_list)
+        if not df_result.empty:
+            df_result.set_index('code', inplace=True)
         return df_result
 
     def fetch_data(self, ticker: str, start_date: datetime.date = None, end_date: datetime.date = None):

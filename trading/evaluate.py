@@ -2,6 +2,7 @@ from datetime import timedelta, date
 import traceback
 from dateutil.relativedelta import relativedelta
 import pandas as pd
+from tabulate import tabulate
 
 # from trading.analyzer import Analyzer
 from backtest.backtest import Backtest as Analyzer
@@ -89,7 +90,7 @@ class Evaluate:
     def __buy_filering_profitable_product(self, candidate_dict):
         if len(candidate_dict) != 0:
             dbg_info(f"Candidate Checking:{candidate_dict.keys()}")
-        buying_dict = dict()
+        candidate_buying_dict = dict()
 
         strategyMgr = StrategyManager()
         strategy_list=[self.default_strategy]
@@ -118,21 +119,75 @@ class Evaluate:
                 # get report, get the latest one.
                 report = candidate_analyzer.get_analysis()[-1]
 
-                init_cash = report.get('init_cash', 0)
-                final_cash = report.get('cash', 0)
-                profit = (final_cash - init_cash) / init_cash * 100
+                invalid_number = float('nan')
+                profit = report.get('profit', invalid_number)
+                if profit is None or not isinstance(profit, (int, float)): profit = invalid_number
+
+                sharpe = report.get('sharpe', invalid_number)
+                if sharpe is None or not isinstance(sharpe, (int, float)): sharpe = invalid_number
+
+                vwr = report.get('vwr', invalid_number)
+                if vwr is None or not isinstance(vwr, (int, float)): vwr = invalid_number
+
+                drawdown = report.get('drawdown', {}).get('max', {}).get('drawdown', invalid_number)
+                if drawdown is None or not isinstance(drawdown, (int, float)): drawdown = invalid_number
+
+                sqn = report.get('sqn', {}).get('sqn', invalid_number)
+                if sqn is None or not isinstance(sqn, (int, float)): sqn = invalid_number
+
+                # evaluation
+                score = report.get('score', invalid_number)
+
+                candidate_buying_dict[each_product] = {
+                    'strategy': target_strategy,
+                    'profit' : profit,
+                    'sharpe': sharpe,
+                    'vwr': vwr,
+                    'drawdown': drawdown,
+                    'sqn': sqn,
+                    'score': score
+                }
 
                 # TODO, find a way to check in the early day.
-                if profit > self.BUY_CANDIDATE_PROFIT_THRESHOLD:
-                    buying_dict[each_product] = {'strategy': target_strategy, 'profit' : profit}
+                # if profit > self.BUY_CANDIDATE_PROFIT_THRESHOLD:
+                #     candidate_buying_dict[each_product] = {'strategy': target_strategy, 'profit' : profit}
 
             except Exception as e:
                 dbg_warning(e)
             
                 traceback_output = traceback.format_exc()
                 dbg_warning(traceback_output)
-            dbg_info(f"All {len(candidate_keys)} products are analysed. ", prefix='\n')
-        candidate_analyzer.show_result()
+        # candidate_analyzer.show_result()
+
+        buying_dict = {}
+        # sorting with score and list it. add top 3 product to buying_dict.
+        sorted_candidates = sorted(candidate_buying_dict.items(), key=lambda item: item[1].get('score', invalid_number), reverse=True)
+
+        # Add top 3 products to buying_dict
+        for i, (product, data) in enumerate(sorted_candidates):
+            if i < 3: # Take top 3
+                buying_dict[product] = data
+            else:
+                break
+
+        # Prepare data for tabulation
+        headers = ["Product", "Strategy", "Profit (%)", "Sharpe", "VWR", "Drawdown (%)", "SQN", "Score"]
+        table_data = []
+        for product, data in sorted_candidates:
+            table_data.append([
+                product,
+                data['strategy'].NAME,
+                f"{data['profit']:.2f}",
+                f"{data['sharpe']:.2f}",
+                f"{data['vwr']:.2f}",
+                f"{data['drawdown']:.2f}",
+                f"{data['sqn']:.2f}",
+                f"{data['score']:.2f}"
+            ])
+        
+        if len(table_data) != 0:
+            dbg_info("\n" + tabulate(table_data, headers=headers, tablefmt="grid"))
+        dbg_info(f"All {len(candidate_keys)} products are analysed. ", prefix='\n')
 
         return buying_dict
     def buying_evaluation(self):

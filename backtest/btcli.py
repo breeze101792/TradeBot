@@ -66,11 +66,14 @@ class BTCLI(CommandLineInterface):
         self.total_strategy_op_list = ['set', 'add', 'modify', 'list', 'del', 'all', 'tune']
         # self.regist_cmd("add_strategy", self.cmd_add_strategy, description=f"Add strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list, group='setting')
         self.regist_cmd("strategy", self.cmd_strategy, description=f"Set strategy. Ops: {self.total_strategy_op_list}, Stra:{self.total_strategy_list}", arg_list = self.total_strategy_list + self.total_strategy_op_list, group='setting')
-        self.set_date_list = ['to', 'from']
-        self.regist_cmd("date", self.cmd_date, description=f"Set date. ex. 20200101", arg_list = self.set_date_list, group='setting')
+        self.set_date_list = ['to', 'from', 'd1', 'd2', 'd3', 'd4', 'd5']
+        self.regist_cmd("date", self.cmd_date, description=f"Set date. ex. 20200101, or 5 Years test d1(from 2000), d2(from 2005), d3(from 2010), d4(from 2015), d5(from 2020).", arg_list = self.set_date_list, group='setting')
         # Forcus on only one mode, to reduce system complexity.
         self.total_mode_list = ['default', 'opt']
         self.regist_cmd("mode", self.cmd_mode, description=f"Set test mode. {self.total_mode_list}", arg_list = self.total_mode_list, group='setting')
+
+        self.total_stock_cmd_list = ['info', 'data']
+        self.regist_cmd("stock", self.cmd_stock, description=f"Show stock info or data. Ops: {self.total_stock_cmd_list}", arg_list = self.total_stock_cmd_list, group='tools')
 
         self.total_test_cmd_list = ['strategy', 'shioajifake']
         self.regist_cmd("test", self.cmd_test, description=f"Set test commands. cmd:{self.total_test_cmd_list}", arg_list = self.total_test_cmd_list, group='setting')
@@ -101,6 +104,63 @@ class BTCLI(CommandLineInterface):
                 self.broker = ShioajiBroker
                 return True
         return False
+    def cmd_stock(self, args):
+        self.total_stock_cmd_list = ['info', 'data']
+        opt_list = self.total_stock_cmd_list
+
+        product_id = None
+        operation = None
+
+        if args['#'] == 1:
+            if args['1'] == 'info' or args['1'] == 'data':
+                operation = args['1']
+                if self.product_list: # Use the first product in the list if no specific ID is given
+                    product_id = self.product_list[0]
+                else:
+                    self.print("No product selected. Please set a product first or specify one.")
+                    return False
+            else:
+                self.print('usage: stock [info|data] [product_id]')
+                return False
+        elif args['#'] == 2 and args['1'] in opt_list:
+            operation = args['1']
+            product_id = args['2']
+        else:
+            self.print('usage: stock [info|data] [product_id]')
+            return False
+
+        if operation == 'info':
+            stock_info = self.market.get_data_info(product_id)
+            if stock_info:
+                self.print(f"\n## Stock Info for {product_id}")
+                table_data = []
+                for key, value in stock_info.items():
+                    table_data.append([key, value])
+                headers = ["Attribute", "Value"]
+                self.print(tabulate(table_data, headers=headers, tablefmt="pretty", numalign="left", stralign="left"))
+            else:
+                self.print(f"Could not retrieve info for product ID: {product_id}")
+        elif operation == 'data':
+            # Ensure from_date and to_date are set for data retrieval
+            from_date = self.backtest.from_date
+            to_date = self.backtest.to_date
+
+            if not from_date or not to_date:
+                self.print("Please set 'from' and 'to' dates using the 'date' command before requesting data.")
+                return False
+
+            self.print(f"Fetching data for {product_id} from {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}")
+            stock_data_df = self.market.get_data(product_id=product_id, start_date=from_date.date(), end_date=to_date.date())
+
+            if stock_data_df is not None and not stock_data_df.empty:
+                self.print(f"\n## Historical Data for {product_id} (Head)")
+                self.print(tabulate(stock_data_df.head(), headers='keys', tablefmt="pretty"))
+                self.print(f"\n## Historical Data for {product_id} (Tail)")
+                self.print(tabulate(stock_data_df.tail(), headers='keys', tablefmt="pretty"))
+                self.print(f"\nTotal {len(stock_data_df)} records.")
+            else:
+                self.print(f"No historical data found for product ID: {product_id} in the specified date range.")
+        return True
     def cmd_attr(self, args):
         attr_list = self.total_attr_cmd_list
 
@@ -447,17 +507,32 @@ class BTCLI(CommandLineInterface):
         setting_list = self.set_date_list
         try:
             if args['#'] == 1:
-                if int(args['1']) < 100:
+                if args['1'].isdigit() and int(args['1']) < 100:
                     self.backtest.to_date = datetime.today()
                     self.backtest.from_date = datetime.today() - relativedelta(years=int(args['1']))
+                elif args['1'] == 'd1':
+                    self.backtest.from_date = datetime.strptime('20000101', "%Y%m%d")
+                    self.backtest.to_date = self.backtest.from_date + relativedelta(years=5) 
+                elif args['1'] == 'd2':
+                    self.backtest.from_date = datetime.strptime('20050101', "%Y%m%d")
+                    self.backtest.to_date = self.backtest.from_date + relativedelta(years=5) 
+                elif args['1'] == 'd3':
+                    self.backtest.from_date = datetime.strptime('20100101', "%Y%m%d")
+                    self.backtest.to_date = self.backtest.from_date + relativedelta(years=5) 
+                elif args['1'] == 'd4':
+                    self.backtest.from_date = datetime.strptime('20150101', "%Y%m%d")
+                    self.backtest.to_date = self.backtest.from_date + relativedelta(years=5) 
+                elif args['1'] == 'd5':
+                    self.backtest.from_date = datetime.strptime('20200101', "%Y%m%d")
+                    self.backtest.to_date = self.backtest.from_date + relativedelta(years=5) 
             elif args['#'] == 2:
                 if args['1'] == 'from':
-                    if int(args['2']) < 100:
+                    if args['2'].isdigit() and int(args['2']) < 100:
                         self.backtest.from_date = datetime.today() - relativedelta(years=int(args['2']))
                     else:
                         self.backtest.from_date = datetime.strptime(args['2'], "%Y%m%d")
                 elif args['1'] == 'to':
-                    if int(args['2']) < 100:
+                    if args['2'].isdigit() and int(args['2']) < 100:
                         self.backtest.to_date = datetime.today() - relativedelta(years=int(args['2']))
                     else:
                         self.backtest.to_date = datetime.strptime(args['2'], "%Y%m%d")
@@ -481,7 +556,7 @@ class BTCLI(CommandLineInterface):
                 self.backtest.show_drawing()
             elif args['1'] == 'save':
                 # add more function of it.
-                self.backtest.save_drawing()
+                self.backtest.save_report()
             elif args['1'] == 'info':
                 results_display.show_info()
             else:

@@ -35,13 +35,14 @@ class DataProvider:
         dbg_trace(f"DataFrame saved to {file_path}")
 
     @staticmethod
-    def load_from_csv(filename: str, date_column: str = None, folder: str = './') -> pd.DataFrame:
+    def load_from_csv(filename: str, date_column: str = None, folder: str = './', dtype: dict = None) -> pd.DataFrame:
         """
         Load a Pandas DataFrame from a CSV file if it exists.
 
         :param folder: The folder where the file is located.
         :param filename: The name of the CSV file.
         :param date_column: Name of the column containing dates (if any).
+        :param dtype: Dictionary of column names and their data types.
         :return: The loaded DataFrame, or None if the file does not exist.
         """
         file_path = os.path.join(folder, filename)
@@ -50,7 +51,7 @@ class DataProvider:
             # print(f"Error: {file_path} does not exist.")
             return None
 
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path, dtype=dtype)
 
         # If a date column is specified, convert it to datetime
         if date_column and date_column in df.columns:
@@ -76,11 +77,16 @@ class DataProvider:
         dbg_error("Function not impl.")
         raise
     ###########################################################################
+    def get_last_trading_date(self):
+        last_trading_day = datetime.now().date()
+        while last_trading_day.weekday() >= 5: # Skip weekends
+            last_trading_day -= timedelta(days=1)
+        return last_trading_day
 
     def get_data_list(self, market: str = None, country: str = None, force_update: bool = False):
         data_list_cache_folder = os.path.join(self.cache_data_root_path, self.cache_data_name, 'lists')
         filename_prefix = "data_list"
-        today_str = datetime.now().strftime('%Y%m%d')
+        today_str = self.get_last_trading_date().strftime('%Y%m%d')
         current_day_filename = f"{filename_prefix}_{today_str}.csv"
         file_path = os.path.join(data_list_cache_folder, current_day_filename)
 
@@ -89,8 +95,11 @@ class DataProvider:
 
         # Check if today's cached file exists
         if os.path.exists(file_path):
-            df = self.load_from_csv(current_day_filename, folder=data_list_cache_folder)
+            df = self.load_from_csv(current_day_filename, folder=data_list_cache_folder, dtype={'code': str})
             if df is not None and not df.empty:
+                # Set 'code' as index if it's a column
+                if 'code' in df.columns:
+                    df.set_index('code', inplace=True)
                 dbg_debug(f"Loaded data list from cache: {file_path}")
             else:
                 # File exists but is empty or failed to load
@@ -104,6 +113,9 @@ class DataProvider:
             dbg_trace(f"Downloading new data list for market={market}, country={country}")
             new_df = self.download_data_list(market=market, country=country)
             if new_df is not None and not new_df.empty:
+                # Set 'code' as index if it's a column
+                if 'code' in new_df.columns:
+                    new_df.set_index('code', inplace=True)
                 self.save_to_csv(new_df, current_day_filename, folder=data_list_cache_folder)
                 df = new_df
             else:
@@ -120,9 +132,13 @@ class DataProvider:
         return df
 
     def get_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None, force_update: bool = False):
+        # Get today's date and last trading day
+        today = datetime.now().date()
+        last_trading_day = self.get_last_trading_date()
+
         data_cache_folder = ""
         if self.SUPPORTED_ADJUSTED_DATA is True:
-            today_str = datetime.now().strftime('%Y%m%d')
+            today_str = last_trading_day.strftime('%Y%m%d')
             data_cache_folder = os.path.join(self.cache_data_root_path, self.cache_data_name, 'datas', today_str)
         else:
             data_cache_folder = os.path.join(self.cache_data_root_path, self.cache_data_name, 'datas')
@@ -142,12 +158,6 @@ class DataProvider:
         # Determine if a download is required
         download_required = force_update
 
-        # Get today's date and last trading day
-        today = datetime.now().date()
-        last_trading_day = datetime.now().replace(hour=13, minute=40, second=0, microsecond=0).date()
-        while last_trading_day.weekday() >= 5: # Skip weekends
-            last_trading_day -= timedelta(days=1)
-
         # Determine download range
         download_start_date = None
         download_end_date = None
@@ -162,11 +172,12 @@ class DataProvider:
             cached_max_date = df.index.max().date()
 
             # Check if cached data covers the requested range
-            if start_date and cached_min_date > start_date:
-                dbg_debug(f"Cached data for {product_id} starts after requested start_date. Download required from {start_date}.")
-                download_required = True
-                download_start_date = start_date
-                download_end_date = cached_min_date - timedelta(days=1) # Download up to the day before cached data starts
+            # We don't check the start date, cause it may not be avaliable even on server.
+            # if start_date and cached_min_date > start_date:
+            #     dbg_debug(f"Cached data for {product_id} starts after requested start_date. Download required from {start_date}.")
+            #     download_required = True
+            #     download_start_date = start_date
+            #     download_end_date = cached_min_date - timedelta(days=1) # Download up to the day before cached data starts
             
             if end_date and cached_max_date < end_date:
                 dbg_debug(f"Cached data for {product_id} ends before requested end_date. Download required up to {end_date}.")
@@ -190,7 +201,6 @@ class DataProvider:
             if download_required and download_start_date and download_end_date and download_start_date > download_end_date:
                 dbg_debug(f"Calculated download_start_date {download_start_date} is after download_end_date {download_end_date}. No download needed for this range.")
                 download_required = False
-
 
         if download_required:
             dbg_trace(f'Downloading data for {product_id} from {download_start_date} to {download_end_date}')
@@ -242,7 +252,12 @@ class DataProvider:
 
     def update_data(self, product_list = [], force_update: bool = False):
         if len(product_list) == 0:
-            product_list = [ each_product_row['code'] for _, each_product_row in self.get_data_list() ]
+            # Assuming get_data_list returns a DataFrame with 'code' as index
+            data_list_df = self.get_data_list()
+            if not data_list_df.empty:
+                product_list = data_list_df.index.tolist()
+            else:
+                product_list = []
 
         product_amount = len(product_list)
 

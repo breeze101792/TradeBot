@@ -91,6 +91,9 @@ class TWSE(DataProvider):
         # 轉換成 Pandas DataFrame
         df = pd.DataFrame(product_list)
 
+        if not df.empty:
+            df.set_index('code', inplace=True)
+
         # 插入資料庫
         # for _, row in df.iterrows():
         #     self.add_product(
