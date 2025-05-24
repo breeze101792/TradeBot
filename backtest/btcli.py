@@ -93,8 +93,8 @@ class BTCLI(CommandLineInterface):
                 # self.backtest.to_date = datetime.today()
                 # self.backtest.from_date = datetime.today() - relativedelta(months=2)
                 # dbg_info(f"{datetime.today()},{relativedelta(month=3)}")
-                self.strategy_list=['Test']
-                self.product_list=['6505']
+                self.product_list = ['2303', '6505', '1101', '1301', '1303', '1326']
+                self.strategy_list=['MultiSignal']
                 self.cmd_info()
                 return True
             elif args['1'] == 'shioajifake':
@@ -188,7 +188,8 @@ class BTCLI(CommandLineInterface):
         if self.mode == 'opt':
             self.print("\n## Tune Parameters") # Add a header for tune params
             # Use json.dumps for pretty printing the dictionary
-            self.print(json.dumps(self.strategy_tune_param_grid, indent=4))
+            # self.print(json.dumps(self.strategy_tune_param_grid, indent=4))
+            self.print(self.strategy_tune_param_grid)
 
         return True
 

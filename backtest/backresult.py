@@ -83,15 +83,34 @@ class BackResult:
             dbg_info("No results found to display.")
             return False
 
+        # Pre-calculate profit_pct and add it to each result for sorting
+        for each_result in self.result_list:
+            init_cash = each_result.get('init_cash', 0)
+            trade_analyzer = each_result.get('trade_analyzer', {})
+            gross_total_pnl = trade_analyzer.get('pnl', {}).get('gross', {}).get('total', 0)
+
+            if init_cash != 0:
+                profit_pct = (gross_total_pnl / init_cash) * 100
+            else:
+                profit_pct = 0.0 # Default to 0.0 if initial cash is zero
+
+            each_result['__calculated_profit_pct__'] = profit_pct # Use a unique key
+
+        # Sort the result_list by the calculated profit_pct in descending order
+        # NaN values will typically be placed at the end by default in Python's sort.
+        # Using float('-inf') as a default for missing/invalid profit_pct ensures
+        # they are consistently placed at the end when sorting in descending order.
+        self.result_list.sort(key=lambda x: x.get('__calculated_profit_pct__', float('-inf')), reverse=True)
+
         headers = [
             "Symbol", "Strategy", "Profit", "Sharpe", "VWR",
-            "Max DD", "SQN", "Buys", "Buy Win%", "Sells", "Sell Win%", "Avg Duration" # Added Avg Duration header
+            "Max DD", "SQN", "Buys", "Buy Win%", "Sells", "Sell Win%", "Avg Duration"
         ]
         
-        invalid_number = float('nan') # Use NaN for missing numeric data
-        na_string = 'N/A' # String used by tabulate for missing values
+        invalid_number = float('nan')
+        na_string = 'N/A'
 
-        grouped_results = {} # Key: original_strategy_key, Value: dict of lists for rows and metrics
+        grouped_results = {}
 
         for i, each_result in enumerate(self.result_list):
             try:
@@ -109,15 +128,14 @@ class BackResult:
                         'profit_pct_values': [], 'sharpe_values': [], 'vwr_values': [],
                         'max_dd_values': [], 'sqn_values': [], 'buy_total_values': [],
                         'buy_win_pct_values': [], 'sell_total_values': [], 'sell_win_pct_values': [],
-                        'average_duration_values': [] # Added list for average duration
+                        'average_duration_values': []
                     }
                 
                 current_group = grouped_results[original_strategy_key]
 
                 # --- Extract Data ---
-                init_cash = each_result.get('init_cash', 0)
-                # final_cash = each_result.get('cash', 0)
-                # profit_pct = ((final_cash / init_cash - 1) * 100) if init_cash != 0 else 0.0
+                # Use the pre-calculated profit_pct
+                profit_pct = each_result.get('__calculated_profit_pct__', invalid_number)
 
                 sharpe = each_result.get('sharpe', invalid_number)
                 if sharpe is None or not isinstance(sharpe, (int, float)): sharpe = invalid_number
@@ -138,17 +156,11 @@ class BackResult:
                 buy_winning_rate = (buy_won / buy_total * 100) if buy_total > 0 else 0.0
                 average_duration = trade_analyzer.get('len', {}).get('average', 0)
 
-                # dbg_info(trade_analyzer)
-                # profit_pct = trade_analyzer.pnl.gross.total / init_cash * 100
-                profit_pct = trade_analyzer.get('pnl', {}).get('gross', {}).get('total', 0) / init_cash * 100
-
                 # Partial Trade Analyzer (Sell side focus - from pta)
                 pta_analyzer = each_result.get('pta', {})
                 sell_total = pta_analyzer.get('total_trades', 0)
                 sell_won = pta_analyzer.get('won', 0)
                 sell_winning_rate = (sell_won / sell_total * 100) if sell_total > 0 else 0.0
-
-                # annual_returns = each_result.get('annual_return', {}) # Removed for this method
 
                 # --- Prepare Row Data for Tabulate ---
                 row = [
@@ -157,13 +169,13 @@ class BackResult:
                     profit_pct,
                     sharpe,
                     vwr,
-                    drawdown, # Already a percentage
+                    drawdown,
                     sqn,
                     buy_total,
                     buy_winning_rate,
                     sell_total,
                     sell_winning_rate,
-                    average_duration # Added average_duration to the row
+                    average_duration
                 ]
                 current_group['rows'].append(row)
 
@@ -177,26 +189,24 @@ class BackResult:
                 if isinstance(buy_winning_rate, (int, float)): current_group['buy_win_pct_values'].append(buy_winning_rate)
                 if isinstance(sell_total, (int, float)): current_group['sell_total_values'].append(sell_total)
                 if isinstance(sell_winning_rate, (int, float)): current_group['sell_win_pct_values'].append(sell_winning_rate)
-                if isinstance(average_duration, (int, float)): current_group['average_duration_values'].append(average_duration) # Added average_duration to accumulator
+                if isinstance(average_duration, (int, float)): current_group['average_duration_values'].append(average_duration)
 
             except Exception as e:
                 dbg_error(f"Error processing result item index {i}: {e}")
                 dbg_error(f"Problematic result item content: {each_result}")
                 traceback_output = traceback.format_exc()
                 dbg_error(traceback_output)
-                # Add an error row to the current group's rows
-                # Ensure original_strategy_key is defined even in error to avoid crashing here
                 raw_strategy_list_err = each_result.get('strategy', [])
                 original_strategy_key_err = ",".join(map(str, raw_strategy_list_err)) if raw_strategy_list_err else na_string
-                if original_strategy_key_err not in grouped_results: # Should not happen if init logic is correct
+                if original_strategy_key_err not in grouped_results:
                      grouped_results[original_strategy_key_err] = {
                         'rows': [], 'profit_pct_values': [], 'sharpe_values': [], 'vwr_values': [],
                         'max_dd_values': [], 'sqn_values': [], 'buy_total_values': [],
                         'buy_win_pct_values': [], 'sell_total_values': [], 'sell_win_pct_values': [],
-                        'average_duration_values': [] # Added list for average duration in error handling
+                        'average_duration_values': []
                     }
                 grouped_results[original_strategy_key_err]['rows'].append([
-                    'ERROR', f'Check Logs (Index {i})', None, None, None, None, None, None, None, None, None, None # Added None for Avg Duration
+                    'ERROR', f'Check Logs (Index {i})', None, None, None, None, None, None, None, None, None, None
                 ])
         
         # --- Assemble Final Table Data with Per-Strategy Averages ---
@@ -206,10 +216,10 @@ class BackResult:
         for strategy_key in sorted_strategy_keys:
             data = grouped_results[strategy_key]
             if mode == "all" or mode == "mix":
-                final_table_data.extend(data['rows']) # Add all rows for this strategy
+                final_table_data.extend(data['rows'])
 
             # Calculate averages for this strategy
-            if (mode == "average" or mode == "mix") and any(data[metric_list] for metric_list in data if metric_list.endswith('_values')): # Check if any metric data exists
+            if (mode == "average" or mode == "mix") and any(data[metric_list] for metric_list in data if metric_list.endswith('_values')):
                 avg_profit_pct = sum(data['profit_pct_values']) / len(data['profit_pct_values']) if data['profit_pct_values'] else invalid_number
                 avg_sharpe = sum(data['sharpe_values']) / len(data['sharpe_values']) if data['sharpe_values'] else invalid_number
                 avg_vwr = sum(data['vwr_values']) / len(data['vwr_values']) if data['vwr_values'] else invalid_number
@@ -219,34 +229,29 @@ class BackResult:
                 avg_buy_win_pct = sum(data['buy_win_pct_values']) / len(data['buy_win_pct_values']) if data['buy_win_pct_values'] else invalid_number
                 avg_sell_total = sum(data['sell_total_values']) / len(data['sell_total_values']) if data['sell_total_values'] else invalid_number
                 avg_sell_win_pct = sum(data['sell_win_pct_values']) / len(data['sell_win_pct_values']) if data['sell_win_pct_values'] else invalid_number
-                avg_average_duration = sum(data['average_duration_values']) / len(data['average_duration_values']) if data['average_duration_values'] else invalid_number # Calculate average duration
+                avg_average_duration = sum(data['average_duration_values']) / len(data['average_duration_values']) if data['average_duration_values'] else invalid_number
 
                 # Truncate strategy_key for display in average row if it's too long
                 display_strategy_key_avg = (strategy_key[:self.def_max_len_a_cell - 3] + '...') if len(strategy_key) > self.def_max_len_a_cell else strategy_key
 
                 average_row_for_strategy = [
                     "Average",
-                    display_strategy_key_avg, # Use the (potentially truncated) strategy key
+                    display_strategy_key_avg,
                     avg_profit_pct, avg_sharpe, avg_vwr, avg_max_dd, avg_sqn,
                     avg_buy_total, avg_buy_win_pct, avg_sell_total, avg_sell_win_pct,
-                    avg_average_duration # Added average duration to the average row
+                    avg_average_duration
                 ]
                 final_table_data.append(average_row_for_strategy)
 
         # --- Generate and Print Table ---
         try:
-            # Use tabulate to create the table string
-            # 'grid' format provides clear borders
-            # 'floatfmt=".2f"' formats floats to 2 decimal places
-            # 'stralign="right"' aligns strings to the right (like numbers)
-            # 'missingval="N/A"' displays missing data as N/A
             table_str = tabulate(
                 final_table_data,
                 headers=headers,
                 tablefmt="grid",
                 floatfmt=".2f",
-                stralign="right", # Align string columns right for consistency
-                numalign="right", # Align numeric columns right
+                stralign="right",
+                numalign="right",
                 missingval=na_string
             )
             print("\n--- Backtest Results Summary ---")
@@ -256,8 +261,8 @@ class BackResult:
             dbg_error(f"Error generating results table with tabulate: {e}")
             print("\nError: Could not generate results summary table.")
 
-        print() # Add a blank line at the end
-        return True # Indicate successful display attempt
+        print()
+        return True
 
     def show_annual_return(self, mode="all"):
         """
