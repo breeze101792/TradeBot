@@ -9,7 +9,8 @@ from strategy.basic.movingprofit import MovingProfitStrategy
 class BreakoutMomentumStrategy(MovingProfitStrategy):
     NAME="BreakoutMomentum"
     params = (
-        ("breakout_period", 20),  # 突破區間 (20日高點)
+        # ("breakout_period", 20),  # 突破區間 (20日高點)
+        ("breakout_period", 15),  # 突破區間 (15日高點)
 
         ("risk_per_trade", MovingProfitStrategy.params.risk_per_trade),
         ("trailing_stop_pct", MovingProfitStrategy.params.trailing_stop_pct),

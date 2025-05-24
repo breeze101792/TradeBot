@@ -188,7 +188,6 @@ class BTCLI(CommandLineInterface):
         if self.mode == 'opt':
             self.print("\n## Tune Parameters") # Add a header for tune params
             # Use json.dumps for pretty printing the dictionary
-            # self.print(json.dumps(self.strategy_tune_param_grid, indent=4))
             self.print(self.strategy_tune_param_grid)
 
         return True
