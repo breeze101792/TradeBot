@@ -10,4 +10,5 @@ matplotlib
 tabulate
 FinMind
 tqdm
+tornado
 # python-dotenv

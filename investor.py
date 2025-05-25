@@ -2,7 +2,8 @@
 # system file
 import argparse
 
-import os
+import matplotlib
+from matplotlib import rcParams
 
 # Local file
 from utility.debug import *
@@ -11,6 +12,18 @@ from core.config import *
 from market.market import *
 from backtest.btcli import *
 from testutility.testcli import *
+
+def setup_matplot():
+
+    # use tornado as webagg
+    matplotlib.use('WebAgg')
+
+    # Set WebAgg port before calling plt.show()
+    rcParams['webagg.address'] = '0.0.0.0'  # Bind to all interfaces
+    rcParams['webagg.port'] = 8888
+
+    # trigger settings.
+    import matplotlib.pyplot as plt
 
 def main():
 
@@ -75,6 +88,9 @@ def main():
             dbg_warning('Enable development mode')
             cm.set('path.broker', "broker_development")
             cm.set('debug.development', True)
+
+    # env setup.
+    setup_matplot()
 
     # Start core.
     if args.trading_mode == "trade":
