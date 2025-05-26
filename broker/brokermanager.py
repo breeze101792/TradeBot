@@ -131,7 +131,7 @@ class BrokerManager:
 
         headers = [
             "Symbol", "Size", "Avg Entry", "Initial Entry", "Open Date",
-            "Market Price", "Market Value", "Cost Basis", "Unrealized P/L"
+            "Market Price", "Market Value", "Cost Basis", "Unrealized P/L", "Unrealized P/L %"
         ]
         table_data = []
         total_market_value = 0.0
@@ -149,6 +149,7 @@ class BrokerManager:
                 market_value = pos.size * current_price
                 cost_basis = pos.size * pos.average_entry_price
                 unrealized_pl = market_value - cost_basis
+                unrealized_pl_percent = (unrealized_pl / cost_basis * 100) if cost_basis != 0 else 0.0
 
                 # Add to totals
                 total_market_value += market_value
@@ -165,7 +166,8 @@ class BrokerManager:
                     f"{current_price:,.2f}",
                     f"{market_value:,.2f}",
                     f"{cost_basis:,.2f}",
-                    f"{unrealized_pl:,.2f}"
+                    f"{unrealized_pl:,.2f}",
+                    f"{unrealized_pl_percent:,.2f}%"
                 ]
                 table_data.append(row)
                 dbg_debug(f"Position Row Data for {symbol}: {row}")
