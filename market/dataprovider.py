@@ -77,16 +77,25 @@ class DataProvider:
         dbg_error("Function not impl.")
         raise
     ###########################################################################
-    def get_last_trading_date(self):
-        last_trading_day = datetime.now().date()
-        while last_trading_day.weekday() >= 5: # Skip weekends
+    def get_last_trading_update_date(self):
+        # for real time api should not reference this api.
+        now = datetime.now()
+        last_trading_day = now.date()
+
+        # If current time is before 13:30, data for today might not be fully updated.
+        # So, consider the last trading day as yesterday.
+        if now.hour < 13 or (now.hour == 13 and now.minute < 30):
+            dbg_debug("Current time is before 13:30, considering previous trading day for data update.")
+            last_trading_day -= timedelta(days=1)
+
+        while last_trading_day.weekday() >= 5: # Skip weekends (Saturday=5, Sunday=6)
             last_trading_day -= timedelta(days=1)
         return last_trading_day
 
     def get_data_list(self, market: str = None, country: str = None, force_update: bool = False):
         data_list_cache_folder = os.path.join(self.cache_data_root_path, self.cache_data_name, 'lists')
         filename_prefix = "data_list"
-        today_str = self.get_last_trading_date().strftime('%Y%m%d')
+        today_str = self.get_last_trading_update_date().strftime('%Y%m%d')
         current_day_filename = f"{filename_prefix}_{today_str}.csv"
         file_path = os.path.join(data_list_cache_folder, current_day_filename)
 
@@ -134,7 +143,7 @@ class DataProvider:
     def get_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None, force_update: bool = False):
         # Get today's date and last trading day
         today = datetime.now().date()
-        last_trading_day = self.get_last_trading_date()
+        last_trading_day = self.get_last_trading_update_date()
 
         data_cache_folder = ""
         if self.SUPPORTED_ADJUSTED_DATA is True:
