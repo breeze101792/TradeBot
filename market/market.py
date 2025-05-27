@@ -387,7 +387,7 @@ class Market:
             product_list (list[str], optional): A list of product IDs (strings) to update.
                                                 If empty, the behavior depends on the underlying
                                                 provider's `update_data` implementation (usually
-                                                means no specific products are updated).
+                                                means update all).
                                                 Defaults to an empty list.
             force_update (bool, optional): If True, forces a fresh download from the provider,
                                            bypassing any local cache for each product.
@@ -398,10 +398,7 @@ class Market:
                   False if a critical error prevents the process from starting.
         """
         try:
-            if len(product_list) == 0:
-                dbg_warning('Ignore update, empty list.')
-            else:
-                self.instance.update_data(product_list = product_list, force_update = force_update)
+            self.instance.update_data(product_list = product_list, force_update = force_update)
         except Exception as e:
             dbg_error(e)
         
