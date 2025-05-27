@@ -1,5 +1,6 @@
 # testutility/market.py
 import pandas as pd
+from datetime import datetime, timedelta # Import datetime and timedelta
 from market.market import Market
 from utility.debug import dbg_info, dbg_warning, dbg_error, dbg_trace
 import traceback # Import traceback for detailed error logging
@@ -100,11 +101,14 @@ def test_get_data(market_instance: Market, product_id: str = DEFAULT_TEST_TICKER
     provider = market_instance.get_provider()
     dbg_info(f"Using provider: {provider}")
     try:
-        # Fetch data for the last year (or a small period)
-        df = market_instance.get_data(product_id=product_id, period="1y")
+        # Fetch data for a specific period, e.g., the last year
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=365) # Data for the last 365 days
+        dbg_info(f"Fetching data from {start_date} to {end_date} for {product_id}.")
+        df = market_instance.get_data(product_id=product_id, start_date=start_date, end_date=end_date)
         if df is None or df.empty:
-            dbg_warning(f"get_data() returned None or empty DataFrame for {product_id} using {provider}.")
-            # This could be valid if the ticker doesn't exist for the provider, not necessarily a failure.
+            dbg_warning(f"get_data() returned None or empty DataFrame for {product_id} using {provider} from {start_date} to {end_date}.")
+            # This could be valid if the ticker doesn't exist for the provider or no data for the period.
             return True # Let's consider this non-failure for now.
         dbg_info(f"get_data() for {product_id} returned DataFrame with shape {df.shape}.")
         dbg_info("Sample data (tail):\n" + df.tail().to_string())
@@ -156,6 +160,125 @@ def test_get_data_info(market_instance: Market, product_id: str = DEFAULT_TEST_T
         dbg_error(traceback.format_exc())
         return False
 
+def test_get_top_product_list(market_instance: Market) -> bool:
+    """Tests the get_top_product_list method."""
+    dbg_info("--- Running Test: Get Top Product List ---")
+    try:
+        # Test with default number (50)
+        top_products_default = market_instance.get_top_product_list()
+        if not top_products_default:
+            dbg_error("get_top_product_list() returned an empty list.")
+            return False
+        if len(top_products_default) != 50:
+            dbg_warning(f"get_top_product_list() default count mismatch. Expected 50, got {len(top_products_default)}.")
+            # This might be acceptable if the list is shorter, but worth noting.
+        dbg_info(f"get_top_product_list() (default) returned {len(top_products_default)} items. First 5: {top_products_default[:5]}")
+
+        # Test with a specific number (e.g., 10)
+        top_products_10 = market_instance.get_top_product_list(number=10)
+        if len(top_products_10) != 10:
+            dbg_error(f"get_top_product_list(number=10) count mismatch. Expected 10, got {len(top_products_10)}.")
+            return False
+        dbg_info(f"get_top_product_list(number=10) returned {len(top_products_10)} items. First 5: {top_products_10[:5]}")
+
+        # Test with number > 50 (should cap at 50)
+        top_products_100 = market_instance.get_top_product_list(number=100)
+        if len(top_products_100) != 50:
+            dbg_error(f"get_top_product_list(number=100) count mismatch. Expected 50, got {len(top_products_100)}.")
+            return False
+        dbg_info(f"get_top_product_list(number=100) returned {len(top_products_100)} items.")
+
+        return True
+    except Exception as e:
+        dbg_error(f"Error testing get_top_product_list: {e}")
+        dbg_error(traceback.format_exc())
+        return False
+
+def test_get_product_list_by_date(market_instance: Market) -> bool:
+    """Tests the get_product_list_by_date method."""
+    dbg_info("--- Running Test: Get Product List By Date ---")
+    provider = market_instance.get_provider()
+    dbg_info(f"Using provider: {provider}")
+    try:
+        # Test with a recent date (should return fewer or specific products)
+        # Note: This test's effectiveness depends on the actual data and provider.
+        # For a robust test, a mock provider with controlled data would be better.
+        # Here, we just check if it returns a list.
+        test_date = "2022-01-01" # Example date
+        product_list_by_date = market_instance.get_product_list_by_date(start_date=test_date)
+        if not isinstance(product_list_by_date, list):
+            dbg_error(f"get_product_list_by_date() did not return a list. Got: {type(product_list_by_date)}")
+            return False
+        if not product_list_by_date:
+            dbg_warning(f"get_product_list_by_date('{test_date}') returned an empty list. This might be expected for some providers/dates.")
+            # Consider this a non-failure for now, as data might genuinely be empty for the date.
+            return True
+        dbg_info(f"get_product_list_by_date('{test_date}') returned {len(product_list_by_date)} items. First 5: {product_list_by_date[:5]}")
+
+        # Test with a very early date (should return more products, potentially all)
+        early_date = "1990-01-01"
+        product_list_early = market_instance.get_product_list_by_date(start_date=early_date)
+        if not isinstance(product_list_early, list):
+            dbg_error(f"get_product_list_by_date() with early date did not return a list.")
+            return False
+        if not product_list_early:
+            dbg_warning(f"get_product_list_by_date('{early_date}') returned an empty list. This is unexpected for an early date.")
+            return False # This is more likely a failure if no products are found for a very early date.
+        dbg_info(f"get_product_list_by_date('{early_date}') returned {len(product_list_early)} items.")
+
+        # Basic check: list from early date should be >= list from recent date
+        if len(product_list_early) < len(product_list_by_date):
+            dbg_warning(f"Product list for {early_date} ({len(product_list_early)}) is smaller than for {test_date} ({len(product_list_by_date)}). This might indicate an issue with date filtering logic or data.")
+            # Not a hard failure, but a warning.
+        return True
+    except Exception as e:
+        dbg_error(f"Error testing get_product_list_by_date for provider {provider}: {e}")
+        dbg_error(traceback.format_exc())
+        return False
+
+def test_update_data(market_instance: Market, product_id: str = DEFAULT_TEST_TICKER) -> bool:
+    """Tests the update_data method."""
+    dbg_info(f"--- Running Test: Update Data ({product_id}) ---")
+    provider = market_instance.get_provider()
+    dbg_info(f"Using provider: {provider}")
+    try:
+        # Test updating a single product
+        dbg_info(f"Attempting to update data for {product_id} (force_update=False).")
+        result_single = market_instance.update_data(product_list=[product_id], force_update=False)
+        if not result_single:
+            dbg_warning(f"update_data() for single product {product_id} returned False. This might indicate an issue or no data to update.")
+            # Depending on the provider, this might be expected if no new data.
+            # For now, we'll treat it as a warning, not a hard failure.
+        else:
+            dbg_info(f"update_data() for single product {product_id} returned True.")
+
+        # Test updating with force_update=True
+        dbg_info(f"Attempting to update data for {product_id} (force_update=True).")
+        result_force = market_instance.update_data(product_list=[product_id], force_update=True)
+        if not result_force:
+            dbg_warning(f"update_data() with force_update=True for {product_id} returned False.")
+        else:
+            dbg_info(f"update_data() with force_update=True for {product_id} returned True.")
+
+        # Test with an empty product list (should still return True if no error occurs)
+        dbg_info("Attempting to update data with an empty product list.")
+        result_empty = market_instance.update_data(product_list=[], force_update=False)
+        if not result_empty:
+            dbg_error("update_data() with empty product list returned False, expected True.")
+            return False
+        dbg_info("update_data() with empty product list returned True.")
+
+        # If any of the specific updates failed, the overall test should fail.
+        # However, given the nature of update_data (delegation), a True return
+        # from the method itself is what we're primarily testing here.
+        # The actual data integrity check would be in provider-specific tests.
+        return result_single and result_force and result_empty # All individual calls should succeed
+
+    except Exception as e:
+        dbg_error(f"Error testing update_data for provider {provider}: {e}")
+        dbg_error(traceback.format_exc())
+        return False
+
 # --- Test Runner ---
 def run_market_tests(market_instance: Market, test_names: list[str]):
     """Runs specified market tests."""
@@ -166,6 +289,9 @@ def run_market_tests(market_instance: Market, test_names: list[str]):
         "get_data_list": test_get_data_list,
         "get_data": lambda m: test_get_data(m), # Use default ticker
         "get_info": lambda m: test_get_data_info(m), # Use default ticker
+        "get_top_product_list": test_get_top_product_list,
+        "get_product_list_by_date": test_get_product_list_by_date,
+        "update_data": lambda m: test_update_data(m), # Use default ticker
     }
 
     tests_to_run = []

@@ -17,7 +17,6 @@ from market.market import *
 
 from backtest.backtest import *
 from strategy.strategy import StrategyManager
-from broker.shioajibroker import ShioajiBroker
 from backtest.commands import *
 import numpy as np
 

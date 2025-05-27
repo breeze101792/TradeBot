@@ -9,8 +9,8 @@ from tabulate import tabulate # Import tabulate for creating tables
 # Local file
 from utility.debug import * # Replace standard logging with custom debug system
 
-# Assuming BaseBroker is the primary implementation for now
-from broker.base.basebroker import BaseBroker, Position
+# Assuming MockBroker is the primary implementation for now
+from broker.mock.mockbroker import MockBroker, Position
 from core.config import *
 
 class BrokerManager:
@@ -18,37 +18,36 @@ class BrokerManager:
     Manages different broker implementations, providing a unified interface.
     Acts as a wrapper around a specific broker instance.
     """
-    def __init__(self, broker_type: str = 'base', **kwargs: Any):
+    def __init__(self, broker_type: str = 'mock', **kwargs: Any):
         """
         Initializes the BrokerManager with a specific broker type.
 
         Args:
-            broker_type (str): The type of broker to instantiate ('base', etc.). Defaults to 'base'.
+            broker_type (str): The type of broker to instantiate ('mock', etc.). Defaults to 'mock'.
             **kwargs: Arguments to pass to the underlying broker's constructor
-                      (e.g., initial_cash, commission_per_trade, state_filepath).
+                      (e.g., initial_cash, commission_rate, broker_path).
         """
         self.cm = AppConfigManager()
-        self.broker: BaseBroker # Type hint for the wrapped broker instance
+        self.broker: MockBroker # Type hint for the wrapped broker instance
         self.broker_type = broker_type
 
         self.transaction_log_path = kwargs.get('transaction_log_path', 
             os.path.join(self.cm.get_path('broker'), f'{broker_type}/transactions.csv'))
         self._ensure_transaction_log_dir()
 
-        if broker_type == 'base':
-            # Extract relevant kwargs for BaseBroker, providing defaults if not present
+        if broker_type == 'mock':
+            # Extract relevant kwargs for MockBroker, providing defaults if not present
             initial_cash = kwargs.get('initial_cash', 1000000.0)
-            commission_per_trade = kwargs.get('commission_per_trade', 5.0)
-            # Use os.path.join for correct path construction
-            state_filepath = kwargs.get('state_filepath', os.path.join(self.cm.get_path('broker'), f'{broker_type}/broker_state.json')) # Default path
+            commission_rate = kwargs.get('commission_rate', 0.003)
 
-            self.broker = BaseBroker(
+            self.broker = MockBroker(
                 initial_cash=initial_cash,
-                commission_per_trade=commission_per_trade
+                commission_rate=commission_rate,
+                broker_path = os.path.join(self.cm.get_path('broker'), f'{broker_type}')
             )
             # Set the state file path after initialization
-            self.broker.set_state_filepath(state_filepath)
-            dbg_debug(f"Initialized BaseBroker via BrokerManager. Cash: ${initial_cash:,.2f}, Commission: ${commission_per_trade:.2f}, State File: {state_filepath}")
+            # self.broker.set_state_filepath(state_filepath)
+            dbg_debug(f"Initialized MockBroker via BrokerManager. Cash: ${initial_cash:,.2f}, Commission: ${commission_rate:.2f}")
         # Add elif blocks here for other broker types in the future
         # elif broker_type == 'interactive_brokers':
         #     self.broker = InteractiveBrokersBroker(**kwargs)
@@ -64,7 +63,10 @@ class BrokerManager:
             symbol (str): The stock symbol.
             action (str): 'buy' or 'sell'.
             size (int): The order quantity (must be positive).
-            price (Optional[float]): The limit price. If None, treat as market order. Defaults to None.
+            price (Optional[float]): The limit price. If None, the order is treated as a market order.
+                                     For a buy order, it executes only if the market price is less than or equal to the limit price.
+                                     For a sell order, it executes only if the market price is greater than or equal to the limit price.
+                                     Execution, if successful, always happens at the current market price. Defaults to None.
 
         Returns:
             Optional[Dict[str, Any]]: Details of the execution, or None if rejected/failed.
@@ -240,6 +242,7 @@ class BrokerManager:
         if not log_exists:
             # File doesn't exist, create it, log initial positions, then log the current transaction
             initial_positions = self.get_all_positions()
+            cash_balance = self.get_cash()
             with open(self.transaction_log_path, 'w', newline='') as f:
                 writer = csv.writer(f)
                 # Write header
@@ -627,9 +630,9 @@ if __name__ == "__main__":
     try:
         # Use specific parameters for the example
         manager = BrokerManager(
-            broker_type='base',
+            broker_type='mock',
             initial_cash=100000.0,
-            commission_per_trade=7.0,
+            commission_rate=0.007,
             state_filepath=example_state_file
         )
         print(f"BrokerManager initialized with {manager.broker_type} broker.")
@@ -681,9 +684,9 @@ if __name__ == "__main__":
     # --- Create New Manager and Connect (Loads State) ---
     print("\n--- Creating New Manager and Connecting (loads state) ---")
     manager2 = BrokerManager(
-        broker_type='base',
+        broker_type='mock',
         initial_cash=5000.0, # Different initial cash, will be overwritten by loaded state
-        commission_per_trade=1.0, # Different commission, will be overwritten by loaded state
+        commission_rate=0.001, # Different commission, will be overwritten by loaded state
         state_filepath=example_state_file # Must point to the same file to load
     )
     print(f"Manager 2 Initial Cash (before connect): ${manager2.get_cash():,.2f}")

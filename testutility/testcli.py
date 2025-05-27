@@ -13,6 +13,7 @@ from trading.evaluate import Evaluate # Import Evaluate class
 from trading.trading import Trading # Import Trading class
 from testutility.trading import run_trading_tests # Import the trading test runner
 import traceback # For detailed error logging in cmd_market
+from tabulate import tabulate # For pretty table output
 
 # ANSI color codes
 RED = "\033[91m"
@@ -45,6 +46,9 @@ class TestCLI(CommandLineInterface):
             "get_data_list",
             "get_data",
             "get_info",
+            "get_top_product_list", # New test case
+            "get_product_list_by_date", # New test case
+            "update_data", # New test case
             "all" # Special command to run all tests
         ]
         self.regist_cmd(
@@ -85,6 +89,9 @@ class TestCLI(CommandLineInterface):
             "sell_insufficient_position",
             "summarize_positions",
             "summarize_transactions",
+            "summarize_positions_no_positions", # New test case
+            "summarize_transactions_no_history", # New test case
+            "summarize_transactions_pnl_duration", # New test case
             "save_load_state",
             "transaction_logging",
             "all" # Special command
@@ -307,21 +314,39 @@ class TestCLI(CommandLineInterface):
             dbg_error(traceback.format_exc())
             overall_success = False # Command execution failed
 
-        dbg_info(f"--- Overall Test Execution Finished ---")
-        dbg_info("=" * 40)
-        dbg_info("Overall Test Summary:")
-        dbg_info("-" * 40)
+        self.print(f"--- Overall Test Execution Finished ---")
+        self.print("=" * 40)
+
+        # Print failed test case titles if any
+        failed_suites = [suite for suite, results in results_summary.items() if results.get('failed', 0) > 0]
+        if failed_suites:
+            self.print(f"{RED}Failed Test Suites:{RESET}")
+            for suite_name in failed_suites:
+                self.print(f"  - {suite_name}")
+            self.print("-" * 40) # Separator for clarity
+
+        self.print("Overall Test Summary:")
+
+        table_data = []
         for suite, results in results_summary.items():
             passed_count = results.get('passed', 0)
             failed_count = results.get('failed', 0)
-            passed_str = f"{GREEN}Passed={passed_count}{RESET}"
-            failed_str = f"{RED}Failed={failed_count}{RESET}" if failed_count > 0 else f"Failed={failed_count}"
-            dbg_info(f"  {suite:<10}: Ran={results.get('total', 0)}, {passed_str}, {failed_str}")
-        dbg_info("-" * 40)
-        total_passed_str = f"{GREEN}Passed={total_tests_passed}{RESET}"
-        total_failed_str = f"{RED}Failed={total_tests_failed}{RESET}" if total_tests_failed > 0 else f"Failed={total_tests_failed}"
-        dbg_info(f"  {'Total':<10}: Ran={total_tests_run}, {total_passed_str}, {total_failed_str}")
-        dbg_info("=" * 40)
+            # tabulate handles alignment, so we just need the raw numbers or colored strings
+            passed_display = f"{GREEN}{passed_count}{RESET}"
+            failed_display = f"{RED}{failed_count}{RESET}" if failed_count > 0 else f"{failed_count}"
+            table_data.append([suite, results.get('total', 0), passed_display, failed_display])
+
+        # Add total row
+        total_passed_display = f"{GREEN}{total_tests_passed}{RESET}"
+        total_failed_display = f"{RED}{total_tests_failed}{RESET}" if total_tests_failed > 0 else f"{total_tests_failed}"
+        table_data.append(['Total', total_tests_run, total_passed_display, total_failed_display])
+
+        headers = ["Suite", "Ran", "Passed", "Failed"]
+
+        # Generate the table string using tabulate
+        table_string = tabulate(table_data, headers=headers, tablefmt="grid")
+        self.print(table_string) # Print the generated table
+        self.print("=" * 40)
 
         # Return True if the command ran without crashing AND all tests passed, False otherwise.
         return overall_success and total_tests_failed == 0

@@ -153,6 +153,16 @@ class MarketTime:
 
 class Market:
     def __init__(self, market = None):
+        """
+        Initializes the Market manager.
+
+        Manages different market data providers (e.g., FindMind, TWSE, Yahoo)
+        and provides a unified interface to access market data.
+
+        Args:
+            market (str, optional): The name of the market provider to use initially.
+                                    If None, defaults to the first provider in the list.
+        """
         self.__market_list = [FindMind, TWSE, Yahoo]
         self.instance = None
         self.cached_stock_info_frame = None
@@ -178,17 +188,24 @@ class Market:
     #     self.download_data = self.instance.download_data
 
     def set_cached_path(self, data_path):
+        """
+        Sets the base path for caching market data for all providers.
+
+        Args:
+            data_path (str): The directory path where market data should be cached.
+        """
         dbg_trace(f'set data path to {data_path}')
         for each_market in self.__market_list:
             each_market.CACHED_DATA_PATH = data_path
 
     def __filter_by_start_date(self, df: pd.DataFrame, start_date: str, date_column: str = 'Date') -> pd.DataFrame:
         """
-        Filter the DataFrame to include only rows with date_column >= start_date.
+        Filter the DataFrame to include only rows where the specified `date_column`
+        is on or before the `start_date`. This is a helper method, typically used internally.
 
         Parameters:
             df (pd.DataFrame): The input DataFrame.
-            start_date (str): The start date in 'YYYY-MM-DD' format.
+            start_date (str): The cutoff date in 'YYYY-MM-DD' format.
             date_column (str): The column name that contains date values. Default is 'Date'.
 
         Returns:
@@ -202,11 +219,32 @@ class Market:
         filtered_df = df[df[date_column] <= start_date].reset_index(drop=True)
         return filtered_df
     ## API From other files.
-    def get_provider(self):
+    def get_provider(self) -> str:
+        """
+        Returns the name of the currently active market data provider.
+
+        Returns:
+            str: The name of the current market data provider (e.g., 'findmind', 'twse').
+        """
         return self.instance.NAME
-    def get_markget_list(self):
+
+    def get_markget_list(self) -> list[str]:
+        """
+        Returns a list of all available market data provider names.
+
+        Returns:
+            list[str]: A list of strings, where each string is the name of a provider.
+        """
         return [ each_market.NAME for each_market in self.__market_list]
-    def switch_market(self, market):
+
+    def switch_market(self, market: str):
+        """
+        Switches the active market data provider.
+
+        Args:
+            market (str): The name of the market provider to switch to.
+                          Must be one of the names returned by `get_markget_list()`.
+        """
         for each_market in self.__market_list:
             if market == each_market.NAME:
                 self.instance = each_market()
@@ -225,7 +263,19 @@ class Market:
         ]
         return top_tw_stocks[:number]
 
-    def get_product_list_by_date(self, start_date = "2020-01-01"):
+    def get_product_list_by_date(self, start_date: str = "2020-01-01") -> list[str]:
+        """
+        Retrieves a list of product IDs (stock codes) that were listed on or before a given start date.
+        This method uses the currently active market data provider to fetch the product list.
+
+        Args:
+            start_date (str, optional): The date in 'YYYY-MM-DD' format. Only products
+                                        listed on or before this date will be included.
+                                        Defaults to "2020-01-01".
+
+        Returns:
+            list[str]: A list of product IDs (strings).
+        """
         product_frame_list = self.instance.get_data_list()
         self.__filter_by_start_date(product_frame_list, start_date, "start")
         product_list = []
@@ -234,8 +284,23 @@ class Market:
             product_list.append(each_key)
         return product_list
 
-    def get_data_list(self, market: str = None, country: str = None):
+    def get_data_list(self, market: str = None, country: str = None) -> list[str]:
+        """
+        Retrieves a comprehensive list of product IDs (stock codes) available from the
+        currently active market data provider.
 
+        The results are cached internally for `get_data_info` lookup.
+
+        Args:
+            market (str, optional): Filters products by market type (e.g., 'listed', 'otc').
+                                    If None, no market filtering is applied by this method,
+                                    but the underlying provider might have defaults.
+            country (str, optional): Filters products by country (e.g., 'TW').
+                                     If None, no country filtering is applied.
+
+        Returns:
+            list[str]: A list of product IDs (strings).
+        """
         # NOTE, it's more easy to get data form TWSE. all we want is listed data.
         # twse_ins = TWSE()
         # product_frame_list = twse_ins.get_data_list(market = market, country = country)
@@ -249,11 +314,45 @@ class Market:
             product_list.append(each_key)
         return product_list
 
-    def get_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None, period: str = None, force_update: bool = False):
+    def get_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None, force_update: bool = False) -> pd.DataFrame:
+        """
+        Downloads historical daily data for a given product ID from the active provider.
+        The data includes Open, High, Low, Close, Volume, Turnover, Change, and Transaction.
+        Prices are typically adjusted for corporate actions (e.g., dividends, splits) if the
+        provider supports adjusted data or if the adjustment logic is implemented.
+
+        Args:
+            product_id (str): The unique identifier for the product (e.g., stock ticker symbol).
+            start_date (datetime.date, optional): The start date for the historical data.
+                                                  If None, the provider's default earliest date is used.
+            end_date (datetime.date, optional): The end date for the historical data.
+                                                If None, the current date is used.
+            force_update (bool, optional): If True, forces a fresh download from the provider,
+                                           bypassing any local cache. Defaults to False.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing historical data with 'Date' as index,
+                          and columns like 'Open', 'High', 'Low', 'Close', 'Volume', etc.
+                          Returns an empty DataFrame if data cannot be fetched.
+        """
         # FIXME, sanity check product_id.
         return self.instance.get_data(product_id=product_id, start_date=start_date, end_date=end_date,force_update = force_update)
 
-    def get_data_info(self, product_id):
+    def get_data_info(self, product_id: str) -> dict:
+        """
+        Retrieves detailed information about a specific product.
+
+        This method first attempts to use a cached list of product information.
+        If the cache is empty, it will call `get_data_list()` to populate it.
+
+        Args:
+            product_id (str): The unique identifier for the product (e.g., stock ticker symbol).
+
+        Returns:
+            dict: A dictionary containing product details such as 'code', 'type', 'name',
+                  'start' (listing date), 'market', 'category', and 'country'.
+                  Returns None if the product information cannot be found.
+        """
         # return the following info.
         # {'code': '2330', 'type': '股票', 'name': '台積電', 'start': '1994-09-05', 'market': 'listed', 'category': '半導體業', 'country': 'TW'}
         if self.cached_stock_info_frame is None:
@@ -262,7 +361,9 @@ class Market:
 
         try:
             pd_info = self.cached_stock_info_frame
-            return pd_info.loc[product_id].to_dict()
+            product_dict = pd_info.loc[product_id].to_dict()
+            product_dict['code'] = product_id
+            return product_dict
         except Exception as e:
             dbg_error(e)
         
@@ -270,5 +371,36 @@ class Market:
             dbg_error(traceback_output)
             return None
 
-    def update_data(self, product_list = [], force_update: bool = False):
-        return self.instance.update_data(product_list = product_list, force_update = force_update)
+    def update_data(self, product_list: list[str] = [], force_update: bool = False) -> bool:
+        """
+        Updates historical data for a list of specified products.
+        This method iterates through the `product_list` and calls the underlying
+        provider's data download method for each product.
+
+        Args:
+            product_list (list[str], optional): A list of product IDs (strings) to update.
+                                                If empty, the behavior depends on the underlying
+                                                provider's `update_data` implementation (usually
+                                                means no specific products are updated).
+                                                Defaults to an empty list.
+            force_update (bool, optional): If True, forces a fresh download from the provider,
+                                           bypassing any local cache for each product.
+                                           Defaults to False.
+
+        Returns:
+            bool: True if the update process completes (even if some individual updates fail),
+                  False if a critical error prevents the process from starting.
+        """
+        try:
+            if len(product_list) == 0:
+                dbg_warning('Ignore update, empty list.')
+            else:
+                self.instance.update_data(product_list = product_list, force_update = force_update)
+        except Exception as e:
+            dbg_error(e)
+        
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+            return False
+        return True
+

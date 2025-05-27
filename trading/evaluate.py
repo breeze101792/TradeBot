@@ -88,9 +88,11 @@ class Evaluate:
         dbg_info(f"All product evaluated.", prefix='\n')
         return candidate_dict
     def __buy_filering_profitable_product(self, candidate_dict):
-        if len(candidate_dict) != 0:
-            dbg_info(f"Candidate Checking:{candidate_dict.keys()}")
+        if len(candidate_dict) == 0:
+            return dict()
+        dbg_info(f"Candidate Checking:{candidate_dict.keys()}")
         candidate_buying_dict = dict()
+        buying_dict = dict()
 
         strategyMgr = StrategyManager()
         strategy_list=[self.default_strategy]
@@ -159,7 +161,6 @@ class Evaluate:
                 dbg_warning(traceback_output)
         # candidate_analyzer.show_result()
 
-        buying_dict = {}
         # sorting with score and list it. add top 3 product to buying_dict.
         sorted_candidates = sorted(candidate_buying_dict.items(), key=lambda item: item[1].get('score', invalid_number), reverse=True)
 
