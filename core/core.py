@@ -179,17 +179,17 @@ class Core:
                 # for development convenience, we set evaluation 4 hours before market open.
 
                 target = None
-                current_time = datetime.now()
+                current_time = datetime.now().time()
 
-                if current_time > current_time.replace(hour=15, minute=0, second=0, microsecond=0):
+                if current_time > MarketTime.MARKET_UPDATE_TIME:
                     # 15 ~ 24, after market
-                    target = MarketTime.get_next_market_open_time().replace(hour=5, minute=0, second=0, microsecond=0)
-                elif current_time < current_time.replace(hour=8, minute=0, second=0, microsecond=0):
+                    target = MarketTime.get_next_market_open_time() - timedelta(hours=3)
+                elif current_time < MarketTime.MARKET_OPEN_TIME :
                     # 0 ~ 8, before market, use one hour early to protect selling service.
-                    target = MarketTime.get_next_market_open_time().replace(hour=5, minute=0, second=0, microsecond=0)
+                    target = MarketTime.get_next_market_open_time() - timedelta(hours=3)
                 else:
                     # 8 ~ 15
-                    target = MarketTime.get_next_market_update_time().replace(hour=15, minute=0, second=0, microsecond=0)
+                    target = MarketTime.get_next_market_update_time() + timedelta(hours=1)
 
                 self.trading_status.Trading.next_wakeup_time = target # Store wake-up time for eval
 

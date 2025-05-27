@@ -2,6 +2,7 @@ import pandas as pd
 import traceback
 import os
 from time import sleep
+from datetime import time as dt_time # Alias to avoid conflict with time module
 from datetime import datetime, timedelta
 
 from utility.debug import *
@@ -10,6 +11,12 @@ class DataProvider:
     NAME = 'provider'
     CACHED_DATA_PATH = './.data'
     SUPPORTED_ADJUSTED_DATA = False
+
+    # ex. datetime.time(18, 00, 0)
+    MARKET_OPEN_TIME = None
+    MARKET_CLOSE_TIME = None
+    MARKET_UPDATE_TIME = None
+
     def __init__(self):
         self.cache_data_name = f'./{self.NAME}'
         self.cache_data_root_path = self.CACHED_DATA_PATH
@@ -82,10 +89,10 @@ class DataProvider:
         now = datetime.now()
         last_trading_day = now.date()
 
-        # If current time is before 13:30, data for today might not be fully updated.
+        # If current time is before MARKET_UPDATE_TIME, data for today might not be fully updated.
         # So, consider the last trading day as yesterday.
-        if now.hour < 13 or (now.hour == 13 and now.minute < 30):
-            dbg_debug("Current time is before 13:30, considering previous trading day for data update.")
+        if self.MARKET_UPDATE_TIME and now.time() < self.MARKET_UPDATE_TIME:
+            dbg_debug(f"Current time is before {self.MARKET_UPDATE_TIME}, considering previous trading day for data update.")
             last_trading_day -= timedelta(days=1)
 
         while last_trading_day.weekday() >= 5: # Skip weekends (Saturday=5, Sunday=6)

@@ -9,6 +9,7 @@ from utility.cli import CommandLineInterface
 from market.market import Market # Import Market class
 from testutility.market import run_market_tests # Import the test runner
 from testutility.broker import run_broker_tests # Import the broker test runner
+from testutility.backtest import run_backtest_tests # Import the backtest test runner
 from trading.evaluate import Evaluate # Import Evaluate class
 from trading.trading import Trading # Import Trading class
 from testutility.trading import run_trading_tests # Import the trading test runner
@@ -104,13 +105,37 @@ class TestCLI(CommandLineInterface):
             group='testing'
         )
 
+        # Define available backtest sub-tests (match keys in run_backtest_tests)
+        self.backtest_sub_tests = [
+            "initial_configuration",
+            "setup_method",
+            "add_symbol",
+            "add_data_frame",
+            "add_history_validation",
+            "add_strategy",
+            "add_optstrategy",
+            "eval_basic",
+            "eval_with_history",
+            "save_report",
+            "show_result",
+            "eval_lock",
+            "all" # Special command
+        ]
+        self.regist_cmd(
+            "backtest",
+            self.cmd_backtest,
+            description=f"Run tests for backtest.py. Sub-tests: {', '.join(self.backtest_sub_tests)}",
+            arg_list=self.backtest_sub_tests,
+            group='testing'
+        )
+
         # Define top-level test groups
-        self.test_groups = ["market", "broker", "trading", "all"]
+        self.test_groups = ["market", "broker", "trading", "backtest", "all"]
         self.regist_cmd(
             "test",
             self.cmd_test,
             description=f"Run specified test groups or all tests (default). Groups: {', '.join(g for g in self.test_groups if g != 'all')}",
-            arg_list=self.test_groups, # arg_list will now include 'trading'
+            arg_list=self.test_groups,
             group='testing' # Group for the master test command
         )
         # Add other command registrations if needed
@@ -223,6 +248,37 @@ class TestCLI(CommandLineInterface):
             dbg_error(traceback.format_exc())
             return False # Indicate command execution failure
 
+    def cmd_backtest(self, args):
+        """Command handler for 'backtest' tests."""
+        if args['#'] == 0:
+            dbg_error("Please specify a backtest sub-test or 'all'.")
+            dbg_info(f"Available sub-tests: {', '.join(self.backtest_sub_tests)}")
+            return False
+
+        tests_to_run = []
+        for i in range(1, args['#'] + 1):
+            sub_cmd = args[str(i)]
+            if sub_cmd in self.backtest_sub_tests:
+                tests_to_run.append(sub_cmd)
+            else:
+                self.print_warning(f"Unknown backtest sub-test '{sub_cmd}', ignoring.")
+
+        if not tests_to_run:
+            dbg_error("No valid backtest sub-tests specified.")
+            return False
+
+        if "all" in tests_to_run:
+            tests_to_run = ["all"]
+
+        dbg_info(f"Running backtest tests: {', '.join(tests_to_run)}")
+        try:
+            run_backtest_tests(tests_to_run)
+            return True # Command execution success (tests pass/fail internally)
+        except Exception as e:
+            dbg_error(f"An error occurred while running backtest tests: {e}")
+            dbg_error(traceback.format_exc())
+            return False # Command execution failure
+
     def cmd_test(self, args):
         """Command handler for running all or specified test groups."""
         run_all_tests = False
@@ -294,6 +350,18 @@ class TestCLI(CommandLineInterface):
                     if broker_results.get("failed", 0) > 0:
                         overall_success = False # Mark overall as failed if any suite fails
                 dbg_info("=== Broker Test Suite Complete ===\n")
+
+            if run_all_tests or "backtest" in requested_groups:
+                dbg_info("\n=== Running Backtest Test Suite (all) ===")
+                backtest_results = run_backtest_tests(["all"])
+                if backtest_results:
+                    results_summary["Backtest"] = backtest_results
+                    total_tests_run += backtest_results.get("total", 0)
+                    total_tests_passed += backtest_results.get("passed", 0)
+                    total_tests_failed += backtest_results.get("failed", 0)
+                    if backtest_results.get("failed", 0) > 0:
+                        overall_success = False # Mark overall as failed if any suite fails
+                dbg_info("=== Backtest Test Suite Complete ===\n")
 
             # Add calls to other test group runners here if created later
             # Example:

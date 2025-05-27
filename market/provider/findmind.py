@@ -16,6 +16,11 @@ from FinMind.data import FinMindApi
 class FindMind(DataProvider):
     NAME='findmind'
     SUPPORTED_ADJUSTED_DATA = True
+
+    MARKET_OPEN_TIME = dt_time(9, 0, 0)
+    MARKET_CLOSE_TIME = dt_time(13, 30, 0)
+    MARKET_UPDATE_TIME = dt_time(18, 00, 0) # Time when daily data is usually finalized
+
     def __init__(self):
         super().__init__()
         self.token_file = "~/.findmind.key"

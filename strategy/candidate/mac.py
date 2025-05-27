@@ -29,6 +29,10 @@ class MovingAverageCrossoverStrategy(MovingProfitStrategy):
         self.sma_long = {data: bt.indicators.SimpleMovingAverage(data, period=self.params.long_period) for data in self.datas}
 
     def stra_buy_in(self, data):
-        return self.sma_short[data][0] > self.sma_long[data][0] and self.sma_short[data][-1] <= self.sma_long[data][-1]
+        result = self.sma_short[data][0] > self.sma_long[data][0] and self.sma_short[data][-1] <= self.sma_long[data][-1]
+        # info
+        # if result:
+        #     dbg_info(f"[{data.datetime.date(0)}]{data._name} {self.sma_short[data][0]:.2f}>{self.sma_long[data][0]:.2f}/{self.sma_short[data][-1]:.2f}>{self.sma_long[data][-1]:.2f}")
+        return result
     def stra_sell_out(self, data):
         return self.sma_short[data][0] < self.sma_long[data][0]

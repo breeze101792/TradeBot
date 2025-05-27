@@ -47,7 +47,7 @@ class Evaluate:
             # product_list = market.get_data_list()[:50]
             product_list = self.test_buy_list
 
-        last_trading_day = MarketTime.get_previous_market_update_time().date()
+        last_trading_day = MarketTime.get_previous_market_update_time()
 
         dbg_info(f"Last Trad date {last_trading_day}")
 
@@ -61,11 +61,12 @@ class Evaluate:
                 try:
                     dbg_info(f"[{each_idx + 1:>2}/{len(product_list)}] {each_product}" , prefix = '\r',end=' ' * 10)
                     # test only one year for accerate performance.
+                    trade_analyzer.to_date=last_trading_day
                     trade_analyzer.from_date=trade_analyzer.to_date - relativedelta(years=1)
 
                     trade_analyzer.setup()
                     trade_analyzer.add_symbol([each_product])
-                    trade_analyzer.add_strategy([each_strategy], last_trading_day = last_trading_day)
+                    trade_analyzer.add_strategy([each_strategy], last_trading_day = last_trading_day.date())
 
                     # FIXME, it's kindle of a weird workaround. just need to fix it.
                     # each_strategy.reset_status(each_strategy, clean_all = True)
@@ -76,10 +77,13 @@ class Evaluate:
                     trade_info = each_strategy.last_trade
 
                     if trade_info['action'] == 'buy':
-                        dbg_info(f"Evaluation Trade {trade_info['symbol']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
-                        candidate_dict[trade_info['symbol']] = {'strategy': each_strategy}
-                    # else:
-                    #     dbg_info(f"Evaluation Trade {trade_info['symbol']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
+                        if trade_info['symbol'] not in candidate_dict:
+                            dbg_info(f"Evaluation Trade {trade_info['symbol']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
+                            candidate_dict[trade_info['symbol']] = {'strategy': each_strategy}
+                        else:
+                            dbg_info(f"Duplicated! Evaluation Trade {trade_info['symbol']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
+                    else:
+                        dbg_trace(f"Evaluation Trade {trade_info['symbol']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
                 except Exception as e:
                     dbg_warning(e)
                 
@@ -95,7 +99,6 @@ class Evaluate:
         buying_dict = dict()
 
         strategyMgr = StrategyManager()
-        strategy_list=[self.default_strategy]
         market = Market()
 
         candidate_analyzer = Analyzer(market)
@@ -314,7 +317,7 @@ class Evaluate:
         selling_analyzer.clean_result()
 
         last_trading_day = MarketTime.get_previous_market_update_time().date()
-        dbg_debug(f"Last Trad date {last_trading_day}")
+        dbg_info(f"Last Trad date {last_trading_day}")
 
         # Iterate through positions provided by the broker (dict: {symbol: Position_object})
         for symbol, position_obj in position_dict.items():

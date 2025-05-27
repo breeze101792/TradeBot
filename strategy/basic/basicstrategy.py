@@ -187,13 +187,15 @@ class BasicStrategy(bt.Strategy):
                         'total_cost': exec_cost
                     }
                     # Removed dbg_trace for "Opened Active Trade" as info is in "BUY EXECUTED"
-                    self.update_last_trading_info(
-                        date=data.datetime.date(0),
-                        code=data._name,
-                        action="buy",
-                        price=exec_price,
-                        size=exec_size,
-                    )
+                    # NOTE. Because bt is next day trade, so it won't work on last day.
+                    # Don't remove it, it's a important note.
+                    # self.update_last_trading_info(
+                    #     date=data.datetime.date(0),
+                    #     code=data._name,
+                    #     action="buy",
+                    #     price=exec_price,
+                    #     size=exec_size,
+                    # )
 
             elif order.issell():
                 # when sell, exec_size shows negative number
@@ -257,13 +259,15 @@ class BasicStrategy(bt.Strategy):
                     # or if handling short positions (not implemented here)
                     dbg_warning(f"Sell executed for {code} on {exec_date} size:{exec_size} but no active buy record found in active_trades: {self.active_trades}.")
 
-                self.update_last_trading_info(
-                    date=data.datetime.date(0),
-                    code=data._name,
-                    action="sell",
-                    price=exec_price,
-                    size=exec_size,
-                )
+                # NOTE. Because bt is next day trade, so it won't work on last day.
+                # Don't remove it, it's a important note.
+                # self.update_last_trading_info(
+                #     date=data.datetime.date(0),
+                #     code=data._name,
+                #     action="sell",
+                #     price=exec_price,
+                #     size=exec_size,
+                # )
 
             # self.bar_executed = len(self) # This seems unnecessary unless used elsewhere
 
@@ -348,39 +352,39 @@ class BasicStrategy(bt.Strategy):
         # print("Trading History:")
         # for trade in self.trading_history:
 
-    # def sell(self, data, size, *args, **kwargs):
-    #     # FIXME, use close as price.
-    #     price = data.close[0]
-    #     dbg_trace(f'Sell {data._name}, size:{size}')
-    #     self.update_last_trading_info(
-    #         date=data.datetime.date(0),
-    #         code=data._name,
-    #         action="sell",
-    #         price=price,
-    #         size=size,
-    #     )
-    #     if self.order is not None:
-    #         dbg_warning(f"Cancelling existing order for {self.order.data._name}: Ref: {self.order.ref}, Type: {'Buy' if self.order.isbuy() else 'Sell'}, Size: {self.order.size}, Price: {self.order.price}, Status: {self.order.getstatusname()}")
-    #         self.order.cancel()
-    #     self.order = super().sell(data=data, size=size, *args, **kwargs)
-    #     return self.order
-    # def buy(self, data, size, *args, **kwargs):
-    #     # FIXME, use close as price.
-    #     price = data.close[0]
-    #     dbg_trace(f'Buy {data._name}, size:{size}')
-    #     self.update_last_trading_info(
-    #         date=data.datetime.date(0),
-    #         code=data._name,
-    #         action="buy",
-    #         price=price,
-    #         size=size,
-    #     )
-    #     if self.order is not None:
-    #         dbg_warning(f"Cancelling existing order for {self.order.data._name}: Ref: {self.order.ref}, Type: {'Buy' if self.order.isbuy() else 'Sell'}, Size: {self.order.size}, Price: {self.order.price}, Status: {self.order.getstatusname()}")
-    #         self.order.cancel()
-    #
-    #     self.order = super().buy(data=data, size=size, *args, **kwargs)
-    #     return self.order
+    def sell(self, data, size, *args, **kwargs):
+        # FIXME, use close as price.
+        price = data.close[0]
+        dbg_trace(f'Sell {data._name}, size:{size}')
+        self.update_last_trading_info(
+            date=data.datetime.date(0),
+            code=data._name,
+            action="sell",
+            price=price,
+            size=size,
+        )
+        if self.order is not None:
+            dbg_warning(f"Cancelling existing order for {self.order.data._name}: Ref: {self.order.ref}, Type: {'Buy' if self.order.isbuy() else 'Sell'}, Size: {self.order.size}, Price: {self.order.price}, Status: {self.order.getstatusname()}")
+            self.order.cancel()
+        self.order = super().sell(data=data, size=size, *args, **kwargs)
+        return self.order
+    def buy(self, data, size, *args, **kwargs):
+        # FIXME, use close as price.
+        price = data.close[0]
+        dbg_trace(f'Buy {data._name}, size:{size}')
+        self.update_last_trading_info(
+            date=data.datetime.date(0),
+            code=data._name,
+            action="buy",
+            price=price,
+            size=size,
+        )
+        if self.order is not None:
+            dbg_warning(f"Cancelling existing order for {self.order.data._name}: Ref: {self.order.ref}, Type: {'Buy' if self.order.isbuy() else 'Sell'}, Size: {self.order.size}, Price: {self.order.price}, Status: {self.order.getstatusname()}")
+            self.order.cancel()
+
+        self.order = super().buy(data=data, size=size, *args, **kwargs)
+        return self.order
 
 class BasicExitStrategy(BasicStrategy):
     def stra_initial(self):

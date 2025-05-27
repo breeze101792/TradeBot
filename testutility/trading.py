@@ -388,9 +388,15 @@ def run_trading_tests(test_names: list[str], evaluate_instance: Evaluate = None,
 
 
     dbg_info(f"=== Trading Tests Summary ===")
+    for name, result in results.items():
+        if result == "SKIPPED":
+            status_str = "SKIPPED"
+        else:
+            status_str = f"{GREEN}PASS{RESET}" if result else f"{RED}FAIL{RESET}"
+        dbg_info(f"  {name:<30}: {status_str}")
     total_failed = total_run - total_passed
-    passed_str = f"{GREEN}Passed={total_passed}{RESET}"
-    failed_str = f"{RED}Failed={total_failed}{RESET}" if total_failed > 0 else f"Failed={total_failed}"
+    passed_str = f"{GREEN}Passed: {total_passed}{RESET}"
+    failed_str = f"{RED}Failed: {total_failed}{RESET}" if total_failed > 0 else f"Failed: {total_failed}"
     dbg_info(f"Total Tests Run: {total_run}, {passed_str}, {failed_str}")
     dbg_info("==========================")
     return {"total": total_run, "passed": total_passed, "failed": total_failed}

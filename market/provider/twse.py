@@ -29,6 +29,10 @@ from twstock import Stock
 
 class TWSE(DataProvider):
     NAME='twse'
+
+    MARKET_OPEN_TIME = dt_time(9, 0, 0)
+    MARKET_CLOSE_TIME = dt_time(13, 30, 0)
+    MARKET_UPDATE_TIME = dt_time(18, 00, 0) # Time when daily data is usually finalized
     def __init__(self):
         super().__init__()
 

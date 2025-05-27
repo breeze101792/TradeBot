@@ -22,9 +22,10 @@ from datetime import time as dt_time # Alias to avoid conflict with time module
 class MarketTime:
     # Standard market times (e.g., for TWSE)
     # TODO: Make these market-specific if needed
-    MARKET_OPEN_TIME = dt_time(9, 0, 0)
-    MARKET_CLOSE_TIME = dt_time(13, 30, 0)
-    MARKET_UPDATE_TIME = dt_time(13, 40, 0) # Time when daily data is usually finalized
+    # Need init of market
+    MARKET_OPEN_TIME = None
+    MARKET_CLOSE_TIME = None
+    MARKET_UPDATE_TIME = None
 
     @staticmethod
     def get_market_open_time() -> dt_time:
@@ -166,6 +167,7 @@ class Market:
         self.__market_list = [FindMind, TWSE, Yahoo]
         self.instance = None
         self.cached_stock_info_frame = None
+        self.time = MarketTime
 
         # config
         self.cm = AppConfigManager()
@@ -248,6 +250,10 @@ class Market:
         for each_market in self.__market_list:
             if market == each_market.NAME:
                 self.instance = each_market()
+
+        self.time.MARKET_OPEN_TIME = self.instance.MARKET_OPEN_TIME
+        self.time.MARKET_CLOSE_TIME = self.instance.MARKET_CLOSE_TIME
+        self.time.MARKET_UPDATE_TIME = self.instance.MARKET_UPDATE_TIME
 
     def get_top_product_list(self, number = 50):
         if number > 50:

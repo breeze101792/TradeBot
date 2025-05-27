@@ -29,6 +29,7 @@ class MovingProfitStrategy(BasicExitStrategy):
         self.stra_initial()
 
     def next(self):
+        # dbg_info(f"[{self.datas[0].datetime.date(0)}] {self.is_trading_date(self.datas[0].datetime.date(0))}")
         if not self.is_trading_date(self.datas[0].datetime.date(0)):
             return
         # normal we add only one data at a time, so the len will be 1.
