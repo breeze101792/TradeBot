@@ -130,13 +130,14 @@ class Core:
 
         # TODO Impl heatbeat
         heart_beat_interval_time=10
-        while self.flag_core_running and self.flag_heatbeat_running:
+        while self.flag_heatbeat_running:
             try:
                 # dbg_trace('heart beatting every {}s'.format(heart_beat_interval_time))
                 # TODO, add mail/notification to user of the server issue been found.
                 result = self.__sanitycheck()
                 if result == False:
-                    self.flag_core_running = False
+                    dbg_error('Service failed.')
+                    self.cmd_status()
                 sleep_result = sleep_with_flag(heart_beat_interval_time, self.stop_event)
                 if sleep_result == -1:
                     break;
@@ -152,9 +153,8 @@ class Core:
 
             finally:
                 # Finalize service thread.
-                if self.flag_core_running is False or self.flag_trade_service_running is False or self.flag_selling_service_running is False:
+                if self.flag_heatbeat_running:
                     dbg_trace('Finalize service thread.')
-                    break
 
                 time.sleep(self.var_threading_delay)
 
@@ -231,12 +231,13 @@ class Core:
 
                 traceback_output = traceback.format_exc()
                 dbg_error(traceback_output)
-                self.flag_trade_service_running = False
+                # self.flag_trade_service_running = False
 
             finally:
                 # Finalize service thread.
                 if self.flag_core_running is False or self.flag_trade_service_running is False:
                     dbg_trace('Finalize service thread.')
+                    self.flag_core_running = False
                     break
 
                 time.sleep(self.var_threading_delay)
@@ -333,12 +334,13 @@ class Core:
 
                 traceback_output = traceback.format_exc()
                 dbg_error(traceback_output)
-                self.flag_selling_service_running = False
+                # self.flag_selling_service_running = False
 
             finally:
                 # Finalize service thread.
                 if self.flag_core_running is False or self.flag_selling_service_running is False:
                     dbg_trace('Finalize service thread.')
+                    self.flag_core_running = False
                     break
 
                 time.sleep(self.var_threading_delay)
@@ -380,12 +382,12 @@ class Core:
 
                 traceback_output = traceback.format_exc()
                 dbg_error(traceback_output)
-                self.flag_datasource_service_running = False
-
+                # self.flag_datasource_service_running = False
             finally:
                 # Finalize service thread.
                 if self.flag_core_running is False or self.flag_datasource_service_running is False:
                     dbg_trace('Finalize service thread.')
+                    self.flag_core_running = False
                     break
 
                 time.sleep(self.var_threading_delay)
@@ -393,7 +395,7 @@ class Core:
         self.trading_status.Datasource.next_wakeup_time = None # Ensure reset on exit
         self.flag_datasource_service_running = False
         dbg_warning('Data Source End.')
-    def cmd_status(self, args):
+    def cmd_status(self, args = None):
         """Prints the current status of the trading core and its services."""
         print("--- Core Status ---")
         ds_next_wakeup = self.trading_status.Datasource.next_wakeup_time

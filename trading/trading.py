@@ -21,22 +21,29 @@ class Trading:
             trade_broker = BrokerManager()
             trade_broker.connect()
             for each_symbol in buy_list:
-                dbg_info(f'Buying product: {each_symbol}')
-                # 0.9 is to avoid market price increase cause insufficient funds.
-                current_cash = trade_broker.get_cash() * 0.9
-                # budget should smaller then CASH_PER_TRADE.
-                buying_budget = current_cash if current_cash < CASH_PER_TRADE else CASH_PER_TRADE
-                current_price = trade_broker.get_last_price(each_symbol)
+                try:
+                    dbg_info(f'Buying product: {each_symbol}')
+                    # 0.9 is to avoid market price increase cause insufficient funds.
+                    current_cash = trade_broker.get_cash() * 0.9
+                    # budget should smaller then CASH_PER_TRADE.
+                    buying_budget = current_cash if current_cash < CASH_PER_TRADE else CASH_PER_TRADE
+                    current_price = trade_broker.get_last_price(each_symbol)
 
-                # size should be the 1000x
-                order_lot = math.floor(buying_budget / (current_price * LOT_UNIT))
-                order_size = order_lot * LOT_UNIT
+                    # size should be the 1000x
+                    order_lot = math.floor(buying_budget / (current_price * LOT_UNIT))
+                    order_size = order_lot * LOT_UNIT
 
-                # sanity check
-                if current_price * order_size < buying_budget:
-                    trade_broker.place_order(symbol=each_symbol, size=order_size, action='buy')
-                else:
-                    dbg_warning(f'Insufficient cash (buget {buying_budget}), ignore buying product:{each_symbol} at size:{order_size}, price:{current_price}')
+                    # sanity check
+                    if current_price * order_size < buying_budget:
+                        trade_broker.place_order(symbol=each_symbol, size=order_size, action='buy')
+                    else:
+                        dbg_warning(f'Insufficient cash (buget {buying_budget}), ignore buying product:{each_symbol} at size:{order_size}, price:{current_price}')
+                except Exception as e:
+                    dbg_error(e)
+                
+                    traceback_output = traceback.format_exc()
+                    dbg_error(traceback_output)
+
             trade_broker.summarize_positions()
             trade_broker.disconnect()
         else:
@@ -55,22 +62,28 @@ class Trading:
             trade_broker = BrokerManager()
             trade_broker.connect()
             for each_symbol in selling_list:
-                symbol = each_symbol['symbol']
-                # DON"T need to times 1000
-                selling_size = each_symbol['size']
+                try:
+                    symbol = each_symbol['symbol']
+                    # DON"T need to times 1000
+                    selling_size = each_symbol['size']
 
-                dbg_info(f'Selling product: {symbol}')
-                current_cash = trade_broker.get_cash()
-                current_price = trade_broker.get_last_price(symbol)
-                holding_size = trade_broker.get_position_by_symbol(symbol).size
-                # size should be the 1000x
+                    dbg_info(f'Selling product: {symbol}')
+                    current_cash = trade_broker.get_cash()
+                    current_price = trade_broker.get_last_price(symbol)
+                    holding_size = trade_broker.get_position_by_symbol(symbol).size
+                    # size should be the 1000x
 
-                # sanity check
-                if selling_size <= holding_size:
-                    trade_broker.place_order(symbol=symbol, size=selling_size, action='sell')
-                else:
-                    dbg_warning(f'[{symbol}] selling size({selling_size}) is greate then hoding size({holding_size}), set to hoding size.')
-                    trade_broker.place_order(symbol=symbol, size=holding_size, action='sell')
+                    # sanity check
+                    if selling_size <= holding_size:
+                        trade_broker.place_order(symbol=symbol, size=selling_size, action='sell')
+                    else:
+                        dbg_warning(f'[{symbol}] selling size({selling_size}) is greate then hoding size({holding_size}), set to hoding size.')
+                        trade_broker.place_order(symbol=symbol, size=holding_size, action='sell')
+                except Exception as e:
+                    dbg_error(e)
+                
+                    traceback_output = traceback.format_exc()
+                    dbg_error(traceback_output)
 
             trade_broker.summarize_positions()
             trade_broker.disconnect()

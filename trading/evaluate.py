@@ -13,7 +13,7 @@ from core.config import *
 
 class Evaluate:
     # threshold
-    BUY_CANDIDATE_PROFIT_THRESHOLD = 1
+    BUY_CANDIDATE_SCORE_THRESHOLD = 1
     def __init__(self, development = False):
         # TODO, add multiple strategy support.
         stra_mgr = StrategyManager()
@@ -154,7 +154,7 @@ class Evaluate:
                 }
 
                 # TODO, find a way to check in the early day.
-                # if profit > self.BUY_CANDIDATE_PROFIT_THRESHOLD:
+                # if profit > self.BUY_CANDIDATE_SCORE_THRESHOLD:
                 #     candidate_buying_dict[each_product] = {'strategy': target_strategy, 'profit' : profit}
 
             except Exception as e:
@@ -169,7 +169,7 @@ class Evaluate:
 
         # Add top 3 products to buying_dict
         for i, (product, data) in enumerate(sorted_candidates):
-            if i < 3: # Take top 3
+            if i < 3 and data['score'] > self.BUY_CANDIDATE_SCORE_THRESHOLD: # Take top 3
                 buying_dict[product] = data
             else:
                 break
@@ -204,9 +204,26 @@ class Evaluate:
         # dump buying data list.
         if len(buying_dict) != 0:
             dbg_info(f"Buying List: {buying_dict.keys()}")
-        for each_product in buying_dict.keys():
-            product_info = market.get_data_info(each_product)
-            dbg_info(f"Product: {each_product} {product_info['name']}/{product_info['category']}, {buying_dict[each_product]['strategy']}, profit: {buying_dict[each_product]['profit']:.2f}")
+            # Prepare data for tabulation
+            headers = ["Product", "Name", "Category", "Strategy", "Profit (%)", "Sharpe", "VWR", "Drawdown (%)", "SQN", "Score"]
+            table_data = []
+            for product, data in buying_dict.items():
+                product_info = market.get_data_info(product)
+                table_data.append([
+                    product,
+                    product_info.get('name', 'N/A'),
+                    product_info.get('category', 'N/A'),
+                    data['strategy'].NAME,
+                    f"{data['profit']:.2f}",
+                    f"{data['sharpe']:.2f}",
+                    f"{data['vwr']:.2f}",
+                    f"{data['drawdown']:.2f}",
+                    f"{data['sqn']:.2f}",
+                    f"{data['score']:.2f}"
+                ])
+            dbg_info("\n" + tabulate(table_data, headers=headers, tablefmt="grid"))
+        else:
+            dbg_info(f"No buying candidates found.")
 
         return buying_dict
     def __get_realtime_data_list(self, symbol):
