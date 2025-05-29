@@ -48,6 +48,7 @@ class BrokerManager:
             # Set the state file path after initialization
             # self.broker.set_state_filepath(state_filepath)
             dbg_debug(f"Initialized MockBroker via BrokerManager. Cash: ${initial_cash:,.2f}, Commission: ${commission_rate:.2f}")
+        elif broker_type == 'Shioaji':
         # Add elif blocks here for other broker types in the future
         # elif broker_type == 'interactive_brokers':
         #     self.broker = InteractiveBrokersBroker(**kwargs)

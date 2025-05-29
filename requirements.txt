@@ -11,4 +11,5 @@ tabulate
 FinMind
 tqdm
 tornado
+dotenv
 # python-dotenv

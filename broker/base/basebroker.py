@@ -32,6 +32,22 @@ class BaseBroker:
         self.broker_path = broker_path
         # Subclasses will initialize cash, positions, market data providers, etc.
 
+    def connect(self):
+        """
+        Abstract method to establish a connection for the broker.
+        For simulated brokers, this typically involves loading the last saved state.
+        For real-time brokers, this would involve establishing API connections.
+        """
+        raise NotImplementedError
+
+    def disconnect(self):
+        """
+        Abstract method to gracefully disconnect the broker.
+        For simulated brokers, this typically involves saving the current state.
+        For real-time brokers, this would involve closing API connections.
+        """
+        raise NotImplementedError
+
     def is_market_open(self) -> bool:
         """
         Abstract method to check if the trading market is currently open.
@@ -43,32 +59,6 @@ class BaseBroker:
         Example (from MockBroker for TWSE):
             - Returns True if current time is between 9:00 AM and 1:25 PM on weekdays.
             - Returns False on weekends or outside trading hours.
-        """
-        raise NotImplementedError
-
-    def place_order(self, symbol: str, action: str, size: int, price: float | None = None) -> dict | None:
-        """
-        Abstract method to simulate placing and immediately filling an order.
-        This method should handle order validation (e.g., sufficient cash/position, valid size/action),
-        determine the execution price, update cash balance, and adjust stock positions.
-
-        - If `price` is `None`, it's a market order filled at the current market price.
-        - If `price` is specified, it acts as a limit order:
-            - Buy: Executes only if `current_market_price <= price`.
-            - Sell: Executes only if `current_market_price >= price`.
-        Execution, if successful, always happens at the `current_market_price`.
-
-        Args:
-            symbol (str): The stock symbol (e.g., "2330").
-            action (str): The type of order: 'buy' or 'sell'.
-            size (int): The quantity of shares to trade (must be positive).
-            price (float | None, optional): The limit price for the order. If None, it's a market order.
-
-        Returns:
-            dict | None:
-                - A dictionary with execution details if the order is filled:
-                  Example: `{'symbol': '2330', 'action': 'buy', 'price': 150.50, 'size': 10, 'commission': 4.95, 'status': 'filled'}`
-                - `None` if the order is rejected (e.g., insufficient funds, market closed, limit condition not met).
         """
         raise NotImplementedError
 
@@ -135,19 +125,29 @@ class BaseBroker:
         """
         raise NotImplementedError
 
-    def connect(self):
+    def place_order(self, symbol: str, action: str, size: int, price: float | None = None) -> dict | None:
         """
-        Abstract method to establish a connection for the broker.
-        For simulated brokers, this typically involves loading the last saved state.
-        For real-time brokers, this would involve establishing API connections.
-        """
-        raise NotImplementedError
+        Abstract method to simulate placing and immediately filling an order.
+        This method should handle order validation (e.g., sufficient cash/position, valid size/action),
+        determine the execution price, update cash balance, and adjust stock positions.
 
-    def disconnect(self):
-        """
-        Abstract method to gracefully disconnect the broker.
-        For simulated brokers, this typically involves saving the current state.
-        For real-time brokers, this would involve closing API connections.
+        - If `price` is `None`, it's a market order filled at the current market price.
+        - If `price` is specified, it acts as a limit order:
+            - Buy: Executes only if `current_market_price <= price`.
+            - Sell: Executes only if `current_market_price >= price`.
+        Execution, if successful, always happens at the `current_market_price`.
+
+        Args:
+            symbol (str): The stock symbol (e.g., "2330").
+            action (str): The type of order: 'buy' or 'sell'.
+            size (int): The quantity of shares to trade (must be positive).
+            price (float | None, optional): The limit price for the order. If None, it's a market order.
+
+        Returns:
+            dict | None:
+                - A dictionary with execution details if the order is filled:
+                  Example: `{'symbol': '2330', 'action': 'buy', 'price': 150.50, 'size': 10, 'commission': 4.95, 'status': 'filled'}`
+                - `None` if the order is rejected (e.g., insufficient funds, market closed, limit condition not met).
         """
         raise NotImplementedError
 

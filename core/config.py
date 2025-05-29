@@ -13,6 +13,7 @@ class AppConfig(BasicConfig):
         data = "data"
         tarding_database = 'tarding.db'
         log = "log"
+        key = "key"
         broker = "broker"
         trade_cmd_history = 'trade_cmd.history'
 
