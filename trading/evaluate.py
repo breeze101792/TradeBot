@@ -167,9 +167,9 @@ class Evaluate:
         # sorting with score and list it. add top 3 product to buying_dict.
         sorted_candidates = sorted(candidate_buying_dict.items(), key=lambda item: item[1].get('score', invalid_number), reverse=True)
 
-        # Add top 3 products to buying_dict
+        # Add positive products to buying_dict
         for i, (product, data) in enumerate(sorted_candidates):
-            if i < 3 and data['score'] > self.BUY_CANDIDATE_SCORE_THRESHOLD: # Take top 3
+            if data['score'] > self.BUY_CANDIDATE_SCORE_THRESHOLD: # Take top 3
                 buying_dict[product] = data
             else:
                 break
