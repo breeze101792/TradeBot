@@ -14,7 +14,7 @@ class MockBroker(BaseBroker):
     A basic simulated broker handling cash, positions, and simple order execution.
     This mimics the interface needed by a backtesting or simple trading system.
     """
-    def __init__(self, initial_cash: float = 1000000.0, commission_rate: float = 0.003, **kargs):
+    def __init__(self, initial_cash: float = 1000000.0, commission_rate: float = 0.003, simulation = True, **kargs):
         """
         Initializes the broker.
 
@@ -24,6 +24,7 @@ class MockBroker(BaseBroker):
         """
         super().__init__(**kargs)
 
+        self.simulation=simulation
         self.initial_cash = initial_cash
         self.cash = initial_cash
         self.commission_rate = commission_rate
@@ -41,6 +42,8 @@ class MockBroker(BaseBroker):
         Checks if the market is currently open.
         TWSE market hours: Monday to Friday, 9:00 AM to 1:25 PM.
         """
+        if self.simulation is True:
+            return True
         now = datetime.now()
         current_time = now.time()
         current_weekday = now.weekday()  # Monday is 0 and Sunday is 6

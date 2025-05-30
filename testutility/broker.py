@@ -41,7 +41,8 @@ def _create_test_broker(test_name: str, initial_cash=1000000.0, commission=0.001
         initial_cash=initial_cash,
         commission_rate=commission,
         state_filepath=state_filepath, 
-        transaction_log_path=transaction_log_path
+        transaction_log_path=transaction_log_path,
+        simulation = True
     )
 
 def cleanup_test_broker_files(test_name: str):

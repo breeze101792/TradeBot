@@ -39,11 +39,13 @@ class BrokerManager:
             # Extract relevant kwargs for MockBroker, providing defaults if not present
             initial_cash = kwargs.get('initial_cash', 1000000.0)
             commission_rate = kwargs.get('commission_rate', 0.003)
+            simulation = kwargs.get('simulation', False)
 
             self.broker = MockBroker(
                 initial_cash=initial_cash,
                 commission_rate=commission_rate,
-                broker_path = os.path.join(self.cm.get_path('broker'), f'{broker_type}')
+                broker_path = os.path.join(self.cm.get_path('broker'), f'{broker_type}'),
+                simulation = simulation
             )
             # Set the state file path after initialization
             # self.broker.set_state_filepath(state_filepath)
