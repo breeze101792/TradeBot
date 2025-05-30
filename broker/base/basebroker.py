@@ -48,26 +48,23 @@ class BaseBroker:
         """
         raise NotImplementedError
 
-    def is_market_open(self) -> bool:
-        """
-        Abstract method to check if the trading market is currently open.
-        Concrete implementations will define specific market hours and holidays.
-
-        Returns:
-            bool: True if the market is open, False otherwise.
-
-        Example (from MockBroker for TWSE):
-            - Returns True if current time is between 9:00 AM and 1:25 PM on weekdays.
-            - Returns False on weekends or outside trading hours.
-        """
-        raise NotImplementedError
-
     def get_cash(self) -> float:
         """
         Abstract method to return the current available cash balance in the broker account.
 
         Returns:
             float: The current cash balance.
+        """
+        raise NotImplementedError
+
+    def get_all_positions(self) -> dict[str, Position]:
+        """
+        Abstract method to return a dictionary of all current stock positions held by the broker.
+
+        Returns:
+            dict[str, Position]: A dictionary where keys are stock symbols (str)
+                                 and values are Position objects.
+                                 Example: `{'2330': Position(...), '2454': Position(...)}`
         """
         raise NotImplementedError
 
@@ -87,14 +84,16 @@ class BaseBroker:
         """
         raise NotImplementedError
 
-    def get_all_positions(self) -> dict[str, Position]:
+    def get_portfolio_value(self) -> float:
         """
-        Abstract method to return a dictionary of all current stock positions held by the broker.
+        Abstract method to calculate the total value of the portfolio.
+        This typically includes the current cash balance plus the aggregate
+        market value of all held stock positions.
+
+        Requires a concrete implementation of `get_last_price` for accurate valuation.
 
         Returns:
-            dict[str, Position]: A dictionary where keys are stock symbols (str)
-                                 and values are Position objects.
-                                 Example: `{'2330': Position(...), '2454': Position(...)}`
+            float: The total estimated value of the portfolio.
         """
         raise NotImplementedError
 
@@ -109,19 +108,6 @@ class BaseBroker:
         Returns:
             float: The last traded price of the stock. Returns 0.0 or raises an
                    appropriate error if the price cannot be retrieved.
-        """
-        raise NotImplementedError
-
-    def get_portfolio_value(self) -> float:
-        """
-        Abstract method to calculate the total value of the portfolio.
-        This typically includes the current cash balance plus the aggregate
-        market value of all held stock positions.
-
-        Requires a concrete implementation of `get_last_price` for accurate valuation.
-
-        Returns:
-            float: The total estimated value of the portfolio.
         """
         raise NotImplementedError
 

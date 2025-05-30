@@ -156,6 +156,8 @@ class MockBroker(BaseBroker):
                 dbg_debug(f"Position closed for {symbol}. Removing from holdings.")
                 del self.positions[symbol]
 
+        # FIXME, Remove return, since not one know if this ok or not in this monent.
+        # Maybe we use callback for it.
         # Return simulated execution details
         return {
             'symbol': symbol,

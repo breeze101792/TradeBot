@@ -35,7 +35,97 @@ def test_connection():
                 print(f"Error during disconnection: {e}")
     print("--- Test finished ---")
 
-def test_get_info():
+def test_get_last_price():
+    print("--- Testing ShioajiBroker get_last_price ---")
+    broker = None
+    try:
+        broker = ShioajiBroker(broker_path='test')
+        broker.connect()
+        # Use a common stock symbol for testing, e.g., TSMC (2330)
+        symbol = '2330'
+        last_price = broker.get_last_price(symbol)
+        print(f"Last price for {symbol}: {last_price}")
+    except Exception as e:
+        print(f"Error during get_last_price test: {e}")
+        traceback_output = traceback.format_exc()
+        print(traceback_output)
+    finally:
+        if broker:
+            try:
+                broker.disconnect()
+                print("ShioajiBroker get_last_price test completed.")
+            except NotImplementedError:
+                print("ShioajiBroker.disconnect() is not yet implemented.")
+            except Exception as e:
+                print(f"Error during disconnection: {e}")
+    print("--- Test finished ---")
+
+def test_place_order():
+    print("--- Testing ShioajiBroker place_order ---")
+    broker = None
+    try:
+        broker = ShioajiBroker(broker_path='test')
+        broker.connect()
+
+        symbol = '2330'
+        buy_size = 1 # Odd lot
+        sell_size = 1 # Odd lot
+        # Use realistic but fixed prices for testing in simulation
+        test_price_buy = 750.0
+        test_price_sell = 850.0
+
+        initial_cash = broker.get_cash()
+        print(f"Initial cash: {initial_cash}")
+        initial_positions = broker.get_all_positions()
+        print(f"Initial positions: {initial_positions}")
+
+        print(f"\n--- Attempting to place a BUY odd lot order for {symbol} ---")
+        buy_order_result = broker.place_order(symbol, 'buy', buy_size, test_price_buy)
+
+        if buy_order_result:
+            print(f"Buy order successful: {buy_order_result}")
+        else:
+            print("Buy order failed or not filled.")
+
+        # Re-check cash and positions after buy order
+        cash_after_buy = broker.get_cash()
+        positions_after_buy = broker.get_all_positions()
+        print(f"Cash after buy: {cash_after_buy}")
+        print(f"Positions after buy: {positions_after_buy}")
+
+        print(f"\n--- Attempting to place a SELL odd lot order for {symbol} ---")
+        # For sell, we need to ensure we have a position.
+        # In a real test, you might place a buy order first, then sell.
+        # For this test, we'll just try to sell, acknowledging it might fail if no position.
+        sell_order_result = broker.place_order(symbol, 'sell', sell_size, test_price_sell)
+
+        if sell_order_result:
+            print(f"Sell order successful: {sell_order_result}")
+        else:
+            print("Sell order failed or not filled (might not have position).")
+
+        # Re-check cash and positions after sell order
+        final_cash = broker.get_cash()
+        final_positions = broker.get_all_positions()
+        print(f"Final cash: {final_cash}")
+        print(f"Final positions: {final_positions}")
+
+    except Exception as e:
+        print(f"Error during place_order test: {e}")
+        traceback_output = traceback.format_exc()
+        print(traceback_output)
+    finally:
+        if broker:
+            try:
+                broker.disconnect()
+                print("ShioajiBroker place_order test completed.")
+            except NotImplementedError:
+                print("ShioajiBroker.disconnect() is not yet implemented.")
+            except Exception as e:
+                print(f"Error during disconnection: {e}")
+    print("--- Test finished ---")
+
+def test_get_cash():
     # test for get_cash
     print("--- Testing ShioajiBroker get_cash ---")
     broker = None
@@ -59,13 +149,87 @@ def test_get_info():
                 print(f"Error during disconnection: {e}")
     print("--- Test finished ---")
 
+def test_get_portfolio_value():
+    print("--- Testing ShioajiBroker get_portfolio_value ---")
+    broker = None
+    try:
+        broker = ShioajiBroker(broker_path='test')
+        broker.connect()
+        portfolio_value = broker.get_portfolio_value()
+        print(f"Current portfolio value: {portfolio_value}")
+    except Exception as e:
+        print(f"Error during get_portfolio_value test: {e}")
+        traceback_output = traceback.format_exc()
+        print(traceback_output)
+    finally:
+        if broker:
+            try:
+                broker.disconnect()
+                print("ShioajiBroker get_portfolio_value test completed.")
+            except NotImplementedError:
+                print("ShioajiBroker.disconnect() is not yet implemented.")
+            except Exception as e:
+                print(f"Error during disconnection: {e}")
+    print("--- Test finished ---")
+
+def test_get_positions():
+    print("--- Testing ShioajiBroker get_all_positions and get_position_by_symbol ---")
+    broker = None
+    try:
+        broker = ShioajiBroker(broker_path='test')
+        broker.connect()
+        positions = broker.get_all_positions()
+
+        if positions:
+            print("Current positions (from get_all_positions):")
+            for symbol, position in positions.items():
+                print(f"  {symbol}: {position}")
+
+            print("\n--- Testing get_position_by_symbol for existing positions ---")
+            for symbol, _ in positions.items():
+                pos_by_sym = broker.get_position_by_symbol(symbol)
+                print(f"  get_position_by_symbol for '{symbol}': {pos_by_sym}")
+        else:
+            print("No positions found via get_all_positions. Skipping tests for existing symbols.")
+
+        print("\n--- Testing get_position_by_symbol for a non-existent symbol ---")
+        symbol_not_held = 'NONEXISTENT_SYMBOL_XYZ' # Use a very unlikely symbol
+        position_not_held = broker.get_position_by_symbol(symbol_not_held)
+        print(f"  get_position_by_symbol for '{symbol_not_held}': {position_not_held}")
+
+    except Exception as e:
+        print(f"Error during position tests: {e}")
+        traceback_output = traceback.format_exc()
+        print(traceback_output)
+    finally:
+        if broker:
+            try:
+                broker.disconnect()
+                print("ShioajiBroker position tests completed.")
+            except NotImplementedError:
+                print("ShioajiBroker.disconnect() is not yet implemented.")
+            except Exception as e:
+                print(f"Error during disconnection: {e}")
+    print("--- Test finished ---")
+
 
 def main():
+    # Map test names to functions
+    test_functions = {
+        "connection": test_connection,
+        "get_cash": test_get_cash,
+        "get_positions": test_get_positions,
+        "get_portfolio_value": test_get_portfolio_value,
+        "get_last_price": test_get_last_price,
+        "place_order": test_place_order, # Added test for place_order
+        # Add other test functions here as they are created
+    }
+
     parser = argparse.ArgumentParser(description="Run ShioajiBroker tests.")
     parser.add_argument(
-        "--test-name",
+        "-t", "--test-name",
         type=str,
-        help="Specify a single test function to run (e.g., 'connection')."
+        help=f"Specify a single test function to run (e.g., 'connection'). Available tests: {', '.join(test_functions.keys())}."
     )
     parser.add_argument(
         "--all",
@@ -74,13 +238,6 @@ def main():
     )
 
     args = parser.parse_args()
-
-    # Map test names to functions
-    test_functions = {
-        "connection": test_connection,
-        "get_info": test_get_info, # Added test_get_info
-        # Add other test functions here as they are created
-    }
 
     if args.all:
         print("Running all tests...")
