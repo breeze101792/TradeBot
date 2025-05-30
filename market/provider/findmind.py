@@ -269,6 +269,52 @@ class FindMind(DataProvider):
             dbg_error(traceback_output)
             return pd.DataFrame()
 
+    def fetch_market_value(self, stock_id: str, start_date: datetime.date = None, end_date: datetime.date = None):
+        """
+        Fetches market value data for a given stock from FinMind.
+        :param stock_id: Stock ticker symbol.
+        :param start_date: Datetime.date object for the start date of the data.
+        :param end_date: Datetime.date object for the end date of the data.
+        :return: Pandas DataFrame with market value data.
+        """
+        fm_start_date_str = (start_date if start_date else datetime(2000, 1, 1).date()).strftime('%Y-%m-%d')
+        fm_end_date_str = (end_date if end_date else datetime.now().date()).strftime('%Y-%m-%d')
+
+        dbg_trace(f"Downloading market value for {stock_id} from FinMind: {fm_start_date_str} to {fm_end_date_str}")
+
+        try:
+            df_fm = self.findmind.taiwan_stock_market_value(
+                stock_id=stock_id,
+                start_date=fm_start_date_str,
+                end_date=fm_end_date_str
+            )
+        except Exception as e:
+            dbg_error(f"Error downloading market value data for {stock_id} from FinMind: {e}")
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+            return pd.DataFrame()
+
+        if df_fm.empty:
+            dbg_warning(f"No market value data returned from FinMind for {stock_id} for the period {fm_start_date_str} to {fm_end_date_str}.")
+            return pd.DataFrame()
+
+        if 'date' not in df_fm.columns:
+            dbg_error(f"Date column missing in market value data for {stock_id} from FinMind.")
+            return pd.DataFrame()
+            
+        df_fm['date'] = pd.to_datetime(df_fm['date'])
+        df_fm.set_index('date', inplace=True)
+        df_fm.sort_index(inplace=True)
+
+        numeric_cols = ['market_value', 'PE_ratio', 'PB_ratio', 'dividend_yield']
+        for col in numeric_cols:
+            if col in df_fm.columns:
+                df_fm[col] = pd.to_numeric(df_fm[col], errors='coerce')
+
+        df_fm.dropna(subset=['market_value'], inplace=True) # Ensure market_value is not NaN
+
+        return df_fm
+
     def fetch_capital_reduction_data(self, stock_id: str, start_date: datetime):
         """
         Fetches capital reduction reference price data from FinMind.
@@ -1021,6 +1067,21 @@ if __name__ == "__main__":
             print(df_reduction.tail())
     else:
         print(f"No capital reduction data returned for {ticker_reduction_test} from {start_date_reduction_test.strftime('%Y-%m-%d')}.")
+
+    # Example usage for fetch_market_value:
+    ticker_market_value_test = '2330' # TSMC
+    start_date_mv_test = datetime(2023, 1, 1).date()
+    end_date_mv_test = datetime.now().date()
+    print(f"\nFetching market value data for {ticker_market_value_test} from {start_date_mv_test.strftime('%Y-%m-%d')} to {end_date_mv_test.strftime('%Y-%m-%d')}...")
+    df_market_value = fm.fetch_market_value(stock_id=ticker_market_value_test, start_date=start_date_mv_test, end_date=end_date_mv_test)
+    if not df_market_value.empty:
+        print(f"Market value data for {ticker_market_value_test}:")
+        print(df_market_value.head())
+        if len(df_market_value) > 5:
+            print("...")
+            print(df_market_value.tail())
+    else:
+        print(f"No market value data returned for {ticker_market_value_test} from {start_date_mv_test.strftime('%Y-%m-%d')} to {end_date_mv_test.strftime('%Y-%m-%d')}.")
 
     # integration test.
     # Test with a stock known for significant dividends/splits, e.g., '2603' (Evergreen Marine)
