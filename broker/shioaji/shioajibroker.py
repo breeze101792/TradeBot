@@ -158,7 +158,7 @@ class ShioajiBroker(BaseBroker):
         else:
             dbg_warning('Shioaji is not connected.')
 
-    def get_cash(self) -> float:
+    def get_balance(self) -> float:
         #FIXME, rename to get_balance
         """
         Abstract method to return the current available cash balance in the broker account.
@@ -296,7 +296,7 @@ class ShioajiBroker(BaseBroker):
             return total_value # Return cash balance if not connected
 
         # 1. Get current cash balance
-        cash_balance = self.get_cash()
+        cash_balance = self.get_balance()
         total_value += cash_balance
         dbg_debug(f"Current cash balance: {cash_balance:.2f}")
 

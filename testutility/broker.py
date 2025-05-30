@@ -65,7 +65,7 @@ def cleanup_test_broker_files(test_name: str):
 def test_initial_state(broker_manager: BrokerManager, initial_cash_expected=1000000.0) -> bool:
     dbg_info("--- Running Test: Initial Broker State ---")
     try:
-        cash = broker_manager.get_cash()
+        cash = broker_manager.get_balance()
         positions = broker_manager.get_all_positions()
         if cash != initial_cash_expected:
             dbg_error(f"Initial cash incorrect. Expected {initial_cash_expected}, Got {cash}")
@@ -88,7 +88,7 @@ def test_place_buy_order_sufficient_cash(broker_manager: BrokerManager, symbol=D
              dbg_warning(f"Market price for {symbol} is {market_price}, test might be unreliable. Assuming a mock price of 100 for cost calculation.")
              market_price = 100.0
 
-        initial_cash = broker_manager.get_cash()
+        initial_cash = broker_manager.get_balance()
         result = broker_manager.place_order(symbol, "buy", qty, price=None)
 
         if result is None:
@@ -99,8 +99,8 @@ def test_place_buy_order_sufficient_cash(broker_manager: BrokerManager, symbol=D
             return False
 
         expected_cost = (result['price'] * qty) + result['commission']
-        if abs(broker_manager.get_cash() - (initial_cash - expected_cost)) > 0.01:
-            dbg_error(f"Cash after buy incorrect. Expected approx {initial_cash - expected_cost}, Got {broker_manager.get_cash()}")
+        if abs(broker_manager.get_balance() - (initial_cash - expected_cost)) > 0.01:
+            dbg_error(f"Cash after buy incorrect. Expected approx {initial_cash - expected_cost}, Got {broker_manager.get_balance()}")
             return False
         
         position = broker_manager.get_position_by_symbol(symbol)
@@ -170,7 +170,7 @@ def test_place_sell_order_sufficient_position(broker_manager: BrokerManager, sym
                  return False
             initial_position_size = broker_manager.get_position_by_symbol(symbol).size
 
-        initial_cash = broker_manager.get_cash()
+        initial_cash = broker_manager.get_balance()
         result = broker_manager.place_order(symbol, "sell", qty_to_sell, price=None)
 
         if result is None:
@@ -181,8 +181,8 @@ def test_place_sell_order_sufficient_position(broker_manager: BrokerManager, sym
             return False
 
         expected_proceeds = (result['price'] * qty_to_sell) - result['commission']
-        if abs(broker_manager.get_cash() - (initial_cash + expected_proceeds)) > 0.01:
-            dbg_error(f"Cash after sell incorrect. Expected approx {initial_cash + expected_proceeds}, Got {broker_manager.get_cash()}")
+        if abs(broker_manager.get_balance() - (initial_cash + expected_proceeds)) > 0.01:
+            dbg_error(f"Cash after sell incorrect. Expected approx {initial_cash + expected_proceeds}, Got {broker_manager.get_balance()}")
             return False
         
         final_position = broker_manager.get_position_by_symbol(symbol)
@@ -248,7 +248,7 @@ def test_save_load_state(test_id_for_files="saveload") -> bool:
         # Using the same ticker for both orders. This will result in one aggregated position.
         broker_save.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", 20, None)
         broker_save.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", 5, None) # Buys more of the same stock
-        cash_before_save = broker_save.get_cash()
+        cash_before_save = broker_save.get_balance()
         positions_before_save = broker_save.get_all_positions()
         dbg_info(f"State before save - Cash: {cash_before_save}, Positions: {len(positions_before_save)}")
 
@@ -257,7 +257,7 @@ def test_save_load_state(test_id_for_files="saveload") -> bool:
         broker_load = BrokerManager(broker_type=DEFAULT_BROKER_TYPE, initial_cash=1000, commission_rate=1.0, state_filepath=state_file_to_use, transaction_log_path=tx_log_for_load_test)
         broker_load.connect()
 
-        cash_after_load = broker_load.get_cash()
+        cash_after_load = broker_load.get_balance()
         positions_after_load = broker_load.get_all_positions()
         dbg_info(f"State after load - Cash: {cash_after_load}, Positions: {len(positions_after_load)}")
 

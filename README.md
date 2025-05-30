@@ -10,6 +10,10 @@ pip install yfinance backtrader
 2. FIX, when insufficient money will cause add history fail.
 3. Add thread lock on backtest
 4. Check thread safty on strategy.
+5. strategy test of last day trade.
+6. broker submodule test for different provider
+7. refactor broker for more general apis.
+8. test code for core module.
 
 # TODO
 1. on strategy, do profit check on real time.

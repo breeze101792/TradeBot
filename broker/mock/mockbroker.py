@@ -171,7 +171,7 @@ class MockBroker(BaseBroker):
             'status': 'filled' # Simple simulation: always filled immediately
         }
 
-    def get_cash(self) -> float:
+    def get_balance(self) -> float:
         """Returns the current available cash balance."""
         return self.cash
 
@@ -359,7 +359,7 @@ if __name__ == "__main__":
 
     # 1. Initialize Broker
     broker1 = MockBroker(initial_cash=50000, commission_rate=4.95)
-    print(f"Initial Cash: ${broker1.get_cash():,.2f}")
+    print(f"Initial Cash: ${broker1.get_balance():,.2f}")
 
     # 2. Place Orders (Market and Limit Examples)
     print("\n--- Placing Orders ---")
@@ -399,7 +399,7 @@ if __name__ == "__main__":
 
     # 3. Check State
     print("\n--- Current Broker State (broker1) ---")
-    print(f"Current Cash: ${broker1.get_cash():,.2f}")
+    print(f"Current Cash: ${broker1.get_balance():,.2f}")
     print("Current Positions:")
     all_positions = broker1.get_all_positions()
     if not all_positions:
@@ -418,12 +418,12 @@ if __name__ == "__main__":
     # Initialize broker2 with a different initial cash to show loading works
     # It will use the default state_filepath: "./broker_state.json"
     broker2 = MockBroker(initial_cash=10000, commission_rate=4.95)
-    print(f"broker2 Initial Cash (before connect): ${broker2.get_cash():,.2f}")
+    print(f"broker2 Initial Cash (before connect): ${broker2.get_balance():,.2f}")
     broker2.connect() # Connects and loads state from "./broker_state.json"
 
     # 6. Verify Loaded State in broker2
     print("\n--- Verifying Loaded State (broker2) ---")
-    print(f"broker2 Loaded Cash: ${broker2.get_cash():,.2f}")
+    print(f"broker2 Loaded Cash: ${broker2.get_balance():,.2f}")
     print("broker2 Loaded Positions:")
     loaded_positions_b2 = broker2.get_all_positions()
     if not loaded_positions_b2:

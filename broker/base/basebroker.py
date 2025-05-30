@@ -48,7 +48,7 @@ class BaseBroker:
         """
         raise NotImplementedError
 
-    def get_cash(self) -> float:
+    def get_balance(self) -> float:
         """
         Abstract method to return the current available cash balance in the broker account.
 

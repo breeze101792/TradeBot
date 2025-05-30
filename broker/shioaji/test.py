@@ -74,7 +74,7 @@ def test_place_order():
         test_price_buy = 750.0
         test_price_sell = 850.0
 
-        initial_cash = broker.get_cash()
+        initial_cash = broker.get_balance()
         print(f"Initial cash: {initial_cash}")
         initial_positions = broker.get_all_positions()
         print(f"Initial positions: {initial_positions}")
@@ -88,7 +88,7 @@ def test_place_order():
             print("Buy order failed or not filled.")
 
         # Re-check cash and positions after buy order
-        cash_after_buy = broker.get_cash()
+        cash_after_buy = broker.get_balance()
         positions_after_buy = broker.get_all_positions()
         print(f"Cash after buy: {cash_after_buy}")
         print(f"Positions after buy: {positions_after_buy}")
@@ -105,7 +105,7 @@ def test_place_order():
             print("Sell order failed or not filled (might not have position).")
 
         # Re-check cash and positions after sell order
-        final_cash = broker.get_cash()
+        final_cash = broker.get_balance()
         final_positions = broker.get_all_positions()
         print(f"Final cash: {final_cash}")
         print(f"Final positions: {final_positions}")
@@ -125,24 +125,24 @@ def test_place_order():
                 print(f"Error during disconnection: {e}")
     print("--- Test finished ---")
 
-def test_get_cash():
-    # test for get_cash
-    print("--- Testing ShioajiBroker get_cash ---")
+def test_get_balance():
+    # test for get_balance
+    print("--- Testing ShioajiBroker get_balance ---")
     broker = None
     try:
         broker = ShioajiBroker(broker_path='test')
         broker.connect()
-        cash = broker.get_cash()
+        cash = broker.get_balance()
         print(f"Current cash balance: {cash}")
     except Exception as e:
-        print(f"Error during get_cash test: {e}")
+        print(f"Error during get_balance test: {e}")
         traceback_output = traceback.format_exc()
         print(traceback_output)
     finally:
         if broker:
             try:
                 broker.disconnect()
-                print("ShioajiBroker get_cash test completed.")
+                print("ShioajiBroker get_balance test completed.")
             except NotImplementedError:
                 print("ShioajiBroker.disconnect() is not yet implemented.")
             except Exception as e:
@@ -217,7 +217,7 @@ def main():
     # Map test names to functions
     test_functions = {
         "connection": test_connection,
-        "get_cash": test_get_cash,
+        "get_balance": test_get_balance,
         "get_positions": test_get_positions,
         "get_portfolio_value": test_get_portfolio_value,
         "get_last_price": test_get_last_price,

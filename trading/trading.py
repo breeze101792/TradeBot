@@ -24,7 +24,7 @@ class Trading:
                 try:
                     dbg_info(f'Buying product: {each_symbol}')
                     # 0.9 is to avoid market price increase cause insufficient funds.
-                    current_cash = trade_broker.get_cash() * 0.9
+                    current_cash = trade_broker.get_balance() * 0.9
                     # budget should smaller then CASH_PER_TRADE.
                     buying_budget = current_cash if current_cash < CASH_PER_TRADE else CASH_PER_TRADE
                     current_price = trade_broker.get_last_price(each_symbol)
@@ -68,7 +68,7 @@ class Trading:
                     selling_size = each_symbol['size']
 
                     dbg_info(f'Selling product: {symbol}')
-                    current_cash = trade_broker.get_cash()
+                    current_cash = trade_broker.get_balance()
                     current_price = trade_broker.get_last_price(symbol)
                     holding_size = trade_broker.get_position_by_symbol(symbol).size
                     # size should be the 1000x

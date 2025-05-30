@@ -83,13 +83,13 @@ class BrokerManager:
                 size=size,
                 price=result['price'],
                 commission=result['commission'],
-                cash_balance=self.get_cash()
+                cash_balance=self.get_balance()
             )
         return result
 
-    def get_cash(self) -> float:
+    def get_balance(self) -> float:
         """Returns the current available cash balance from the managed broker."""
-        return self.broker.get_cash()
+        return self.broker.get_balance()
 
     def get_position_by_symbol(self, symbol: str) -> Position:
         """
@@ -129,7 +129,7 @@ class BrokerManager:
         Prints a summary table of all current positions held by the managed broker,
         including market value and unrealized profit/loss.
         """
-        cash = self.broker.get_cash()
+        cash = self.broker.get_balance()
         positions = self.broker.get_all_positions()
         if not positions:
             print("No positions currently held.")
@@ -246,7 +246,7 @@ class BrokerManager:
         if not log_exists:
             # File doesn't exist, create it, log initial positions, then log the current transaction
             initial_positions = self.get_all_positions()
-            cash_balance = self.get_cash()
+            cash_balance = self.get_balance()
             with open(self.transaction_log_path, 'w', newline='') as f:
                 writer = csv.writer(f)
                 # Write header
@@ -640,7 +640,7 @@ if __name__ == "__main__":
             state_filepath=example_state_file
         )
         print(f"BrokerManager initialized with {manager.broker_type} broker.")
-        print(f"Initial Cash: ${manager.get_cash():,.2f}")
+        print(f"Initial Cash: ${manager.get_balance():,.2f}")
         print(f"State file path: {manager.broker.state_filepath}") # Access underlying broker's path for confirmation
 
     except ValueError as e:
@@ -667,7 +667,7 @@ if __name__ == "__main__":
 
     # --- Check State via Manager ---
     print("\n--- Checking State ---")
-    print(f"Current Cash: ${manager.get_cash():,.2f}")
+    print(f"Current Cash: ${manager.get_balance():,.2f}")
     print("Current Positions:")
     positions = manager.get_all_positions()
     if not positions:
@@ -693,13 +693,13 @@ if __name__ == "__main__":
         commission_rate=0.001, # Different commission, will be overwritten by loaded state
         state_filepath=example_state_file # Must point to the same file to load
     )
-    print(f"Manager 2 Initial Cash (before connect): ${manager2.get_cash():,.2f}")
+    print(f"Manager 2 Initial Cash (before connect): ${manager2.get_balance():,.2f}")
     manager2.connect() # Connects and loads state from the file
     print("State loaded implicitly via connect.")
 
     # --- Verify Loaded State in New Manager ---
     print("\n--- Verifying Loaded State (Manager 2) ---")
-    print(f"Manager 2 Loaded Cash: ${manager2.get_cash():,.2f}")
+    print(f"Manager 2 Loaded Cash: ${manager2.get_balance():,.2f}")
     print("Manager 2 Loaded Positions:")
     loaded_positions = manager2.get_all_positions()
     if not loaded_positions:

@@ -145,7 +145,7 @@ def test_trading_buying_exec(trading_instance: Trading, mock_broker_manager_clas
         # Scenario 2: Valid buy
         dbg_info("Scenario 2: Valid buy")
         mock_broker_instance.reset_mock() # Reset for new scenario
-        mock_broker_instance.get_cash.return_value = 100000
+        mock_broker_instance.get_balance.return_value = 100000
         mock_broker_instance.get_last_price.return_value = 60 # Results in order_lot = 1, order_size = 1000
         buy_list_s2 = [DEFAULT_TEST_TICKER]
         dbg_info(trading_instance)
@@ -161,11 +161,11 @@ def test_trading_buying_exec(trading_instance: Trading, mock_broker_manager_clas
         # with order_size = floor(budget / (price * lot_unit)) * lot_unit
         # means order_size * price will always be <= budget / lot_unit * lot_unit.
         # The warning `Insufficient cash (buget {buying_budget}), ignore buying product` seems hard to hit with current logic
-        # unless get_cash() * 0.9 is very small or CASH_PER_TRADE is very small.
+        # unless get_balance() * 0.9 is very small or CASH_PER_TRADE is very small.
         # Let's test the "order_lot becomes 0" case.
         dbg_info("Scenario 3: Order lot becomes 0")
         mock_broker_instance.reset_mock()
-        mock_broker_instance.get_cash.return_value = 50000
+        mock_broker_instance.get_balance.return_value = 50000
         mock_broker_instance.get_last_price.return_value = 60 # budget=50k, price*lot=60k -> order_lot=0
         buy_list_s3 = [DEFAULT_TEST_TICKER]
         trading_instance.buying_exec(buy_list_s3)
