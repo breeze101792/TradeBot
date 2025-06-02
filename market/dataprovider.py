@@ -151,6 +151,7 @@ class DataProvider:
         # Get today's date and last trading day
         today = datetime.now().date()
         last_trading_day = self.get_last_trading_update_date()
+        within_day_check_update = False
 
         data_cache_folder = ""
         if self.SUPPORTED_ADJUSTED_DATA is True:
@@ -183,7 +184,10 @@ class DataProvider:
             download_required = True
             download_start_date = start_date if start_date else datetime(1900, 1, 1).date() # Default to very old date
             download_end_date = end_date if end_date else today
-        else:
+        elif within_day_check_update is True:
+            # to avoid double check on market close date, we disale this feature.
+            # when data file is not exist, we will donwload all data. so it would be ok for us to disable it.
+            # and this woruld be more robust for upper layer.
             cached_min_date = df.index.min().date()
             cached_max_date = df.index.max().date()
 
@@ -201,7 +205,7 @@ class DataProvider:
                 if download_start_date is None: # If not already set by start_date check
                     download_start_date = cached_max_date + timedelta(days=1)
                 download_end_date = end_date
-            elif not end_date and cached_max_date < last_trading_day:
+            elif end_date is None and cached_max_date < last_trading_day:
                 dbg_debug(f"Cached data for {product_id} is not up to last trading day. Download required.")
                 download_required = True
                 if download_start_date is None: # If not already set by start_date check
@@ -276,9 +280,18 @@ class DataProvider:
                 product_list = []
 
         product_amount = len(product_list)
+        success_count = 0
+
+        if product_amount == 0:
+            dbg_info("No products to update.")
+            return True # No products to update, so not a failure
 
         quota_group = 100
         dbg_info(f"Start update data.")
+        
+        # Get the last trading day once before the loop
+        current_last_trading_day = self.get_last_trading_update_date()
+
         for idx, each_product in enumerate(product_list):
             if idx % quota_group == 0:
                 self.wait_quota(quota_group)
@@ -288,11 +301,24 @@ class DataProvider:
             try:
                 # When updating all data, we don't specify start_date/end_date,
                 # so it will update from last cached date to last trading day.
-                self.get_data(product_id = each_product, force_update = force_update)
+                tmp_data = self.get_data(product_id = each_product, force_update = force_update)
+                
+                # Check if data was updated successfully up to the last trading day
+                if not tmp_data.empty and tmp_data.index.max().date() >= current_last_trading_day:
+                    success_count += 1
+                else:
+                    dbg_debug(f"Product {each_product} failed to update to {current_last_trading_day} or returned empty data.")
             except Exception as e:
                 dbg_error(f"Error updateing stock: {each_product}")
                 dbg_error(e)
                 # if the issue on quota, we wait it.
                 self.wait_quota(idx % quota_group)
                 continue
-        dbg_info(f"All {product_amount} has been update to date.", prefix='\n')
+
+        if success_count == 0 and product_amount > 0:
+            dbg_error("All data updates failed.")
+            return current_last_trading_day
+        else:
+            dbg_info(f"All {product_amount} has been update to date.", prefix='\n')
+        
+        return True

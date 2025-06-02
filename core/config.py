@@ -20,8 +20,9 @@ class AppConfig(BasicConfig):
         bt_cmd_history = 'backtrade_cmd.history'
         bt_report = 'backtest/report'
     class stock:
-        lot_unit = 1000
-        cash_per_trade = 10 * 10000
+        # We could use this to control which kind of trading we are doing
+        lot_unit = 10
+        cash_per_trade = 10 * 1000
 
 class AppConfigManager(ConfigManager):
     def __init__(self, *args, **kwargs):

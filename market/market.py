@@ -6,7 +6,7 @@ import threading
 # FIXME, may be remove latter
 import backtrader as bt
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 # Local file
 from utility.debug import *
@@ -26,6 +26,45 @@ class MarketTime:
     MARKET_OPEN_TIME = None
     MARKET_CLOSE_TIME = None
     MARKET_UPDATE_TIME = None
+    NON_TRADING_DAYS = set() # Use a set for faster lookup
+
+    @staticmethod
+    def add_non_trading_day(new_date: date):
+        """
+        Adds a single non-trading day (holiday, market closure) to the list.
+        Existing non-trading days that are outside the valid one-week range will be removed.
+        Args:
+            new_date (datetime.date): A datetime.date object representing the non-trading day to add.
+        """
+        current_date = date.today()
+        min_date = current_date - timedelta(days=7)
+        max_date = current_date + timedelta(days=7)
+
+        # Clean up existing non-trading days
+        cleaned_non_trading_days = set()
+        for d in MarketTime.NON_TRADING_DAYS:
+            if min_date <= d <= max_date:
+                cleaned_non_trading_days.add(d)
+            else:
+                dbg_warning(f"Existing non-trading day {d.strftime('%Y-%m-%d')} is now outside the allowed one-week range "
+                            f"({min_date.strftime('%Y-%m-%d')} to {max_date.strftime('%Y-%m-%d')}) and will be removed.")
+        MarketTime.NON_TRADING_DAYS = cleaned_non_trading_days
+
+        # Add the new date if it's within the valid range
+        if min_date <= new_date <= max_date:
+            if new_date not in MarketTime.NON_TRADING_DAYS:
+                MarketTime.NON_TRADING_DAYS.add(new_date)
+                dbg_info(f"Add {new_date} to NON_TRADING_DAYS")
+        else:
+            dbg_warning(f"New non-trading day {new_date.strftime('%Y-%m-%d')} is outside the allowed one-week range "
+                        f"({min_date.strftime('%Y-%m-%d')} to {max_date.strftime('%Y-%m-%d')}) and will not be added.")
+
+    @staticmethod
+    def _is_trading_day(date_obj: date) -> bool:
+        """
+        Checks if a given date is a trading day (Monday-Friday and not in NON_TRADING_DAYS).
+        """
+        return date_obj.weekday() < 5 and date_obj not in MarketTime.NON_TRADING_DAYS
 
     @staticmethod
     def get_market_open_time() -> dt_time:
@@ -50,31 +89,17 @@ class MarketTime:
             microsecond=0
         )
 
-        if current_time.weekday() < 5:  # Monday-Friday
-            # If current time is before the target time today
-            if current_time < target_datetime_today:
-                next_target_datetime = target_datetime_today
-            else:
-                # Target time already passed today, find next trading day
-                next_day = current_time + timedelta(days=1)
-                while next_day.weekday() >= 5: # Skip weekends
-                    next_day += timedelta(days=1)
-                next_target_datetime = next_day.replace(
-                    hour=target_time.hour,
-                    minute=target_time.minute,
-                    second=0,
-                    microsecond=0
-                )
-        else: # Saturday or Sunday
-            # Find next trading day (Monday)
-            days_until_monday = 7 - current_time.weekday()
-            next_day = current_time + timedelta(days=days_until_monday)
-            next_target_datetime = next_day.replace(
-                hour=target_time.hour,
-                minute=target_time.minute,
-                second=0,
-                microsecond=0
-            )
+        # Start checking from today or tomorrow
+        check_date = current_time.date()
+        if current_time >= target_datetime_today:
+            # If target time already passed today, start checking from tomorrow
+            check_date += timedelta(days=1)
+
+        # Find the next valid trading day
+        while not MarketTime._is_trading_day(check_date):
+            check_date += timedelta(days=1)
+
+        next_target_datetime = datetime.combine(check_date, target_time)
 
         return next_target_datetime
 
@@ -82,15 +107,15 @@ class MarketTime:
     def get_next_market_update_time() -> datetime:
         """
         Calculates the next expected market data update time using the helper method.
-        Assumes updates happen at MARKET_UPDATE_TIME on trading days (Mon-Fri).
+        Assumes updates happen at MARKET_UPDATE_TIME on trading days.
         """
         return MarketTime._get_next_trading_day_time(MarketTime.MARKET_UPDATE_TIME)
 
     @staticmethod
     def get_next_market_close_time() -> datetime:
         """
-        Calculates the next market opening time using the helper method.
-        Assumes the market close at MARKET_CLOSE_TIME on trading days (Mon-Fri).
+        Calculates the next market closing time using the helper method.
+        Assumes the market close at MARKET_CLOSE_TIME on trading days.
         """
         return MarketTime._get_next_trading_day_time(MarketTime.MARKET_CLOSE_TIME)
 
@@ -98,23 +123,23 @@ class MarketTime:
     def get_next_market_open_time() -> datetime:
         """
         Calculates the next market opening time using the helper method.
-        Assumes the market opens at MARKET_OPEN_TIME on trading days (Mon-Fri).
+        Assumes the market opens at MARKET_OPEN_TIME on trading days.
         """
         return MarketTime._get_next_trading_day_time(MarketTime.MARKET_OPEN_TIME)
 
     @staticmethod
     def is_trading_day() -> bool:
         """
-        Checks if the current day is a trading day (Monday to Friday).
+        Checks if the current day is a trading day (Monday to Friday and not in NON_TRADING_DAYS).
         """
-        current_time = datetime.now()
-        return current_time.weekday() < 5  # 0=Monday, 1=Tuesday, ..., 4=Friday
+        current_date = datetime.now().date()
+        return MarketTime._is_trading_day(current_date)
 
     @staticmethod
     def get_previous_market_update_time() -> datetime:
         """
         Calculates the previous expected market data update time.
-        Assumes updates happen at MARKET_UPDATE_TIME on trading days (Mon-Fri).
+        Assumes updates happen at MARKET_UPDATE_TIME on trading days.
         """
         current_time = datetime.now()
         update_time_today = current_time.replace(
@@ -124,33 +149,19 @@ class MarketTime:
             microsecond=0
         )
 
-        if current_time.weekday() < 5:  # Monday-Friday
-            # If current time is after today's update time, the previous update was today.
-            if current_time >= update_time_today:
-                previous_update_date = update_time_today
-            else:
-                # Otherwise, the previous update was on the last trading day.
-                previous_day = current_time - timedelta(days=1)
-                # Skip backwards over weekend days
-                while previous_day.weekday() >= 5:
-                    previous_day -= timedelta(days=1)
-                previous_update_date = previous_day.replace(
-                    hour=MarketTime.MARKET_UPDATE_TIME.hour,
-                    minute=MarketTime.MARKET_UPDATE_TIME.minute,
-                    second=0,
-                    microsecond=0
-                )
-        else:  # Saturday or Sunday
-            # The previous update was on the last trading day (Friday).
-            previous_day = current_time - timedelta(days=(current_time.weekday() - 4)) # Days since last Friday
-            previous_update_date = previous_day.replace(
-                hour=MarketTime.MARKET_UPDATE_TIME.hour,
-                minute=MarketTime.MARKET_UPDATE_TIME.minute,
-                second=0,
-                microsecond=0
-            )
+        # Determine the starting point for checking previous day
+        check_date = current_time.date()
+        if current_time < update_time_today:
+            # If current time is before today's update time, check yesterday first
+            check_date -= timedelta(days=1)
 
-        return previous_update_date
+        # Find the previous valid trading day
+        while not MarketTime._is_trading_day(check_date):
+            check_date -= timedelta(days=1)
+
+        previous_update_date_dt = datetime.combine(check_date, MarketTime.MARKET_UPDATE_TIME)
+
+        return previous_update_date_dt
 
 class Market:
     def __init__(self, market = None):
@@ -341,6 +352,11 @@ class Market:
                           and columns like 'Open', 'High', 'Low', 'Close', 'Volume', etc.
                           Returns an empty DataFrame if data cannot be fetched.
         """
+        if end_date is None or end_date > MarketTime.get_previous_market_update_time().date():
+            end_date = MarketTime.get_previous_market_update_time().date()
+            if end_date is not None:
+                dbg_debug(f"Change {end_date} to {MarketTime.get_previous_market_update_time().date()}")
+
         # FIXME, sanity check product_id.
         return self.instance.get_data(product_id=product_id, start_date=start_date, end_date=end_date,force_update = force_update)
 
@@ -377,7 +393,7 @@ class Market:
             dbg_error(traceback_output)
             return None
 
-    def update_data(self, product_list: list[str] = [], force_update: bool = False) -> bool:
+    def update_data(self, product_list: list[str] = [], force_update: bool = False, update_trading_day = False) -> bool:
         """
         Updates historical data for a list of specified products.
         This method iterates through the `product_list` and calls the underlying
@@ -392,13 +408,19 @@ class Market:
             force_update (bool, optional): If True, forces a fresh download from the provider,
                                            bypassing any local cache for each product.
                                            Defaults to False.
+            update_trading_day (bool, optional): If True, and the underlying provider's `update_data`
+                                                 method returns a `datetime.date` object (indicating
+                                                 a non-trading day), that date will be added to
+                                                 `MarketTime.NON_TRADING_DAYS`. Defaults to False.
 
         Returns:
             bool: True if the update process completes (even if some individual updates fail),
                   False if a critical error prevents the process from starting.
         """
         try:
-            self.instance.update_data(product_list = product_list, force_update = force_update)
+            result = self.instance.update_data(product_list = product_list, force_update = force_update)
+            if update_trading_day is True and result is not True and isinstance(result, date):
+                MarketTime.add_non_trading_day(result)
         except Exception as e:
             dbg_error(e)
         

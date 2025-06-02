@@ -101,6 +101,7 @@ class Evaluate:
         strategyMgr = StrategyManager()
         market = Market()
 
+        last_trading_day = MarketTime.get_previous_market_update_time()
         candidate_analyzer = Analyzer(market)
         candidate_analyzer.clean_result()
         candidate_keys = list(candidate_dict.keys())
@@ -109,6 +110,7 @@ class Evaluate:
             try:
                 dbg_info(f"[{each_idx + 1:>2}/{len(candidate_keys)}] [{each_product}] ", prefix='\r', end=' ' * 10)
                 # test only one year for accerate performance.
+                trade_analyzer.to_date=last_trading_day
                 candidate_analyzer.from_date=candidate_analyzer.to_date - relativedelta(years=1)
                 candidate_analyzer.setup()
                 candidate_analyzer.add_symbol([each_product])
@@ -333,7 +335,7 @@ class Evaluate:
         selling_analyzer = Analyzer(market)
         selling_analyzer.clean_result()
 
-        last_trading_day = MarketTime.get_previous_market_update_time().date()
+        last_trading_day = MarketTime.get_previous_market_update_time()
         dbg_info(f"Last Trad date {last_trading_day}")
 
         # Iterate through positions provided by the broker (dict: {symbol: Position_object})
@@ -358,15 +360,18 @@ class Evaluate:
 
                 dbg_info(f"Evaluating for {symbol}, opened on {purchase_date.isoformat()} at initial price {purchase_price:.2f}, current size {position_size}, using strategy {strategy_name}")
 
+                selling_analyzer.setup() # Setup Cerebro instance
+
                 # test only one year for accelerate performance.
                 # TODO: Consider if from_date should be relative to purchase_date?
+                selling_analyzer.to_date = last_trading_day
                 selling_analyzer.from_date = selling_analyzer.to_date - relativedelta(years=1)
-                selling_analyzer.setup() # Setup Cerebro instance
+
 
                 # Add the combined/updated data feed to the analyzer
                 target_df = self.__get_realtime_data_list(symbol)
                 if target_df is not None:
-                    last_trading_day = datetime.now().date()
+                    modified_last_trading_day = datetime.now()
                     selling_analyzer.add_data_frame([{'symbol':symbol, 'data':target_df}])
                 else:
                     selling_analyzer.add_symbol([symbol])
@@ -390,7 +395,7 @@ class Evaluate:
                 # # reset trading day to evaluate.
                 # target_strategy.trading_date = last_trading_day
 
-                selling_analyzer.add_strategy([target_strategy], last_trading_day = last_trading_day)
+                selling_analyzer.add_strategy([target_strategy], last_trading_day = modified_last_trading_day.date())
                 selling_analyzer.eval()
 
                 # Print detailed last trade information
@@ -409,10 +414,10 @@ class Evaluate:
                     })
                 elif trade_info:
                     # Assuming dbg_debug exists in your system, similar to dbg_info/dbg_warning
-                    dbg_debug(f"No sell signal for {symbol} on {last_trading_day}. Last action: {trade_info}")
+                    dbg_debug(f"No sell signal for {symbol} on {modified_last_trading_day.date()}. Last action: {trade_info}")
                 else:
                     # Assuming dbg_debug exists
-                    dbg_debug(f"No trade info generated for {symbol} by strategy {strategy_name} on {last_trading_day}.")
+                    dbg_debug(f"No trade info generated for {symbol} by strategy {strategy_name} on {modified_last_trading_day.date()}.")
 
             except Exception as e:
                 dbg_warning(f"Error evaluating sell condition for {symbol}: {e}")

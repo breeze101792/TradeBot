@@ -121,7 +121,7 @@ class Core:
         return True
 
     def __update_datasource(self, args = None):
-        self.market.update_data()
+        self.market.update_data(update_trading_day = True)
         return True
 
     def __heatbeat_service(self):

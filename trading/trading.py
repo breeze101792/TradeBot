@@ -16,7 +16,7 @@ class Trading:
         CASH_PER_TRADE = self.cm.get('stock.cash_per_trade')
 
         # {symbol:2330, price:1000, size:1000, }
-        if len( buy_list) >= 1:
+        if len(buy_list) >= 1:
             # TODO, Place order & save to data base for info/stop_loss price.
             trade_broker = BrokerManager()
             trade_broker.connect()

@@ -450,6 +450,10 @@ class FindMind(DataProvider):
 
             if df_adj.empty:
                 dbg_warning(f"No adjusted data returned from FinMind for {ticker} for the period {fm_start_date_str} to {fm_end_date_str}.")
+                # dump call tradce
+                # for line in traceback.format_stack():
+                #     print(line.strip())
+
                 return pd.DataFrame()
 
             # Rename columns to match the expected format
