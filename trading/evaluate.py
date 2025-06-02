@@ -110,7 +110,7 @@ class Evaluate:
             try:
                 dbg_info(f"[{each_idx + 1:>2}/{len(candidate_keys)}] [{each_product}] ", prefix='\r', end=' ' * 10)
                 # test only one year for accerate performance.
-                trade_analyzer.to_date=last_trading_day
+                candidate_analyzer.to_date=last_trading_day
                 candidate_analyzer.from_date=candidate_analyzer.to_date - relativedelta(years=1)
                 candidate_analyzer.setup()
                 candidate_analyzer.add_symbol([each_product])

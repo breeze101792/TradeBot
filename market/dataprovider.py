@@ -286,39 +286,78 @@ class DataProvider:
             dbg_info("No products to update.")
             return True # No products to update, so not a failure
 
+        ####
+        # Get today's date and last trading day
+        last_trading_day = self.get_last_trading_update_date()
+
+        data_cache_folder = ""
+        if self.SUPPORTED_ADJUSTED_DATA is True:
+            today_str = last_trading_day.strftime('%Y%m%d')
+            data_cache_folder = os.path.join(self.cache_data_root_path, self.cache_data_name, 'datas', today_str)
+        else:
+            data_cache_folder = os.path.join(self.cache_data_root_path, self.cache_data_name, 'datas')
+
+        data_update_lock_path = f"{data_cache_folder}"
+        data_update_lock_file = f"update.lck"
+        lock_file_full_path = os.path.join(data_update_lock_path, data_update_lock_file)
+
+        # Check if lock file exists
+        if os.path.exists(lock_file_full_path):
+            dbg_info(f"Lock file {lock_file_full_path} exists. Another instance is likely updating. Skipping this update call.")
+            return True # Indicate that the update was handled (by another instance)
+
+        # Create the lock file
+        os.makedirs(data_update_lock_path, exist_ok=True)
+        try:
+            with open(lock_file_full_path, 'w') as f:
+                f.write(f"Locked by {os.getpid()} at {datetime.now()}\n")
+            dbg_debug(f"Lock file created at {lock_file_full_path}")
+        except IOError as e:
+            dbg_error(f"Could not create lock file {lock_file_full_path}: {e}")
+            return False # Failed to acquire lock
+
         quota_group = 100
         dbg_info(f"Start update data.")
         
         # Get the last trading day once before the loop
         current_last_trading_day = self.get_last_trading_update_date()
 
-        for idx, each_product in enumerate(product_list):
-            if idx % quota_group == 0:
-                self.wait_quota(quota_group)
+        try:
+            for idx, each_product in enumerate(product_list):
+                if idx % quota_group == 0:
+                    self.wait_quota(quota_group)
 
-            # Use space to avoid error message been erase.
-            dbg_info(f"[{idx+1}/{product_amount}] Download code:{each_product}", prefix='\r', end=' ' * 10)
-            try:
-                # When updating all data, we don't specify start_date/end_date,
-                # so it will update from last cached date to last trading day.
-                tmp_data = self.get_data(product_id = each_product, force_update = force_update)
-                
-                # Check if data was updated successfully up to the last trading day
-                if not tmp_data.empty and tmp_data.index.max().date() >= current_last_trading_day:
-                    success_count += 1
-                else:
-                    dbg_debug(f"Product {each_product} failed to update to {current_last_trading_day} or returned empty data.")
-            except Exception as e:
-                dbg_error(f"Error updateing stock: {each_product}")
-                dbg_error(e)
-                # if the issue on quota, we wait it.
-                self.wait_quota(idx % quota_group)
-                continue
+                # Use space to avoid error message been erase.
+                dbg_info(f"[{idx+1}/{product_amount}] Download code:{each_product}", prefix='\r', end=' ' * 10)
+                try:
+                    # When updating all data, we don't specify start_date/end_date,
+                    # so it will update from last cached date to last trading day.
+                    tmp_data = self.get_data(product_id = each_product, force_update = force_update)
+                    
+                    # Check if data was updated successfully up to the last trading day
+                    if not tmp_data.empty and tmp_data.index.max().date() >= current_last_trading_day:
+                        success_count += 1
+                    else:
+                        dbg_debug(f"Product {each_product} failed to update to {current_last_trading_day} or returned empty data.")
+                except Exception as e:
+                    dbg_error(f"Error updateing stock: {each_product}")
+                    dbg_error(e)
+                    # if the issue on quota, we wait it.
+                    self.wait_quota(idx % quota_group)
+                    continue
+
+        finally:
+            # Ensure the lock file is removed
+            if os.path.exists(lock_file_full_path):
+                try:
+                    os.remove(lock_file_full_path)
+                    dbg_debug(f"Lock file removed: {lock_file_full_path}")
+                except OSError as e:
+                    dbg_error(f"Error removing lock file {lock_file_full_path}: {e}")
 
         if success_count == 0 and product_amount > 0:
             dbg_error("All data updates failed.")
             return current_last_trading_day
         else:
             dbg_info(f"All {product_amount} has been update to date.", prefix='\n')
-        
-        return True
+            return True

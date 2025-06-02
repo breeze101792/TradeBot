@@ -81,7 +81,7 @@ def main():
     else:
         ans = input("!!! It's a NOT in development mode, are you sure you want to proceed, or try with development mode.?(y/N, enter to goto development mode.):")
         if ans in ['y', 'Y', 'yes', 'YES']:
-            dbg_warning('Disable development mode')
+            dbg_warning('!!! Real Trading mode !!!')
             cm.set('debug.development', False)
             cm.set('path.broker', "broker")
         else:
