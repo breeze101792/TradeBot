@@ -192,12 +192,16 @@ class BrokerManager:
             print(table_str)
 
             # Print Totals
+            # Print Totals in a table
             print("\n--- Portfolio Totals ---")
-            print(f"Total Cash Value: ${cash:,.2f}")
-            print(f"Total Market Value: ${total_market_value:,.2f}")
-            print(f"Total Cost Basis:   ${total_cost_basis:,.2f}")
-            print(f"Total Unrealized P/L: ${total_unrealized_pl:,.2f}")
-            print("-" * 26) # Separator
+            total_headers = ["Metric", "Value"]
+            total_data = [
+                ["Total Cash Value", f"${cash:,.2f}"],
+                ["Total Market Value", f"${total_market_value:,.2f}"],
+                ["Total Cost Basis", f"${total_cost_basis:,.2f}"],
+                ["Total Unrealized P/L", f"${total_unrealized_pl:,.2f}"]
+            ]
+            print(tabulate(total_data, headers=total_headers, tablefmt="grid", stralign="right"))
 
         except Exception as e:
             dbg_error(f"Error generating position summary table with tabulate: {e}")
