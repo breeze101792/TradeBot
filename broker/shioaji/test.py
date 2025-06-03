@@ -60,8 +60,8 @@ def test_get_last_price():
                 print(f"Error during disconnection: {e}")
     print("--- Test finished ---")
 
-def test_place_order():
-    print("--- Testing ShioajiBroker place_order ---")
+def test_place_buy_order():
+    print("--- Testing ShioajiBroker place_buy_order ---")
     broker = None
     try:
         broker = ShioajiBroker(broker_path='test')
@@ -69,17 +69,21 @@ def test_place_order():
 
         symbol = '2330'
         buy_size = 1 # Odd lot
-        sell_size = 1 # Odd lot
         # Use realistic but fixed prices for testing in simulation
-        test_price_buy = 750.0
-        test_price_sell = 850.0
+        current_price = broker.get_last_price(symbol)
+        if current_price == 0:
+            # print(f'{symbol} get price fail. Using default price 1000.')
+            # current_price = 1000
+            print(f'{symbol} get price fail.')
+            raise ValueError
+        test_price_buy = current_price + 10
 
         initial_cash = broker.get_balance()
         print(f"Initial cash: {initial_cash}")
         initial_positions = broker.get_all_positions()
         print(f"Initial positions: {initial_positions}")
 
-        print(f"\n--- Attempting to place a BUY odd lot order for {symbol} ---")
+        print(f"\n--- Attempting to place a BUY odd lot order for {symbol}@{test_price_buy} ---")
         buy_order_result = broker.place_order(symbol, 'buy', buy_size, test_price_buy)
 
         if buy_order_result:
@@ -93,7 +97,43 @@ def test_place_order():
         print(f"Cash after buy: {cash_after_buy}")
         print(f"Positions after buy: {positions_after_buy}")
 
-        print(f"\n--- Attempting to place a SELL odd lot order for {symbol} ---")
+    except Exception as e:
+        print(f"Error during place_buy_order test: {e}")
+        traceback_output = traceback.format_exc()
+        print(traceback_output)
+    finally:
+        if broker:
+            try:
+                broker.disconnect()
+                print("ShioajiBroker place_buy_order test completed.")
+            except NotImplementedError:
+                print("ShioajiBroker.disconnect() is not yet implemented.")
+            except Exception as e:
+                print(f"Error during disconnection: {e}")
+    print("--- Test finished ---")
+
+def test_place_sell_order():
+    print("--- Testing ShioajiBroker place_sell_order ---")
+    broker = None
+    try:
+        broker = ShioajiBroker(broker_path='test')
+        broker.connect()
+
+        symbol = '2330'
+        sell_size = 1 # Odd lot
+        # Use realistic but fixed prices for testing in simulation
+        current_price = broker.get_last_price(symbol)
+        if current_price == 0:
+            print(f'{symbol} get price fail. Using default price 1000.')
+            current_price = 1000
+        test_price_sell = current_price - 10
+
+        initial_cash = broker.get_balance()
+        print(f"Initial cash: {initial_cash}")
+        initial_positions = broker.get_all_positions()
+        print(f"Initial positions: {initial_positions}")
+
+        print(f"\n--- Attempting to place a SELL odd lot order for {symbol}@{test_price_sell} ---")
         # For sell, we need to ensure we have a position.
         # In a real test, you might place a buy order first, then sell.
         # For this test, we'll just try to sell, acknowledging it might fail if no position.
@@ -111,14 +151,14 @@ def test_place_order():
         print(f"Final positions: {final_positions}")
 
     except Exception as e:
-        print(f"Error during place_order test: {e}")
+        print(f"Error during place_sell_order test: {e}")
         traceback_output = traceback.format_exc()
         print(traceback_output)
     finally:
         if broker:
             try:
                 broker.disconnect()
-                print("ShioajiBroker place_order test completed.")
+                print("ShioajiBroker place_sell_order test completed.")
             except NotImplementedError:
                 print("ShioajiBroker.disconnect() is not yet implemented.")
             except Exception as e:
@@ -221,7 +261,8 @@ def main():
         "get_positions": test_get_positions,
         "get_portfolio_value": test_get_portfolio_value,
         "get_last_price": test_get_last_price,
-        "place_order": test_place_order, # Added test for place_order
+        "place_buy_order": test_place_buy_order,
+        "place_sell_order": test_place_sell_order,
         # Add other test functions here as they are created
     }
 

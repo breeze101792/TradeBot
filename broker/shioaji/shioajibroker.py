@@ -8,6 +8,7 @@ import os
 import queue
 import shioaji as sj
 # from shioaji import TickSTKv1
+from tabulate import tabulate
 
 from utility.debug import *
 from core.config import AppConfigManager
@@ -428,13 +429,6 @@ class ShioajiBroker(BaseBroker):
                 price = self.get_last_price(symbol)
 
             # Create an OddLotOrder
-            # order = sj.order.OddLotOrder(
-            #     price=price,
-            #     quantity=size,
-            #     action=sj_action,
-            #     price_type=sj_price_type,
-            #     order_type=sj.constant.OrderType.ROD # Rest of Day for odd lots
-            # )
             order = self.shioaji_api.Order(
                 price=price,
                 quantity=size,
@@ -444,27 +438,23 @@ class ShioajiBroker(BaseBroker):
                 order_lot=sj.constant.StockOrderLot.IntradayOdd, 
                 account=self.shioaji_api.stock_account,
             )
-
-            dbg_debug(f"Placing odd lot order: Symbol={symbol}, Action={action}, Size={size}, Price={price}")
+            # dbg_debug(f"Placing odd lot order: Symbol={symbol}, Action={action}, Size={size}, Price={price}")
 
             # Place the order
-            # trade = self.shioaji_api.place_order(contract, order, self.shioaji_api.stock_account)
-            #########################################
-            # contract = self.shioaji_api.Contracts.Stocks.TSE.TSE0050
-            # order = self.shioaji_api.Order(
-            #     price=90,
-            #     quantity=10,
-            #     action=sj.constant.Action.Buy,
-            #     price_type=sj.constant.StockPriceType.LMT,
-            #     order_type=sj.constant.OrderType.ROD,     
-            #     order_lot=sj.constant.StockOrderLot.IntradayOdd, 
-            #     account=self.shioaji_api.stock_account,
-            # )
-
             trade = self.shioaji_api.place_order(contract, order)
-            print(trade)
-            #########################################
+            # print(f"trade({type(trade)}): {trade}")
+            self.__show_trade([trade]) # Pass as a list
 
+            # Status code:
+            # status (:obj:Status): {
+            #     Cancelled: 已刪除, 
+            #     Filled: 完全成交, 
+            #     PartFilled: 部分成交, 
+            #     Failed: 失敗, 
+            #     PendingSubmit: 傳送中, 
+            #     PreSubmitted: 預約單, 
+            #     Submitted: 傳送成功
+            # }
             # For the purpose of this base broker, we assume immediate fill if the API accepts the order.
             # In a real-time scenario, you would monitor trade.status for 'Filled'.
             if trade and trade.status.status == 'Filled':
@@ -548,19 +538,75 @@ class ShioajiBroker(BaseBroker):
             return self.__place_order_lot(symbol, action, size, price)
         else:
             return self.__place_order_odd(symbol, action, size, price)
+
+    def __show_trade(self, trades: list[sj.order.Trade]):
+        """
+        Displays trade details using tabulate, ignoring account information.
+        Args:
+            trades (list[sj.Trade]): A list of trade objects from Shioaji.
+        """
+        if not trades:
+            dbg_warning("No trades to display.")
+            return
+
+        for i, trade in enumerate(trades):
+            dbg_info(f"--- Trade Details ({i+1}/{len(trades)}) ---")
+            # trade(<class 'shioaji.order.Trade'>): contract=Stock(exchange=<Exchange.TSE: 'TSE'>, code='2330', symbol='TSE2330', name='台積電', category='24', unit=1000, limit_up=1040.0, limit_down=852.0, reference=946.0, update_date='2025/06/03', margin_trading_balance=326, short_selling_balance=125, day_trade=<DayTrade.Yes: 'Yes'>) order=Order(action=<Action.Buy: 'Buy'>, price=1010, quantity=1, id='0006E5', seqno='0006E5', ordno='0001B9', account=Account(account_type=<AccountType.Stock: 'S'>, person_id='', broker_id='9A9P', account_id='0367021', signed=True), price_type=<StockPriceType.LMT: 'LMT'>, order_type=<OrderType.ROD: 'ROD'>, order_lot=<StockOrderLot.IntradayOdd: 'IntradayOdd'>) status=OrderStatus(id='0006E5', status=<Status.PendingSubmit: 'PendingSubmit'>, status_code='00', order_datetime=datetime.datetime(2025, 6, 3, 16, 17, 47, 306041), deals=[])
+
+            contract = trade.contract
+            order = trade.order
+            status = trade.status
+
+            trade_headers = [
+                "Trade ID", "Symbol", "Name", "Action", "Order Price", "Order Quantity",
+                "Order Type", "Price Type", "Order Lot", "Current Status", "Status Code", "Order Datetime"
+            ]
+            trade_values = [
+                order.id,
+                contract.code if contract else "N/A",
+                contract.name if contract else "N/A",
+                order.action.value if order.action else "N/A",
+                order.price,
+                order.quantity,
+                order.order_type.value if order.order_type else "N/A",
+                order.price_type.value if order.price_type else "N/A",
+                order.order_lot.value if order.order_lot else "N/A",
+                status.status.value if status.status else "N/A",
+                status.status_code,
+                status.order_datetime.strftime("%Y-%m-%d %H:%M:%S") if status.order_datetime else "N/A",
+            ]
+            print(tabulate([trade_values], headers=trade_headers, tablefmt="grid"))
+
+            if status.deals:
+                dbg_info("\n--- Deal Details ---")
+                deal_headers = ["Deal Price", "Deal Quantity", "Deal Datetime"]
+                deal_rows = []
+                for deal in status.deals:
+                    deal_rows.append([
+                        deal.deal_price,
+                        deal.deal_quantity,
+                        deal.deal_datetime.strftime("%Y-%m-%d %H:%M:%S") if deal.deal_datetime else "N/A"
+                    ])
+                print(tabulate(deal_rows, headers=deal_headers, tablefmt="grid"))
+            dbg_info("--------------------")
+
     def __show_usage(self):
         try:
-            print("Usage data:")
+            dbg_info("--- Usage Data ---")
             usage_data = self.shioaji_api.usage()
-            print(f"  Connections     : {usage_data.connections}")
-            print(f"  Bytes Used      : {format_bytes(usage_data.bytes)}")
-            print(f"  Byte Limit      : {format_bytes(usage_data.limit_bytes)}")
-            print(f"  Remaining Bytes : {format_bytes(usage_data.remaining_bytes)}")
-            print("--------------------")
+            usage_headers = ["Connections", "Bytes Used", "Byte Limit", "Remaining Bytes"]
+            usage_values = [
+                usage_data.connections,
+                format_bytes(usage_data.bytes),
+                format_bytes(usage_data.limit_bytes),
+                format_bytes(usage_data.remaining_bytes),
+            ]
+            print(tabulate([usage_values], headers=usage_headers, tablefmt="grid"))
+            dbg_info("--------------------")
         except Exception as e:
-            print(f"An error occurred: {e}")
+            dbg_error(f"An error occurred while fetching usage data: {e}")
             traceback_output = traceback.format_exc()
-            print(traceback_output)
+            dbg_error(traceback_output)
     def __print_account(self, accounts):
         """
         Prints the details of each account in the provided list in a formatted manner.
