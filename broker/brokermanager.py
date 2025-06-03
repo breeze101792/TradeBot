@@ -11,7 +11,7 @@ from utility.debug import * # Replace standard logging with custom debug system
 
 # Assuming MockBroker is the primary implementation for now
 from broker.mock.mockbroker import MockBroker, Position
-from core.config import *
+from core.config import AppConfigManager
 
 class BrokerManager:
     """

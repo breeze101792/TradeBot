@@ -1,13 +1,14 @@
 import backtrader as bt
 import threading
 from utility.debug import *
-from core.config import *
+from core.config import AppConfigManager
 
 # NOTE. strategy should only access by backtest class, so we could ensure the thread safty.
 class BasicStrategy(bt.Strategy):
     # PreDefine
     DEBUG_FLAG = False
     LOT_UNIT = 1000
+    MIN_CASH_PER_TRADE = 150000
     NAME="AdavanceStrategy"
 
     trading_date = None
@@ -39,6 +40,7 @@ class BasicStrategy(bt.Strategy):
 
         self.cm = AppConfigManager()
         self.LOT_UNIT = self.cm.get('stock.lot_unit')
+        self.MIN_CASH_PER_TRADE = self.cm.get('stock.cash_min_per_trade')
 
         # we save the latest order, for checking if there is the duplicate order exist.
         # may need to modify it for mulitple order?

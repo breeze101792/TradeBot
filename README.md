@@ -16,6 +16,7 @@ pip install yfinance backtrader
 8. test code for core module.
 9. avoid small amount of selling.
 10. wihen date has been skiped(market not open as uasual). the update system will crsah(fail to update data, so it require every with every get_data).
+11. check all buy/sell are within the min/max value of config.
 
 # TODO
 1. on strategy, do profit check on real time.

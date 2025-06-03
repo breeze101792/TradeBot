@@ -1,7 +1,9 @@
 import backtrader as bt
 import pandas as pd
-from math import ceil
+from math import ceil, floor
+
 from utility.debug import *
+
 from strategy.basic.basicstrategy import BasicExitStrategy
 
 class MovingProfitStrategy(BasicExitStrategy):
@@ -65,7 +67,7 @@ class MovingProfitStrategy(BasicExitStrategy):
                     # calc size to sell
                     lot_size = pos.size / self.LOT_UNIT
                     sell_pos = 0
-                    if lot_size >= 2:
+                    if lot_size >= 2 and floor(lot_size/2) * self.LOT_UNIT * price >= self.MIN_CASH_PER_TRADE:
                         sell_pos = ceil(lot_size/2) * self.LOT_UNIT
                     else:
                         sell_pos = lot_size * self.LOT_UNIT
@@ -84,7 +86,7 @@ class MovingProfitStrategy(BasicExitStrategy):
                     # we don't sell out all stock at once.
                     lot_size = pos.size / self.LOT_UNIT
                     sell_pos = 0
-                    if lot_size >= 2:
+                    if lot_size >= 2 and floor(lot_size/2) * self.LOT_UNIT * price >= self.MIN_CASH_PER_TRADE:
                         sell_pos = ceil(lot_size/2) * self.LOT_UNIT
                     else:
                         sell_pos = lot_size * self.LOT_UNIT
@@ -107,6 +109,7 @@ class MovingProfitStrategy(BasicExitStrategy):
             elif not pos and self.stra_buy_in(data):
                 lot_size = int(self.broker.get_cash() * self.params.risk_per_trade / (price * self.LOT_UNIT))
                 size = lot_size * self.LOT_UNIT
+                # TODO, add minimum cash transaction check.
                 self.buy(data=data, size=size)
 
                 # update init paramaters.

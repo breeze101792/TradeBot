@@ -52,6 +52,11 @@ def main():
         dest="trading_mode", const="backtest", # Set trading_mode to 'backtest' if -b is used
         help="Shortcut to enable backtest mode (equivalent to -m backtest)")
 
+    # Shortcut flag for backtest mode
+    parser.add_argument("-t", "--test", action="store_const",
+        dest="trading_mode", const="test", # Set trading_mode to 'test' if -t is used
+        help="Shortcut to enable test mode (equivalent to -m test)")
+
     # enable debug all
     # DebugSetting.setDbgLevel('all')
 

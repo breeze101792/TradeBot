@@ -1,19 +1,22 @@
 import math
 import traceback
 from utility.debug import *
-from core.config import *
+from core.config import AppConfigManager
 
 from market.market import *
 from trading.evaluate import Evaluate
 from broker.brokermanager import BrokerManager
 
 class Trading:
-    def __init__(self):
-        self.cm = AppConfigManager()
+    # def __init__(self):
+    #     # this will break mock on test case, if you want this mock before init.
+    #     self.cm = AppConfigManager()
 
     def buying_exec(self, buy_list):
-        LOT_UNIT = self.cm.get('stock.lot_unit')
-        CASH_PER_TRADE = self.cm.get('stock.cash_per_trade')
+        cfgmgr = AppConfigManager()
+        LOT_UNIT = cfgmgr.get('stock.lot_unit')
+        CASH_MAX_PER_TRADE = cfgmgr.get('stock.cash_max_per_trade')
+        CASH_MIN_PER_TRADE = cfgmgr.get('stock.cash_min_per_trade')
 
         # {symbol:2330, price:1000, size:1000, }
         if len(buy_list) >= 1:
@@ -25,16 +28,17 @@ class Trading:
                     dbg_info(f'Buying product: {each_symbol}')
                     # 0.9 is to avoid market price increase cause insufficient funds.
                     current_cash = trade_broker.get_balance() * 0.9
-                    # budget should smaller then CASH_PER_TRADE.
-                    buying_budget = current_cash if current_cash < CASH_PER_TRADE else CASH_PER_TRADE
+                    # budget should smaller then CASH_MAX_PER_TRADE.
+                    buying_budget = current_cash if current_cash < CASH_MAX_PER_TRADE else CASH_MAX_PER_TRADE
                     current_price = trade_broker.get_last_price(each_symbol)
 
                     # size should be the 1000x
                     order_lot = math.floor(buying_budget / (current_price * LOT_UNIT))
                     order_size = order_lot * LOT_UNIT
 
+                    dbg_info(CASH_MIN_PER_TRADE,',', current_price * order_size ,',',  buying_budget)
                     # sanity check
-                    if current_price * order_size < buying_budget:
+                    if CASH_MIN_PER_TRADE <= current_price * order_size <= buying_budget:
                         trade_broker.place_order(symbol=each_symbol, size=order_size, action='buy')
                     else:
                         dbg_warning(f'Insufficient cash (buget {buying_budget}), ignore buying product:{each_symbol} at size:{order_size}, price:{current_price}')
@@ -57,7 +61,10 @@ class Trading:
         #     'strategy': target_strategy # Keep strategy object if needed later
         # })
 
-        if len( selling_list) >= 1:
+        cfgmgr = AppConfigManager()
+        CASH_MIN_PER_TRADE = cfgmgr.get('stock.cash_min_per_trade')
+
+        if len(selling_list) >= 1:
             # TODO, Place order & save to data base for info/stop_loss price.
             trade_broker = BrokerManager()
             trade_broker.connect()
@@ -67,16 +74,29 @@ class Trading:
                     # DON"T need to times 1000
                     selling_size = each_symbol['size']
 
-                    dbg_info(f'Selling product: {symbol}')
                     current_cash = trade_broker.get_balance()
                     current_price = trade_broker.get_last_price(symbol)
                     holding_size = trade_broker.get_position_by_symbol(symbol).size
-                    # size should be the 1000x
+
+                    dbg_info(f'Selling product: {symbol}, current hoding: {holding_size}')
 
                     # sanity check
-                    if selling_size <= holding_size:
+                    if selling_size == holding_size:
+                        # if equal then we just sell it all.
                         trade_broker.place_order(symbol=symbol, size=selling_size, action='sell')
+
+                    elif selling_size < holding_size:
+                        checking_size = selling_size if selling_size <= holding_size - selling_size else holding_size - selling_size
+                        # if selling size smaller then hodling size, we check if it match the minimum trading cash.
+                        if checking_size * current_price < CASH_MIN_PER_TRADE:
+                            trade_broker.place_order(symbol=symbol, size=holding_size, action='sell')
+                            dbg_info(f'[{symbol}] remining/selling size will hit CASH_MIN_PER_TRADE, so we sell/close the trade.')
+                        else:
+                            # it's checked, sell with expecited size.
+                            trade_broker.place_order(symbol=symbol, size=selling_size, action='sell')
+
                     else:
+                        # if selling size greater then hodling size, there is en error in it, but we just sell it all.
                         dbg_warning(f'[{symbol}] selling size({selling_size}) is greate then hoding size({holding_size}), set to hoding size.')
                         trade_broker.place_order(symbol=symbol, size=holding_size, action='sell')
                 except Exception as e:
@@ -96,10 +116,6 @@ class Trading:
         # Buyig evaluation.
         buy_list = trade_eval.buying_evaluation()
 
-        # NOTE. debug, don't not open it.
-        # if self.cm.get('debug.development') is True: 
-        #     self.__buying_exec(buy_list)
-        # debug
         return buy_list
     def selling_eval(self, args = None):
         trade_eval = Evaluate()

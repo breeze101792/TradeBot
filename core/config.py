@@ -22,7 +22,9 @@ class AppConfig(BasicConfig):
     class stock:
         # We could use this to control which kind of trading we are doing
         lot_unit = 10
-        cash_per_trade = 10 * 1000
+        # minimum trade amount: 20 / 0.1425% = 14035
+        cash_min_per_trade = 15000
+        cash_max_per_trade = cash_min_per_trade * 2
 
 class AppConfigManager(ConfigManager):
     def __init__(self, *args, **kwargs):

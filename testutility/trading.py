@@ -123,13 +123,18 @@ def test_trading_buying_exec(trading_instance: Trading, mock_broker_manager_clas
     dbg_info('inside', mock_broker_manager_class, mock_app_config_manager_class,trading_instance)
     all_passed = True
     try:
-        lot_unit = 10
-        cash_per_trade = 10 * 1000
-        # Setup AppConfigManager mock
+        # Setup AppConfigManager mock with values from core/config.py
+        # These values are used by the Trading class internally via AppConfigManager.
+        # For specific scenarios, we can override them within the test.
+        default_lot_unit = 10
+        default_cash_min_per_trade = 15000
+        default_cash_max_per_trade = default_cash_min_per_trade * 2 # 30000
+
         mock_acm_instance = MagicMock()
         def acm_get_side_effect(key):
-            if key == 'stock.lot_unit': return lot_unit
-            if key == 'stock.cash_per_trade': return cash_per_trade
+            if key == 'stock.lot_unit': return default_lot_unit
+            if key == 'stock.cash_min_per_trade': return default_cash_min_per_trade
+            if key == 'stock.cash_max_per_trade': return default_cash_max_per_trade
             return None
         mock_acm_instance.get.side_effect = acm_get_side_effect
         mock_app_config_manager_class.return_value = mock_acm_instance
@@ -144,39 +149,74 @@ def test_trading_buying_exec(trading_instance: Trading, mock_broker_manager_clas
         mock_broker_instance.connect.assert_not_called() # Should not connect if list is empty
         dbg_info("Scenario 1: Passed")
 
-        # Scenario 2: Valid buy
+        # Scenario 2: Valid buy - sufficient funds, order placed
         dbg_info("Scenario 2: Valid buy")
         mock_broker_instance.reset_mock() # Reset for new scenario
-        mock_broker_instance.get_balance.return_value = cash_per_trade * 2
-        mock_broker_instance.get_last_price.return_value = 60 # Results in order_lot = 1, order_size = 1000
+        mock_broker_instance.get_balance.return_value = default_cash_max_per_trade * 2 # e.g., 60000
+        mock_broker_instance.get_last_price.return_value = 10 # Price per unit
         buy_list_s2 = [DEFAULT_TEST_TICKER]
         dbg_info(trading_instance)
         trading_instance.buying_exec(buy_list_s2)
         mock_broker_instance.connect.assert_called_once()
-        target_size = int(cash_per_trade / 60 / lot_unit) * lot_unit
+        # Expected calculation:
+        # current_cash = 60000 * 0.9 = 54000
+        # buying_budget = min(54000, 30000) = 30000
+        # current_price = 10
+        # order_lot = floor(30000 / (10 * 10)) = floor(30000 / 100) = 300
+        # order_size = 300 * 10 = 3000
+        # Check: 15000 <= (10 * 3000) <= 30000 -> 15000 <= 30000 <= 30000 (True)
+        target_size = 3000
         mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=target_size, action='buy')
         mock_broker_instance.summarize_positions.assert_called_once()
         mock_broker_instance.disconnect.assert_called_once()
         dbg_info("Scenario 2: Passed")
 
-        # Scenario 3: Insufficient cash for calculated order (price * order_size >= buying_budget after order_size calc)
-        # This specific internal check `if current_price * order_size < buying_budget:`
-        # with order_size = floor(budget / (price * lot_unit)) * lot_unit
-        # means order_size * price will always be <= budget / lot_unit * lot_unit.
-        # The warning `Insufficient cash (buget {buying_budget}), ignore buying product` seems hard to hit with current logic
-        # unless get_balance() * 0.9 is very small or CASH_PER_TRADE is very small.
-        # Let's test the "order_lot becomes 0" case.
+        # Scenario 3: Order lot becomes 0 (current_price * LOT_UNIT > buying_budget)
         dbg_info("Scenario 3: Order lot becomes 0")
         mock_broker_instance.reset_mock()
-        mock_broker_instance.get_balance.return_value = cash_per_trade
-        mock_broker_instance.get_last_price.return_value = 60 # budget=50k, price*lot=60k -> order_lot=0
+        mock_broker_instance.get_balance.return_value = default_cash_max_per_trade # e.g., 30000
+        # Set price high enough so that order_lot becomes 0
+        # current_cash = 30000 * 0.9 = 27000
+        # buying_budget = min(27000, 30000) = 27000
+        # To make order_lot = 0, current_price * LOT_UNIT > buying_budget
+        # current_price * 10 > 27000 => current_price > 2700
+        mock_broker_instance.get_last_price.return_value = 2701 # Makes order_lot = 0
         buy_list_s3 = [DEFAULT_TEST_TICKER]
         trading_instance.buying_exec(buy_list_s3)
         mock_broker_instance.connect.assert_called_once()
-        # place_order would be called with size 0 if order_lot is 0 due to `if current_price * order_size < buying_budget` (0 < 50000)
-        # mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=0, action='buy')
-        mock_broker_instance.place_order.assert_not_called()
+        mock_broker_instance.place_order.assert_not_called() # No order should be placed
         dbg_info("Scenario 3: Passed")
+
+        # Scenario 4: Calculated order value is less than CASH_MIN_PER_TRADE (but order_size > 0)
+        dbg_info("Scenario 4: Calculated order value is less than CASH_MIN_PER_TRADE")
+        mock_broker_instance.reset_mock()
+        # Set config values for this scenario
+        lot_unit_s4 = 10
+        cash_max_per_trade_s4 = 150 # Max budget for this trade
+        cash_min_per_trade_s4 = 500 # Minimum trade value
+        mock_acm_instance.get.side_effect = lambda key: {
+            'stock.lot_unit': lot_unit_s4,
+            'stock.cash_max_per_trade': cash_max_per_trade_s4,
+            'stock.cash_min_per_trade': cash_min_per_trade_s4,
+        }.get(key)
+
+        mock_broker_instance.get_balance.return_value = 200 # Enough cash for buying_budget
+        mock_broker_instance.get_last_price.return_value = 10 # Price per unit
+        buy_list_s4 = [DEFAULT_TEST_TICKER]
+        trading_instance.buying_exec(buy_list_s4)
+        mock_broker_instance.connect.assert_called_once()
+        # Expected:
+        # current_cash = 200 * 0.9 = 180
+        # buying_budget = min(180, 150) = 150
+        # current_price = 10
+        # order_lot = floor(150 / (10 * 10)) = floor(150 / 100) = 1
+        # order_size = 1 * 10 = 10
+        # current_price * order_size = 10 * 10 = 100
+        # Since 100 < CASH_MIN_PER_TRADE (500), place_order should NOT be called.
+        mock_broker_instance.place_order.assert_not_called()
+        mock_broker_instance.summarize_positions.assert_called_once()
+        mock_broker_instance.disconnect.assert_called_once()
+        dbg_info("Scenario 4: Passed")
 
     except AssertionError as e:
         dbg_error(f"AssertionError in test_trading_buying_exec: {e}")
@@ -188,12 +228,23 @@ def test_trading_buying_exec(trading_instance: Trading, mock_broker_manager_clas
         all_passed = False
     return all_passed
 
+# @patch('trading.trading.AppConfigManager') # Add this patch
+@patch('trading.trading.AppConfigManager') # Add this patch
 @patch('trading.trading.BrokerManager')
-def test_trading_selling_exec(trading_instance: Trading, mock_broker_manager_class: MagicMock) -> bool:
+def test_trading_selling_exec(trading_instance: Trading, mock_broker_manager_class: MagicMock, mock_app_config_manager_class: MagicMock) -> bool: # Add mock_app_config_manager_class
     """Tests the selling_exec method of the Trading class."""
     dbg_info("--- Running Test: Trading selling_exec ---")
     all_passed = True
     try:
+        # Setup AppConfigManager mock
+        cash_min_per_trade = 100 # Default for initial scenarios
+        mock_acm_instance = MagicMock()
+        def acm_get_side_effect(key):
+            if key == 'stock.cash_min_per_trade': return cash_min_per_trade
+            return None
+        mock_acm_instance.get.side_effect = acm_get_side_effect
+        mock_app_config_manager_class.return_value = mock_acm_instance
+
         mock_broker_instance = MagicMock()
         mock_broker_manager_class.return_value = mock_broker_instance
 
@@ -231,6 +282,62 @@ def test_trading_selling_exec(trading_instance: Trading, mock_broker_manager_cla
         mock_broker_instance.get_position_by_symbol.assert_called_with(DEFAULT_TEST_TICKER)
         mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=200, action='sell') # Should sell holding size
         dbg_info("Scenario 3: Passed")
+
+        # Scenario 4: Partial sell, but remaining/selling size value is less than CASH_MIN_PER_TRADE, so sell all.
+        dbg_info("Scenario 4: Partial sell, but remaining/selling size value is less than CASH_MIN_PER_TRADE, so sell all.")
+        mock_broker_instance.reset_mock()
+        # Set config values for this scenario
+        cash_min_per_trade_s4 = 500 # Minimum trade value
+        mock_acm_instance.get.side_effect = lambda key: {
+            'stock.cash_min_per_trade': cash_min_per_trade_s4,
+        }.get(key)
+
+        mock_position_s4 = MagicMock()
+        mock_position_s4.size = 100 # Holding size
+        mock_broker_instance.get_position_by_symbol.return_value = mock_position_s4
+        mock_broker_instance.get_last_price.return_value = 10 # Price per unit
+
+        # We want to sell 10 units.
+        # holding_size = 100, selling_size = 10, current_price = 10
+        # checking_size = min(10, 100 - 10) = min(10, 90) = 10
+        # checking_size * current_price = 10 * 10 = 100
+        # Since 100 < CASH_MIN_PER_TRADE (500), it should sell holding_size (100).
+        selling_list_s4 = [{'symbol': DEFAULT_TEST_TICKER, 'size': 10, 'price': 10, 'strategy': 'test_strat'}]
+        trading_instance.selling_exec(selling_list_s4)
+        mock_broker_instance.connect.assert_called_once()
+        mock_broker_instance.get_position_by_symbol.assert_called_with(DEFAULT_TEST_TICKER)
+        mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=100, action='sell') # Should sell holding size
+        mock_broker_instance.summarize_positions.assert_called_once()
+        mock_broker_instance.disconnect.assert_called_once()
+        dbg_info("Scenario 4: Passed")
+
+        # Scenario 5: Partial sell, and remaining/selling size value is NOT less than CASH_MIN_PER_TRADE, so sell expected size.
+        dbg_info("Scenario 5: Partial sell, and remaining/selling size value is NOT less than CASH_MIN_PER_TRADE, so sell expected size.")
+        mock_broker_instance.reset_mock()
+        # Set config values for this scenario
+        cash_min_per_trade_s5 = 50 # Minimum trade value (lower than 100 from previous scenario)
+        mock_acm_instance.get.side_effect = lambda key: {
+            'stock.cash_min_per_trade': cash_min_per_trade_s5,
+        }.get(key)
+
+        mock_position_s5 = MagicMock()
+        mock_position_s5.size = 100 # Holding size
+        mock_broker_instance.get_position_by_symbol.return_value = mock_position_s5
+        mock_broker_instance.get_last_price.return_value = 1000 # Price per unit
+
+        # We want to sell 10 units.
+        # holding_size = 100, selling_size = 10, current_price = 10
+        # checking_size = min(10, 100 - 10) = min(10, 90) = 10
+        # checking_size * current_price = 10 * 10 = 100
+        # Since 100 IS NOT < CASH_MIN_PER_TRADE (50), it should sell selling_size (10).
+        selling_list_s5 = [{'symbol': DEFAULT_TEST_TICKER, 'size': 20, 'price': 1000, 'strategy': 'test_strat'}]
+        trading_instance.selling_exec(selling_list_s5)
+        mock_broker_instance.connect.assert_called_once()
+        mock_broker_instance.get_position_by_symbol.assert_called_with(DEFAULT_TEST_TICKER)
+        mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=20, action='sell') # Should sell expected size
+        mock_broker_instance.summarize_positions.assert_called_once()
+        mock_broker_instance.disconnect.assert_called_once()
+        dbg_info("Scenario 5: Passed")
 
     except AssertionError as e:
         dbg_error(f"AssertionError in test_trading_selling_exec: {e}")
@@ -375,7 +482,6 @@ def run_trading_tests(test_names: list[str], evaluate_instance: Evaluate = None,
             try:
                 # Pass the appropriate instance to each test function
                 # Mocks are handled by @patch decorators on the test functions themselves
-                dbg_info(instance_to_pass)
                 result = test_func(instance_to_pass)
                 results[name] = result
                 if result:
