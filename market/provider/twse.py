@@ -40,28 +40,31 @@ class TWSE(DataProvider):
         # price_type => bid/ask/trade
         result = None
         # this is for mock broker, don't use it on real code.
-        try:
-            # dbg_info(f'get_current_price : {symbol}')
-            result = twstock.realtime.get(symbol)
-            # dbg_info('Realtime info:', result)
-            trade = result.get('realtime').get('latest_trade_price')
-            bid = result.get('realtime').get('best_bid_price')[0]
-            ask = result.get('realtime').get('best_ask_price')[0]
-            if price_type == 'bid':
-                return float(bid)
-            elif price_type == 'ask':
-                return float(ask)
-            else:
-                return float(trade)
-        except ValueError:
-            dbg_debug(f'[{symbol}] value error: {result}')
-            return 0.0
-        except Exception as e:
-            dbg_error(f'Erorr found on {symbol}')
-            dbg_error(e)
-        
-            traceback_output = traceback.format_exc()
-            dbg_error(traceback_output)
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                # dbg_info(f'get_current_price : {symbol}')
+                result = twstock.realtime.get(symbol)
+                # dbg_info('Realtime info:', result)
+                trade = result.get('realtime').get('latest_trade_price')
+                bid = result.get('realtime').get('best_bid_price')[0]
+                ask = result.get('realtime').get('best_ask_price')[0]
+                if price_type == 'bid':
+                    return float(bid)
+                elif price_type == 'ask':
+                    return float(ask)
+                else:
+                    return float(trade)
+            except ValueError:
+                dbg_debug(f'[{symbol}] value error: {result}. Attempt {attempt + 1}/{max_retries}')
+                time.sleep(1) # Wait a bit before retrying
+            except Exception as e:
+                dbg_error(f'Error found on {symbol}. Attempt {attempt + 1}/{max_retries}')
+                dbg_error(e)
+                traceback_output = traceback.format_exc()
+                dbg_error(traceback_output)
+                time.sleep(1) # Wait a bit before retrying
+        dbg_error(f'Failed to get current price for {symbol} after {max_retries} attempts.')
         return 0.0
 
     def download_data_list(self, market: str = None, country: str = None):

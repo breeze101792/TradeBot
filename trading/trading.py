@@ -32,6 +32,11 @@ class Trading:
                     buying_budget = current_cash if current_cash < CASH_MAX_PER_TRADE else CASH_MAX_PER_TRADE
                     current_price = trade_broker.get_last_price(each_symbol)
 
+                    # sanity check
+                    if current_price == 0:
+                        dbg_info(f'get price fail for {each_symbol}, ignore it.')
+                        continue
+
                     # size should be the 1000x
                     order_lot = math.floor(buying_budget / (current_price * LOT_UNIT))
                     order_size = order_lot * LOT_UNIT
@@ -84,6 +89,10 @@ class Trading:
                     if selling_size == holding_size:
                         # if equal then we just sell it all.
                         trade_broker.place_order(symbol=symbol, size=selling_size, action='sell')
+                    if current_price == 0:
+                        # FIXME, find another way to take actions.
+                        dbg_warning("can't get current price of {symbol}, ignore actions.")
+                        continue
 
                     elif selling_size < holding_size:
                         checking_size = selling_size if selling_size <= holding_size - selling_size else holding_size - selling_size
