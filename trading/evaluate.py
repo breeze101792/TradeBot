@@ -370,10 +370,12 @@ class Evaluate:
 
                 # Add the combined/updated data feed to the analyzer
                 target_df = self.__get_realtime_data_list(symbol)
+                modified_last_trading_day = last_trading_day
                 if target_df is not None:
                     modified_last_trading_day = datetime.now()
                     selling_analyzer.add_data_frame([{'symbol':symbol, 'data':target_df}])
                 else:
+                    dbg_info(f'Can not get lastest price of {symbol}. Use previous date instead.')
                     selling_analyzer.add_symbol([symbol])
 
                 # --- Convert current position info to order_history format ---

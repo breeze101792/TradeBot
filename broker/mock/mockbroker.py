@@ -1,20 +1,23 @@
 import json
 import os
 import datetime as dt
-from datetime import date, time # Import date for tracking open date
+from datetime import date, time, datetime # Import date and datetime for tracking open date and order events
+from typing import Callable
+
 from utility.debug import *
 
 from market.market import *
 from market.provider.twse import *
 from broker.base.position import Position
 from broker.base.basebroker import BaseBroker
+from broker.event import Event, default_event_callback, OrderEvent
 
 class MockBroker(BaseBroker):
     """
     A basic simulated broker handling cash, positions, and simple order execution.
     This mimics the interface needed by a backtesting or simple trading system.
     """
-    def __init__(self, initial_cash: float = 1000000.0, commission_rate: float = 0.003, simulation = True, **kargs):
+    def __init__(self, initial_cash: float = 1000000.0, commission_rate: float = 0.003, simulation = True, event_callback: Callable[[Event, ...], None] = None, **kargs):
         """
         Initializes the broker.
 
@@ -23,6 +26,11 @@ class MockBroker(BaseBroker):
             commission_rate (float): Fixed commission fee for each trade execution.
         """
         super().__init__(**kargs)
+
+        if event_callback is not None:
+            self.event_callback = event_callback
+        else:
+            self.event_callback = default_event_callback
 
         self.simulation=simulation
         self.initial_cash = initial_cash
@@ -159,17 +167,20 @@ class MockBroker(BaseBroker):
                 dbg_debug(f"Position closed for {symbol}. Removing from holdings.")
                 del self.positions[symbol]
 
-        # FIXME, Remove return, since not one know if this ok or not in this monent.
-        # Maybe we use callback for it.
-        # Return simulated execution details
-        return {
-            'symbol': symbol,
-            'action': action,
-            'price': market_price, # Return the actual execution price
-            'size': size,
-            'commission': commission,
-            'status': 'filled' # Simple simulation: always filled immediately
-        }
+        # Create an OrderEvent object to report the filled order
+        order_event = OrderEvent(
+            event_type=Event.OrderFilled,
+            timestamp=datetime.now(),
+            symbol=symbol,
+            action=action,
+            size=size,
+            price=market_price, # Actual execution price
+            commission=commission,
+            status='filled', # Always filled in this mock
+            order_id=None, # Mock broker doesn't generate order IDs
+            reason=None
+        )
+        self.event_callback(Event.OrderFilled, order_event)
 
     def get_balance(self) -> float:
         """Returns the current available cash balance."""

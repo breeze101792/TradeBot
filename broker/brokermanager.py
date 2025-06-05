@@ -11,6 +11,7 @@ from utility.debug import * # Replace standard logging with custom debug system
 
 # Assuming MockBroker is the primary implementation for now
 from broker.mock.mockbroker import MockBroker, Position
+from broker.event import Event, OrderEvent
 from core.config import AppConfigManager
 
 class BrokerManager:
@@ -45,11 +46,12 @@ class BrokerManager:
                 initial_cash=initial_cash,
                 commission_rate=commission_rate,
                 broker_path = os.path.join(self.cm.get_path('broker'), f'{broker_type}'),
-                simulation = simulation
+                simulation = simulation,
+                event_callback = self.event_callback
             )
             # Set the state file path after initialization
             # self.broker.set_state_filepath(state_filepath)
-            dbg_debug(f"Initialized MockBroker via BrokerManager. Cash: ${initial_cash:,.2f}, Commission: ${commission_rate:.2f}")
+            dbg_debug(f"Initialized MockBroker via BrokerManager. Cash: ${initial_cash:,.2f}, Commission Rate: ${commission_rate:.2f}")
         elif broker_type == 'Shioaji':
             pass
         # Add elif blocks here for other broker types in the future
@@ -58,6 +60,57 @@ class BrokerManager:
         else:
             dbg_error(f"Unsupported broker type: {broker_type}")
             raise ValueError(f"Unsupported broker type: {broker_type}")
+
+    def event_callback(self, event: Event, data: Optional[Any] = None):
+        """
+        Callback function for handling events from the broker.
+        This method processes different types of events, primarily focusing on order-related events.
+        """
+        if event == Event.OrderFilled:
+            if not isinstance(data, OrderEvent):
+                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderEvent, got {type(data)}.")
+                return
+
+            # Data is an OrderEvent object
+            order_event: OrderEvent = data
+
+            order_event.show_event()
+            # dbg_info(f"Order Filled: Symbol={order_event.symbol}, Action={order_event.action}, "
+            #          f"Size={order_event.size}, Price={order_event.price}, Commission={order_event.commission}.")
+
+            # Log the transaction using data from the OrderEvent
+            self._log_transaction(
+                symbol=order_event.symbol,
+                action=order_event.action,
+                size=order_event.size,
+                price=order_event.price,
+                commission=order_event.commission,
+                cash_balance=self.get_balance() # Get current balance after the transaction
+            )
+        elif event == Event.OrderFailed:
+            if not isinstance(data, OrderEvent):
+                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderEvent, got {type(data)}.")
+                return
+            order_event: OrderEvent = data
+            dbg_warning(f"Order Failed: Symbol={order_event.symbol}, Action={order_event.action}, "
+                        f"Size={order_event.size}, Reason={order_event.reason}.")
+            # Optionally log failed orders or take other actions
+        elif event == Event.OrderPending:
+            if not isinstance(data, OrderEvent):
+                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderEvent, got {type(data)}.")
+                return
+            order_event: OrderEvent = data
+            dbg_info(f"Order Pending: Symbol={order_event.symbol}, Action={order_event.action}, "
+                     f"Size={order_event.size}, Price={order_event.price}.")
+        elif event == Event.OrderCanceled:
+            if not isinstance(data, OrderEvent):
+                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderEvent, got {type(data)}.")
+                return
+            order_event: OrderEvent = data
+            dbg_info(f"Order Canceled: Symbol={order_event.symbol}, Order ID={order_event.order_id}, "
+                     f"Reason={order_event.reason}.")
+        else:
+            dbg_info(f"Unhandled event received: {event}")
 
     def place_order(self, symbol: str, action: str, size: int, price: Optional[float] = None) -> Optional[Dict[str, Any]]:
         """
@@ -76,6 +129,7 @@ class BrokerManager:
             Optional[Dict[str, Any]]: Details of the execution, or None if rejected/failed.
         """
         result = self.broker.place_order(symbol, action, size, price)
+        # FIXME, remove me, it's been replace by callback function.
         if result:
             self._log_transaction(
                 symbol=symbol,
