@@ -82,19 +82,19 @@ class TestCLI(CommandLineInterface):
         self.broker_sub_tests = [
             "initial_state",
             "buy_sufficient_cash",
-            "get_position_after_buy",
+            "get_position",
             "sell_sufficient_position",
-            "get_position_after_sell",
-            "portfolio_value",
             "buy_insufficient_cash",
             "sell_insufficient_position",
+            "portfolio_value",
             "summarize_positions",
             "summarize_transactions",
-            "summarize_positions_no_positions", # New test case
-            "summarize_transactions_no_history", # New test case
-            "summarize_transactions_pnl_duration", # New test case
+            "summarize_positions_no_positions",
+            "summarize_transactions_no_history",
+            "summarize_transactions_pnl_duration",
             "save_load_state",
             "transaction_logging",
+            "event_callback",
             "all" # Special command
         ]
         self.regist_cmd(

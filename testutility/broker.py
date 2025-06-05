@@ -3,6 +3,7 @@ import os
 import shutil # For cleaning up test directories
 from datetime import datetime,timedelta
 from broker.brokermanager import BrokerManager, Position # Assuming Position is also relevant
+from broker.event import Event, OrderEvent
 from utility.debug import dbg_info, dbg_warning, dbg_error, dbg_trace
 import traceback
 import io # New import for capturing stdout
@@ -21,7 +22,7 @@ DEFAULT_BROKER_TYPE = 'mock'
 TEST_STATE_DIR = "data/test_broker_states" # Directory for temporary state files
 TEST_TRANSACTION_DIR = "data/test_broker_transactions"
 
-def _create_test_broker(test_name: str, initial_cash=1000000.0, commission=0.001) -> BrokerManager:
+def _create_test_broker(test_name: str, initial_cash=1000000.0, commission_rate=0.001) -> BrokerManager:
     """Helper to create a broker instance with a unique state file for testing."""
     # Ensure the main test directories exist
     os.makedirs(TEST_STATE_DIR, exist_ok=True)
@@ -39,7 +40,7 @@ def _create_test_broker(test_name: str, initial_cash=1000000.0, commission=0.001
     return BrokerManager(
         broker_type=DEFAULT_BROKER_TYPE,
         initial_cash=initial_cash,
-        commission_rate=commission,
+        commission_rate=commission_rate,
         state_filepath=state_filepath, 
         transaction_log_path=transaction_log_path,
         simulation = True
@@ -62,8 +63,9 @@ def cleanup_test_broker_files(test_name: str):
         except Exception as e:
             dbg_warning(f"Could not remove transaction log {transaction_log_path}: {e}")
 
-def test_initial_state(broker_manager: BrokerManager, initial_cash_expected=1000000.0) -> bool:
+def test_initial_state(test_id: str, initial_cash_expected=1000000.0) -> bool:
     dbg_info("--- Running Test: Initial Broker State ---")
+    broker_manager = _create_test_broker(test_name=test_id, initial_cash=initial_cash_expected)
     try:
         cash = broker_manager.get_balance()
         positions = broker_manager.get_all_positions()
@@ -79,26 +81,43 @@ def test_initial_state(broker_manager: BrokerManager, initial_cash_expected=1000
         dbg_error(f"Error in test_initial_state: {e}")
         dbg_error(traceback.format_exc())
         return False
+    finally:
+        cleanup_test_broker_files(test_id)
 
-def test_place_buy_order_sufficient_cash(broker_manager: BrokerManager, symbol=DEFAULT_BROKER_TEST_TICKER, qty=DEFAULT_BROKER_TEST_QTY) -> bool:
+def test_place_buy_order_sufficient_cash(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, qty=DEFAULT_BROKER_TEST_QTY) -> bool:
     dbg_info(f"--- Running Test: Place Buy Order ({symbol}, {qty}) - Sufficient Cash ---")
+    broker_manager = _create_test_broker(test_name=test_id)
     try:
         market_price = broker_manager.get_last_price(symbol)
         if market_price <= 0:
              dbg_warning(f"Market price for {symbol} is {market_price}, test might be unreliable. Assuming a mock price of 100 for cost calculation.")
-             market_price = 100.0
 
         initial_cash = broker_manager.get_balance()
-        result = broker_manager.place_order(symbol, "buy", qty, price=None)
+        initial_transactions_count = len(broker_manager.get_transactions())
 
-        if result is None:
-            dbg_error("Buy order failed unexpectedly (returned None).")
+        broker_manager.place_order(symbol, "buy", qty, price=None) # No longer capture return value
+
+        # Verify that a transaction was logged
+        transactions = broker_manager.get_transactions()
+        if len(transactions) <= initial_transactions_count:
+            dbg_error("Buy order did not result in a new transaction.")
             return False
-        if result['status'] != 'filled':
-            dbg_error(f"Buy order not filled. Status: {result['status']}")
+        
+        latest_tx = transactions[-1]
+        if latest_tx['symbol'] != symbol or latest_tx['action'] != 'buy':
+            dbg_error(f"Latest transaction is not the expected buy order for {symbol}. Got: {latest_tx}")
             return False
 
-        expected_cost = (result['price'] * qty) + result['commission']
+        # Extract actual fill details from the transaction log
+        try:
+            filled_price = float(latest_tx['price'])
+            commission = float(latest_tx['commission'])
+        except ValueError:
+            dbg_error(f"Failed to parse numeric values from latest transaction: {latest_tx}")
+            return False
+
+        expected_cost = (filled_price * qty) + commission
+        
         if abs(broker_manager.get_balance() - (initial_cash - expected_cost)) > 0.01:
             dbg_error(f"Cash after buy incorrect. Expected approx {initial_cash - expected_cost}, Got {broker_manager.get_balance()}")
             return False
@@ -107,8 +126,8 @@ def test_place_buy_order_sufficient_cash(broker_manager: BrokerManager, symbol=D
         if position.size != qty:
             dbg_error(f"Position size after buy incorrect. Expected {qty}, Got {position.size}")
             return False
-        if abs(position.average_entry_price - result['price']) > 0.01 :
-            dbg_error(f"Position avg entry price after buy incorrect. Expected {result['price']}, Got {position.average_entry_price}")
+        if abs(position.average_entry_price - filled_price) > 0.01 : # Use filled_price from log
+            dbg_error(f"Position avg entry price after buy incorrect. Expected {filled_price}, Got {position.average_entry_price}")
             return False
             
         dbg_info(f"Buy order for {symbol} successful. Position: {position}")
@@ -117,20 +136,37 @@ def test_place_buy_order_sufficient_cash(broker_manager: BrokerManager, symbol=D
         dbg_error(f"Error in test_place_buy_order_sufficient_cash: {e}")
         dbg_error(traceback.format_exc())
         return False
+    finally:
+        cleanup_test_broker_files(test_id)
 
-def test_place_buy_order_insufficient_cash(broker_manager: BrokerManager, symbol=DEFAULT_BROKER_TEST_TICKER, qty=100) -> bool:
+def test_place_buy_order_insufficient_cash(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, qty=100) -> bool:
     dbg_info(f"--- Running Test: Place Buy Order ({symbol}, {qty}) - Insufficient Cash ---")
+    broker_manager = _create_test_broker(test_name=test_id)
+    original_cash_in_broker = broker_manager.broker.cash # Store original cash before modification
+    initial_transactions_count = len(broker_manager.get_transactions())
+    
     try:
-        original_cash = broker_manager.broker.cash
         broker_manager.broker.cash = 10.0 
         broker_manager.broker._state_changed = True 
         
-        result = broker_manager.place_order(symbol, "buy", qty, price=None)
+        # Place the order - it should fail, and we expect no change in state or new transaction
+        broker_manager.place_order(symbol, "buy", qty, price=None) # No longer capture return value
 
-        if result is not None:
-            dbg_error(f"Buy order (insufficient cash) succeeded unexpectedly. Result: {result}")
+        # Verify cash and positions are unchanged
+        if abs(broker_manager.get_balance() - 10.0) > 0.01: # Should still be 10.0
+            dbg_error(f"Cash changed after failed buy. Expected 10.0, Got {broker_manager.get_balance()}")
             return False
         
+        if broker_manager.get_position_by_symbol(symbol).size != 0:
+            dbg_error(f"Position created after failed buy. Got {broker_manager.get_position_by_symbol(symbol).size}")
+            return False
+
+        print(broker_manager.get_transactions())
+        # Verify no new transaction was logged for this failed order
+        if len(broker_manager.get_transactions()) != initial_transactions_count:
+            dbg_error(f"Transaction logged for failed buy order. Expected {initial_transactions_count}, Got {len(broker_manager.get_transactions())}")
+            return False
+
         dbg_info(f"Buy order for {symbol} (insufficient cash) correctly rejected.")
         return True
     except Exception as e:
@@ -138,56 +174,98 @@ def test_place_buy_order_insufficient_cash(broker_manager: BrokerManager, symbol
         dbg_error(traceback.format_exc())
         return False
     finally:
-        broker_manager.broker.cash = original_cash # Restore cash
+        broker_manager.broker.cash = original_cash_in_broker # Restore cash
         broker_manager.broker._state_changed = True
+        cleanup_test_broker_files(test_id)
 
-def test_get_position(broker_manager: BrokerManager, symbol=DEFAULT_BROKER_TEST_TICKER, expected_size=DEFAULT_BROKER_TEST_QTY) -> bool:
+def test_get_position(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, expected_size=DEFAULT_BROKER_TEST_QTY) -> bool:
     dbg_info(f"--- Running Test: Get Position ({symbol}) ---")
+    broker_manager = _create_test_broker(test_name=test_id)
     try:
+        initial_transactions_count = len(broker_manager.get_transactions())
+        # Ensure there's a position to get
+        broker_manager.place_order(symbol, "buy", expected_size, None)
+        
+        # Get the latest transaction to verify fill details for the setup order
+        transactions = broker_manager.get_transactions()
+        if len(transactions) <= initial_transactions_count:
+            dbg_error("Setup buy order did not result in a new transaction.")
+            return False
+        latest_tx = transactions[-1]
+        if latest_tx['symbol'] != symbol or latest_tx['action'] != 'buy':
+            dbg_error(f"Latest transaction is not the expected setup buy order for {symbol}. Got: {latest_tx}")
+            return False
+        
+        try:
+            filled_price = float(latest_tx['price'])
+        except ValueError:
+            dbg_error(f"Failed to parse price from latest transaction: {latest_tx}")
+            return False
+
         position = broker_manager.get_position_by_symbol(symbol)
+        if position is None:
+            dbg_error(f"Position for {symbol} not found after placing order.")
+            return False
         if position.symbol != symbol:
             dbg_error(f"Position symbol incorrect. Expected {symbol}, Got {position.symbol}")
             return False
         if position.size != expected_size:
-            dbg_warning(f"Position size for {symbol}. Expected {expected_size}, Got {position.size}. This might be OK if prior tests changed it.")
+            dbg_error(f"Position size for {symbol} incorrect. Expected {expected_size}, Got {position.size}.")
+            return False
+        # Verify average entry price based on the filled price from the transaction log
+        if abs(position.average_entry_price - filled_price) > 0.01:
+            dbg_error(f"Position avg entry price after buy incorrect. Expected {filled_price}, Got {position.average_entry_price}")
+            return False
+
         dbg_info(f"Get position for {symbol} OK: {position}")
         return True
     except Exception as e:
         dbg_error(f"Error in test_get_position: {e}")
         dbg_error(traceback.format_exc())
         return False
+    finally:
+        cleanup_test_broker_files(test_id)
 
-def test_place_sell_order_sufficient_position(broker_manager: BrokerManager, symbol=DEFAULT_BROKER_TEST_TICKER, qty_to_sell=5) -> bool:
+def test_place_sell_order_sufficient_position(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, qty_to_sell=5) -> bool:
     dbg_info(f"--- Running Test: Place Sell Order ({symbol}, {qty_to_sell}) - Sufficient Position ---")
+    broker_manager = _create_test_broker(test_name=test_id)
     try:
-        # since we get the object, we copy the size only, otherwise it changed by trasaction after.
+        # Ensure there's an initial position to sell from
+        initial_buy_qty = DEFAULT_BROKER_TEST_QTY + qty_to_sell # Ensure enough to sell and still have some
+        broker_manager.place_order(symbol, "buy", initial_buy_qty, None) # Setup buy
+        
         initial_position_size = broker_manager.get_position_by_symbol(symbol).size
-        if initial_position_size < qty_to_sell:
-            dbg_warning(f"Cannot run sell test: initial position size {initial_position_size} < qty to sell {qty_to_sell}. Placing a buy order first.")
-            buy_result = broker_manager.place_order(symbol, "buy", qty_to_sell, None)
-            if not buy_result:
-                 dbg_error("Failed to place preliminary buy order for sell test.")
-                 return False
-            initial_position_size = broker_manager.get_position_by_symbol(symbol).size
-
         initial_cash = broker_manager.get_balance()
-        result = broker_manager.place_order(symbol, "sell", qty_to_sell, price=None)
+        initial_transactions_count = len(broker_manager.get_transactions())
 
-        if result is None:
-            dbg_error("Sell order failed unexpectedly (returned None).")
+        broker_manager.place_order(symbol, "sell", qty_to_sell, price=None) # No longer capture return value
+
+        # Get the latest transaction for sell details
+        transactions = broker_manager.get_transactions()
+        if len(transactions) <= initial_transactions_count:
+            dbg_error("Sell order did not result in a new transaction.")
             return False
-        if result['status'] != 'filled':
-            dbg_error(f"Sell order not filled. Status: {result['status']}")
+        latest_tx = transactions[-1]
+        if latest_tx['symbol'] != symbol or latest_tx['action'] != 'sell':
+            dbg_error(f"Latest transaction is not the expected sell order for {symbol}. Got: {latest_tx}")
             return False
 
-        expected_proceeds = (result['price'] * qty_to_sell) - result['commission']
+        try:
+            filled_price = float(latest_tx['price'])
+            commission = float(latest_tx['commission'])
+        except ValueError:
+            dbg_error(f"Failed to parse numeric values from latest transaction: {latest_tx}")
+            return False
+
+        expected_proceeds = (filled_price * qty_to_sell) - commission
+        
         if abs(broker_manager.get_balance() - (initial_cash + expected_proceeds)) > 0.01:
             dbg_error(f"Cash after sell incorrect. Expected approx {initial_cash + expected_proceeds}, Got {broker_manager.get_balance()}")
             return False
         
         final_position = broker_manager.get_position_by_symbol(symbol)
         if final_position.size != (initial_position_size - qty_to_sell):
-            dbg_error(f"Position size after sell incorrect. Expected {initial_position.size - qty_to_sell}, Got {final_position.size}")
+            dbg_error(f"Position size after sell incorrect. Expected {initial_position_size - qty_to_sell}, Got {final_position.size}")
             return False
             
         dbg_info(f"Sell order for {symbol} successful. New Position: {final_position}")
@@ -196,28 +274,83 @@ def test_place_sell_order_sufficient_position(broker_manager: BrokerManager, sym
         dbg_error(f"Error in test_place_sell_order_sufficient_position: {e}")
         dbg_error(traceback.format_exc())
         return False
+    finally:
+        cleanup_test_broker_files(test_id)
 
-def test_place_sell_order_insufficient_position(broker_manager: BrokerManager, symbol=DEFAULT_BROKER_TEST_TICKER) -> bool:
+def test_place_sell_order_insufficient_position(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER) -> bool:
     dbg_info(f"--- Running Test: Place Sell Order ({symbol}) - Insufficient Position ---")
-    try:
-        current_pos_size = broker_manager.get_position_by_symbol(symbol).size
-        qty_to_sell_too_many = current_pos_size + 10
+    broker_manager = _create_test_broker(test_name=test_id)
+    
+    initial_cash = broker_manager.get_balance()
+    initial_transactions_count = len(broker_manager.get_transactions())
 
-        result = broker_manager.place_order(symbol, "sell", qty_to_sell_too_many, price=None)
+    # Use patch.object to mock the event_callback method of the broker_manager instance
+    with patch.object(broker_manager.broker, 'event_callback', wraps=broker_manager.event_callback) as mock_event_callback:
+        try:
+            # Ensure there's a small initial position, but not enough for the sell
+            broker_manager.place_order(symbol, "buy", 5, None) # Buy 5 shares
+            
+            # After the buy, update initial state for comparison
+            initial_cash_after_buy = broker_manager.get_balance()
+            initial_positions_after_buy = broker_manager.get_all_positions()
+            initial_transactions_count_after_buy = len(broker_manager.get_transactions())
 
-        if result is not None:
-            dbg_error(f"Sell order (insufficient position) for {symbol} succeeded unexpectedly. Result: {result}")
+            current_pos_size = broker_manager.get_position_by_symbol(symbol).size
+            qty_to_sell_too_many = current_pos_size + 10 # Try to sell more than available
+
+            # Place the order that should fail
+            broker_manager.place_order(symbol, "sell", qty_to_sell_too_many, price=None)
+
+            # Verify cash and positions are unchanged from *after the initial buy*
+            if abs(broker_manager.get_balance() - initial_cash_after_buy) > 0.01:
+                dbg_error(f"Cash changed after failed sell. Expected {initial_cash_after_buy}, Got {broker_manager.get_balance()}")
+                return False
+            
+            # Verify position size is unchanged for the symbol
+            final_position = broker_manager.get_position_by_symbol(symbol)
+            if final_position.size != current_pos_size:
+                dbg_error(f"Position size changed after failed sell. Expected {current_pos_size}, Got {final_position.size}")
+                return False
+
+            # Verify no new transaction was logged for this failed order
+            if len(broker_manager.get_transactions()) != initial_transactions_count_after_buy:
+                dbg_error(f"Transaction logged for failed sell order. Expected {initial_transactions_count_after_buy}, Got {len(broker_manager.get_transactions())}")
+                return False
+
+            # Assert that an OrderFailed event was called
+            failed_event_found = False
+            for call_args, call_kwargs in mock_event_callback.call_args_list:
+                if call_args and call_args[0] == Event.OrderFailed:
+                    failed_event_found = True
+                    order_event = call_args[1]
+                    if not isinstance(order_event, OrderEvent):
+                        dbg_error(f"OrderFailed event data is not OrderEvent type: {type(order_event)}")
+                        return False
+                    if order_event.symbol != symbol or order_event.action != 'sell' or order_event.size != qty_to_sell_too_many:
+                        dbg_error(f"OrderFailed event details mismatch. Expected {symbol}, sell, {qty_to_sell_too_many}. Got {order_event.symbol}, {order_event.action}, {order_event.size}")
+                        return False
+                    if order_event.status != 'failed':
+                        dbg_error(f"OrderFailed event status mismatch. Expected 'failed', Got {order_event.status}")
+                        return False
+                    dbg_info(f"OrderFailed event correctly captured with reason: {order_event.reason}")
+                    break
+            
+            if not failed_event_found:
+                dbg_error("OrderFailed event was not triggered for insufficient position sell order.")
+                return False
+
+            dbg_info(f"Sell order for {symbol} (insufficient position) correctly rejected and event triggered.")
+            return True
+        except Exception as e:
+            dbg_error(f"Error in test_place_sell_order_insufficient_position: {e}")
+            dbg_error(traceback.format_exc())
             return False
-        
-        dbg_info(f"Sell order for {symbol} (insufficient position) correctly rejected.")
-        return True
-    except Exception as e:
-        dbg_error(f"Error in test_place_sell_order_insufficient_position: {e}")
-        dbg_error(traceback.format_exc())
-        return False
+        finally:
+            cleanup_test_broker_files(test_id)
 
-def test_portfolio_value(broker_manager: BrokerManager) -> bool:
+def test_portfolio_value(test_id: str) -> bool:
     dbg_info("--- Running Test: Portfolio Value ---")
+    broker_manager = _create_test_broker(test_name=test_id)
     try:
         if not broker_manager.get_all_positions():
             dbg_info("No positions to test portfolio value, placing a buy order.")
@@ -235,12 +368,14 @@ def test_portfolio_value(broker_manager: BrokerManager) -> bool:
         dbg_error(f"Error in test_portfolio_value: {e}")
         dbg_error(traceback.format_exc())
         return False
+    finally:
+        cleanup_test_broker_files(test_id)
 
-def test_save_load_state(test_id_for_files="saveload") -> bool:
+def test_save_load_state(test_id: str) -> bool: # Changed test_id_for_files to test_id
     dbg_info("--- Running Test: Save and Load State ---")
-    broker_save = _create_test_broker(test_name=f"{test_id_for_files}_save", initial_cash=50000, commission=0.001)
+    broker_save = _create_test_broker(test_name=f"{test_id}_save", initial_cash=50000, commission_rate=0.001)
     state_file_to_use = broker_save.broker.state_filepath
-    tx_log_for_load_test = os.path.join(TEST_TRANSACTION_DIR, f"transactions_{test_id_for_files}_load.csv")
+    tx_log_for_load_test = os.path.join(TEST_TRANSACTION_DIR, f"transactions_{test_id}_load.csv")
     if os.path.exists(tx_log_for_load_test):
         os.remove(tx_log_for_load_test) # Clean up before test
 
@@ -284,16 +419,16 @@ def test_save_load_state(test_id_for_files="saveload") -> bool:
         dbg_error(traceback.format_exc())
         return False
     finally:
-        cleanup_test_broker_files(f"{test_id_for_files}_save")
+        cleanup_test_broker_files(f"{test_id}_save")
         if os.path.exists(tx_log_for_load_test):
             try:
                 os.remove(tx_log_for_load_test)
             except Exception as e:
                 dbg_warning(f"Could not remove load test transaction log {tx_log_for_load_test}: {e}")
 
-def test_transaction_logging(test_id_for_files="txlog") -> bool:
+def test_transaction_logging(test_id: str) -> bool: # Changed test_id_for_files to test_id
     dbg_info("--- Running Test: Transaction Logging ---")
-    broker = _create_test_broker(test_name=test_id_for_files)
+    broker = _create_test_broker(test_name=test_id)
     tx_log_path = broker.transaction_log_path
     try:
         broker.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", 10, None)
@@ -320,10 +455,11 @@ def test_transaction_logging(test_id_for_files="txlog") -> bool:
         dbg_error(traceback.format_exc())
         return False
     finally:
-        cleanup_test_broker_files(test_id_for_files)
+        cleanup_test_broker_files(test_id)
 
-def test_summarize_positions(broker_manager: BrokerManager) -> bool:
+def test_summarize_positions(test_id: str) -> bool:
     dbg_info("--- Running Test: Summarize Positions ---")
+    broker_manager = _create_test_broker(test_name=test_id)
     try:
         if not broker_manager.get_all_positions():
             broker_manager.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", DEFAULT_BROKER_TEST_QTY, None)
@@ -335,9 +471,12 @@ def test_summarize_positions(broker_manager: BrokerManager) -> bool:
         dbg_error(f"Error in test_summarize_positions: {e}")
         dbg_error(traceback.format_exc())
         return False
+    finally:
+        cleanup_test_broker_files(test_id)
 
-def test_summarize_transactions(broker_manager: BrokerManager) -> bool:
+def test_summarize_transactions(test_id: str) -> bool:
     dbg_info("--- Running Test: Summarize Transactions ---")
+    broker_manager = _create_test_broker(test_name=test_id)
     try:
         if not broker_manager.get_transactions(): # Check if transactions already exist
              broker_manager.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", 3, None)
@@ -351,10 +490,12 @@ def test_summarize_transactions(broker_manager: BrokerManager) -> bool:
         dbg_error(f"Error in test_summarize_transactions: {e}")
         dbg_error(traceback.format_exc())
         return False
+    finally:
+        cleanup_test_broker_files(test_id)
 
 def test_summarize_positions_no_positions(test_id="sum_pos_no_pos") -> bool:
     dbg_info("--- Running Test: Summarize Positions (No Positions) ---")
-    broker_manager = _create_test_broker(test_name=test_id, initial_cash=100000.0, commission=0.001)
+    broker_manager = _create_test_broker(test_name=test_id, initial_cash=100000.0, commission_rate=0.001)
     broker_manager.connect() # Ensure log is initialized if needed, and state is loaded (empty)
     try:
         # Ensure no positions are held (should be by default for a new broker)
@@ -387,7 +528,7 @@ def test_summarize_positions_no_positions(test_id="sum_pos_no_pos") -> bool:
 
 def test_summarize_transactions_no_history(test_id="sum_tx_no_hist") -> bool:
     dbg_info("--- Running Test: Summarize Transactions (No History) ---")
-    broker_manager = _create_test_broker(test_name=test_id, initial_cash=100000.0, commission=0.001)
+    broker_manager = _create_test_broker(test_name=test_id, initial_cash=100000.0, commission_rate=0.001)
     broker_manager.connect() # Ensure log is initialized if needed, and state is loaded (empty)
     try:
         # Ensure transaction log is empty and no positions
@@ -419,7 +560,8 @@ def test_summarize_transactions_no_history(test_id="sum_tx_no_hist") -> bool:
 
 def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") -> bool:
     dbg_info("--- Running Test: Summarize Transactions (P/L and Duration) ---")
-    broker_manager = _create_test_broker(test_name=test_id, initial_cash=100000.0, commission=10.0)
+    # Set commission_rate to 0.0 as the mock will provide a fixed commission
+    broker_manager = _create_test_broker(test_name=test_id, initial_cash=100000.0, commission_rate=0.0)
     broker_manager.connect() # Ensure log is initialized
 
     try:
@@ -440,8 +582,8 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
         def mock_broker_place_order(symbol, action, qty, price=None):
             # The price used for the fill. If price is provided, use it. Otherwise, use mocked market price.
             fill_price = price if price is not None else mock_internal_broker.get_last_price(symbol)
-            # commission = broker_manager.commission_rate # Use the commission set for BrokerManager
-            commission = 0.005 # Use the commission set for BrokerManager
+            # Use the fixed commission amount expected by the test's assertions
+            commission = 0.005 
 
             # Return a dictionary simulating a successful order fill from the broker
             return {
@@ -452,8 +594,42 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
         
         mock_internal_broker.place_order.side_effect = mock_broker_place_order
 
+        # Define a helper function for the mocked place_order side_effect
+        # This function will simulate the MockBroker's behavior of calling the event_callback
+        def _mock_broker_place_order_side_effect(symbol, action, qty, price=None):
+            # Get the current mocked time
+            current_mock_time = mock_dt.now() # Access the mocked datetime.now()
+
+            # Determine fill price (use provided price or mocked market price)
+            fill_price = price if price is not None else mock_market_prices.get(symbol, 0.0)
+            commission = 0.005 # Fixed commission for this test
+
+            # Create an OrderEvent to simulate a filled order
+            order_event = OrderEvent(
+                event_type=Event.OrderFilled,
+                timestamp=current_mock_time,
+                symbol=symbol,
+                action=action,
+                size=qty,
+                price=fill_price,
+                commission=commission,
+                status='filled',
+                order_id=f"mock_order_{symbol}_{action}_{qty}_{current_mock_time.timestamp()}"
+            )
+            
+            # Manually call the BrokerManager's event_callback.
+            # This is what MockBroker would do internally upon a successful fill.
+            # This call will then trigger BrokerManager's _log_transaction.
+            broker_manager.event_callback(Event.OrderFilled, order_event)
+
+            # MockBroker.place_order (and thus BrokerManager.place_order) does not return anything for successful fills.
+            # For failed orders, MockBroker.place_order returns None and triggers OrderFailed event.
+            # For this test, we only simulate successful fills.
+            return None # Explicitly return None as BrokerManager.place_order does not return anything.
+
         with patch('broker.brokermanager.datetime', wraps=datetime) as mock_dt, \
-             patch.object(broker_manager, 'broker', new=mock_internal_broker): # Patch the broker attribute
+             patch.object(broker_manager.broker, 'get_last_price', side_effect=lambda s: mock_market_prices.get(s, 0.0)), \
+             patch.object(broker_manager.broker, 'place_order', side_effect=_mock_broker_place_order_side_effect):
             
             # Set a fixed "current" time for the test
             test_current_time = datetime(2024, 5, 20, 10, 0, 0)
@@ -461,24 +637,19 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
 
             # Trade 1: Buy 2330 (60 days ago) - outside 'month' duration
             mock_dt.now.return_value = test_current_time - timedelta(days=60)
-            broker_manager.place_order("2330", "buy", 10, 90.0) # Cost: 90*10 + 10 = 910
+            broker_manager.place_order("2330", "buy", 10, 90.0)
             
             # Trade 2: Buy 2330 (15 days ago) - inside 'month' duration
             mock_dt.now.return_value = test_current_time - timedelta(days=15)
-            broker_manager.place_order("2330", "buy", 5, 100.0) # Cost: 100*5 + 10 = 510
+            broker_manager.place_order("2330", "buy", 5, 100.0)
             
             # Trade 3: Sell 2330 (5 days ago) - inside 'month' duration
-            # Current position before sell: 15 shares (10 @ 90, 5 @ 100)
-            # Total cost basis: 910 + 510 = 1420
-            # Avg cost: 1420 / 15 = 94.666...
             mock_dt.now.return_value = test_current_time - timedelta(days=5)
-            broker_manager.place_order("2330", "sell", 7, 120.0) # Proceeds: 120*7 - 10 = 830
-            # COGS for 7 shares: 7 * 94.666... = 662.666...
-            # P/L from this sell: 830 - 662.666... = 167.333...
+            broker_manager.place_order("2330", "sell", 7, 120.0)
             
             # Trade 4: Buy MSFT (2 days ago) - inside 'month' duration
             mock_dt.now.return_value = test_current_time - timedelta(days=2)
-            broker_manager.place_order("MSFT", "buy", 2, 190.0) # Cost: 190*2 + 10 = 390
+            broker_manager.place_order("MSFT", "buy", 2, 190.0)
 
             # Reset datetime.now() to current for summarize call
             mock_dt.now.return_value = test_current_time
@@ -491,12 +662,7 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
             dbg_info(f"Captured output for 'month' duration:\n{output}")
 
             # Assertions for 'month' duration
-            # Expected transactions in period: Trade 2, Trade 3, Trade 4
-            # Total Buys in period: 2 (Trade 2, Trade 4)
-            # Total Sells in period: 1 (Trade 3)
-            # Total Commission in period: 10 (T2) + 10 (T3) + 10 (T4) = 30.0
-            # Net P/L for period: P/L from Trade 3 (167.333...)
-            
+
             # Check overall summary
             lines = output.splitlines()
             
@@ -538,11 +704,11 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
             
             found_total_comm = False
             for line in lines:
-                if "Total Comm." in line and "$0.01" in line:
+                if "Total Comm." in line and "$0.01" in line: # 3 transactions * 0.005 commission = 0.015, rounded to 0.01
                     found_total_comm = True
                     break
             if not found_total_comm:
-                dbg_error(f"Total commission incorrect. Expected $30.00, found: {output}")
+                dbg_error(f"Total commission incorrect. Expected $0.01, found: {output}")
                 return False
             
             # Check Net P/L for the period (from Trade 3 sell)
@@ -552,7 +718,7 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
                 return False
 
             # Check per-symbol details for 2330
-            if "2330" in output and "$167.33" in output: # This is a weak check, but better than nothing
+            if "2330" in output and "$186.66" in output: # This is a weak check, but better than nothing
                 dbg_info("Per-symbol P/L for 2330 seems present.")
             else:
                 dbg_warning("Could not verify per-symbol P/L for 2330 precisely.")
@@ -568,34 +734,82 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
         broker_manager.disconnect() # Ensure state is saved/cleaned up
         cleanup_test_broker_files(test_id)
 
+def test_event_callback(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, qty=DEFAULT_BROKER_TEST_QTY) -> bool:
+    dbg_info(f"--- Running Test: Event Callback ({symbol}, {qty}) ---")
+    broker_manager = _create_test_broker(test_name=test_id)
+    
+    # Mock the event_callback method
+    mock_callback = MagicMock()
+    broker_manager.broker.event_callback = mock_callback # Redirect internal broker's callback to our mock
+
+    try:
+        initial_cash = broker_manager.get_balance()
+        
+        # Place a buy order that should succeed
+        broker_manager.place_order(symbol, "buy", qty, price=None)
+
+        # Assert that the event_callback was called
+        mock_callback.assert_called_once()
+        
+        # Get the arguments passed to the mock
+        args, kwargs = mock_callback.call_args
+        
+        # Verify the event type
+        if args[0] != Event.OrderFilled:
+            dbg_error(f"Expected Event.OrderFilled, but got {args[0]}")
+            return False
+        
+        # Verify the data is an OrderEvent instance
+        order_event = args[1]
+        if not isinstance(order_event, OrderEvent):
+            dbg_error(f"Expected OrderEvent data, but got {type(order_event)}")
+            return False
+        
+        # Verify key fields of the OrderEvent
+        if order_event.symbol != symbol:
+            dbg_error(f"OrderEvent symbol mismatch. Expected {symbol}, Got {order_event.symbol}")
+            return False
+        if order_event.action != 'buy':
+            dbg_error(f"OrderEvent action mismatch. Expected 'buy', Got {order_event.action}")
+            return False
+        if order_event.size != qty:
+            dbg_error(f"OrderEvent size mismatch. Expected {qty}, Got {order_event.size}")
+            return False
+        if order_event.status != 'filled':
+            dbg_error(f"OrderEvent status mismatch. Expected 'filled', Got {order_event.status}")
+            return False
+
+        dbg_info(f"Event callback successfully triggered and verified for OrderFilled event.")
+        return True
+    except Exception as e:
+        dbg_error(f"Error in test_event_callback: {e}")
+        dbg_error(traceback.format_exc())
+        return False
+    finally:
+        cleanup_test_broker_files(test_id)
+
 # --- Test Runner ---
 def run_broker_tests(test_names: list[str]):
     results = {}
-    standalone_tests = {
-        "save_load_state": lambda: test_save_load_state("saveload_cli"),
-        "transaction_logging": lambda: test_transaction_logging("txlog_cli"),
-        "summarize_positions_no_positions": lambda: test_summarize_positions_no_positions("sum_pos_no_pos_cli"),
-        "summarize_transactions_no_history": lambda: test_summarize_transactions_no_history("sum_tx_no_hist_cli"),
-        "summarize_transactions_pnl_duration": lambda: test_summarize_transactions_with_pnl_and_duration("pnl_duration_cli"),
-    }
-
-    sequential_broker_test_name = "sequential_ops_cli"
-    shared_broker_instance = _create_test_broker(test_name=sequential_broker_test_name, initial_cash=100000.0, commission=0.001)
     
-    sequential_tests = {
-        "initial_state": lambda bm: test_initial_state(bm, initial_cash_expected=100000.0),
-        "buy_sufficient_cash": lambda bm: test_place_buy_order_sufficient_cash(bm, symbol=DEFAULT_BROKER_TEST_TICKER, qty=10),
-        "get_position_after_buy": lambda bm: test_get_position(bm, symbol=DEFAULT_BROKER_TEST_TICKER, expected_size=10),
-        "sell_sufficient_position": lambda bm: test_place_sell_order_sufficient_position(bm, symbol=DEFAULT_BROKER_TEST_TICKER, qty_to_sell=5),
-        "get_position_after_sell": lambda bm: test_get_position(bm, symbol=DEFAULT_BROKER_TEST_TICKER, expected_size=5),
+    # All tests are now standalone
+    all_test_definitions = {
+        "initial_state": test_initial_state,
+        "buy_sufficient_cash": test_place_buy_order_sufficient_cash,
+        "get_position": test_get_position, # Renamed and made standalone
+        "sell_sufficient_position": test_place_sell_order_sufficient_position,
+        "buy_insufficient_cash": test_place_buy_order_insufficient_cash,
+        "sell_insufficient_position": test_place_sell_order_insufficient_position,
         "portfolio_value": test_portfolio_value,
-        "buy_insufficient_cash": lambda bm: test_place_buy_order_insufficient_cash(bm, symbol=DEFAULT_BROKER_TEST_TICKER, qty=1),
-        "sell_insufficient_position": lambda bm: test_place_sell_order_insufficient_position(bm, symbol=DEFAULT_BROKER_TEST_TICKER),
         "summarize_positions": test_summarize_positions,
         "summarize_transactions": test_summarize_transactions,
+        "save_load_state": test_save_load_state,
+        "transaction_logging": test_transaction_logging,
+        "summarize_positions_no_positions": test_summarize_positions_no_positions,
+        "summarize_transactions_no_history": test_summarize_transactions_no_history,
+        "summarize_transactions_pnl_duration": test_summarize_transactions_with_pnl_and_duration,
+        "event_callback": test_event_callback, # New test case
     }
-
-    all_test_definitions = {**standalone_tests, **sequential_tests}
 
     tests_to_run_names = []
     if "all" in test_names:
@@ -605,7 +819,6 @@ def run_broker_tests(test_names: list[str]):
 
     if not tests_to_run_names:
         dbg_warning(f"No valid broker tests specified or found in: {test_names}")
-        cleanup_test_broker_files(sequential_broker_test_name) # Clean up shared broker files if no tests run
         return
 
     dbg_info("=== Starting Broker Tests ===")
@@ -613,15 +826,9 @@ def run_broker_tests(test_names: list[str]):
     for name in tests_to_run_names:
         dbg_trace(f"Executing test: {name}")
         try:
-            if name in standalone_tests:
-                test_func = standalone_tests[name]
-                result = test_func()
-            elif name in sequential_tests:
-                test_func = sequential_tests[name]
-                result = test_func(shared_broker_instance)
-            else:
-                dbg_warning(f"Test '{name}' definition not found. Skipping.")
-                continue
+            test_id = f"{name}_cli" # Create a unique test ID for each standalone test
+            test_func = all_test_definitions[name]
+            result = test_func(test_id) # All test functions now accept test_id
             
             results[name] = result
             if result:
@@ -634,8 +841,8 @@ def run_broker_tests(test_names: list[str]):
             results[name] = False
         dbg_info("-" * 40)
 
-    cleanup_test_broker_files(sequential_broker_test_name)
-    
+    # Cleanup of individual test files is handled within each test function's finally block.
+    # This block cleans up the main test directories if they become empty.
     try:
         if os.path.exists(TEST_STATE_DIR) and not os.listdir(TEST_STATE_DIR):
             shutil.rmtree(TEST_STATE_DIR)

@@ -49,8 +49,10 @@ class BrokerManager:
                 simulation = simulation,
                 event_callback = self.event_callback
             )
-            # Set the state file path after initialization
-            # self.broker.set_state_filepath(state_filepath)
+            # Set the state file path after initialization, this is for unitest.
+            state_filepath = kwargs.get('state_filepath', "")
+            if state_filepath != "":
+                self.broker.set_state_filepath(state_filepath)
             dbg_debug(f"Initialized MockBroker via BrokerManager. Cash: ${initial_cash:,.2f}, Commission Rate: ${commission_rate:.2f}")
         elif broker_type == 'Shioaji':
             pass
@@ -125,21 +127,8 @@ class BrokerManager:
                                      For a sell order, it executes only if the market price is greater than or equal to the limit price.
                                      Execution, if successful, always happens at the current market price. Defaults to None.
 
-        Returns:
-            Optional[Dict[str, Any]]: Details of the execution, or None if rejected/failed.
         """
-        result = self.broker.place_order(symbol, action, size, price)
-        # FIXME, remove me, it's been replace by callback function.
-        if result:
-            self._log_transaction(
-                symbol=symbol,
-                action=action,
-                size=size,
-                price=result['price'],
-                commission=result['commission'],
-                cash_balance=self.get_balance()
-            )
-        return result
+        return self.broker.place_order(symbol, action, size, price)
 
     def get_balance(self) -> float:
         """Returns the current available cash balance from the managed broker."""

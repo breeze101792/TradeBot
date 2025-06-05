@@ -93,29 +93,29 @@ class MockBroker(BaseBroker):
         """
         if not self.is_market_open():
             dbg_warning(f"Order rejected for {symbol}: Market is closed.")
-            return None
+            return False
 
         if size <= 0:
             dbg_error(f"Order rejected for {symbol}: Size must be positive, got {size}.")
-            return None
+            return False
         if action not in ['buy', 'sell']:
             dbg_error(f"Order rejected for {symbol}: Invalid action '{action}'. Must be 'buy' or 'sell'.")
-            return None
+            return False
 
         # Get the current market price for execution comparison and potential fill
         market_price = self.get_last_price(symbol)
         if market_price <= 0.0:
              dbg_error(f"Order rejected for {symbol}: Invalid or zero market price ({market_price:.2f}) obtained.")
-             return None # Cannot execute at zero or negative price
+             return False # Cannot execute at zero or negative price
 
         # Check limit price condition if specified
         if price is not None:
             if action == 'buy' and market_price > price:
                 dbg_warning(f"Buy order for {symbol} rejected: Market price ({market_price:.2f}) > Limit price ({price:.2f})")
-                return None
+                return False
             elif action == 'sell' and market_price < price:
                 dbg_warning(f"Sell order for {symbol} rejected: Market price ({market_price:.2f}) < Limit price ({price:.2f})")
-                return None
+                return False
             dbg_debug(f"Limit price condition met for {action} {symbol}: Market Price {market_price:.2f} vs Limit {price:.2f}")
         else:
             dbg_debug(f"Processing as market order for {action} {symbol} at Market Price {market_price:.2f}")
@@ -131,7 +131,21 @@ class MockBroker(BaseBroker):
             required_cash = cost + commission
             if self.cash < required_cash:
                 dbg_warning(f"Order rejected for {symbol}: Insufficient cash. Required: ${required_cash:.2f}, Available: ${self.cash:.2f}")
-                return None # Reject order
+                # Create an OrderEvent object to report the filled order
+                order_event = OrderEvent(
+                    event_type=Event.OrderFailed,
+                    timestamp=datetime.now(),
+                    symbol=symbol,
+                    action=action,
+                    size=size,
+                    price=market_price, # Actual execution price
+                    commission=commission,
+                    status='failed', # Always filled in this mock
+                    order_id=None, # Mock broker doesn't generate order IDs
+                    reason=f"Insufficient cash. Required: ${required_cash:.2f}, Available: ${self.cash:.2f}"
+                )
+                self.event_callback(Event.OrderFailed, order_event)
+                return False
 
             # Update cash
             self.cash -= required_cash
@@ -149,7 +163,21 @@ class MockBroker(BaseBroker):
             current_position = self.get_position_by_symbol(symbol)
             if current_position.size < size:
                 dbg_warning(f"Order rejected for {symbol}: Insufficient position to sell. Required: {size}, Available: {current_position.size}")
-                return None # Reject order
+                # Create an OrderEvent object to report the filled order
+                order_event = OrderEvent(
+                    event_type=Event.OrderFailed,
+                    timestamp=datetime.now(),
+                    symbol=symbol,
+                    action=action,
+                    size=size,
+                    price=market_price, # Actual execution price
+                    commission=commission,
+                    status='failed', # Always filled in this mock
+                    order_id=None, # Mock broker doesn't generate order IDs
+                    reason="Insufficient position to sell."
+                )
+                self.event_callback(Event.OrderFailed, order_event)
+                return False
 
             # Update cash
             proceeds = cost
@@ -181,6 +209,7 @@ class MockBroker(BaseBroker):
             reason=None
         )
         self.event_callback(Event.OrderFilled, order_event)
+        return True
 
     def get_balance(self) -> float:
         """Returns the current available cash balance."""
