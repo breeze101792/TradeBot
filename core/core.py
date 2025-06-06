@@ -208,15 +208,19 @@ class Core:
                 self.trading_status.Trading.target_buying_list = self.trading.trading_eval()
 
                 ###############################################################
+                # sleep for trading. put it outside the check to avoid busy loop on this while(if len = 0 will buy pass check).
+                # so don't put this sleep inside the check.
+                target = MarketTime.get_next_market_open_time().replace(hour=9, minute=0, second=0, microsecond=0)
+                self.trading_status.Trading.next_wakeup_time = target # Store wake-up time for buying
+                dbg_info(f'Trading Service will wake up at {target}, to buy product.')
+                sleep_result = sleep_until_with_flag(target, self.stop_event)
+
+                self.trading_status.Trading.next_wakeup_time = None # Reset after wake-up or interruption
+                if sleep_result == -1:
+                    break;
+
                 # Check the shared status object
                 if len(self.trading_status.Trading.target_buying_list) > 0:
-                    target = MarketTime.get_next_market_open_time().replace(hour=9, minute=0, second=0, microsecond=0)
-                    self.trading_status.Trading.next_wakeup_time = target # Store wake-up time for buying
-                    dbg_info(f'Trading Service will wake up at {target}, to buy product.')
-                    sleep_result = sleep_until_with_flag(target, self.stop_event)
-                    self.trading_status.Trading.next_wakeup_time = None # Reset after wake-up or interruption
-                    if sleep_result == -1:
-                        break;
                     # Execute based on the shared status object
                     self.trading.buying_exec(self.trading_status.Trading.target_buying_list)
 
