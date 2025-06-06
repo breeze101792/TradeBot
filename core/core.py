@@ -152,9 +152,10 @@ class Core:
                 dbg_error(traceback_output)
 
             finally:
-                # Finalize service thread.
-                if self.flag_heatbeat_running:
-                    dbg_trace('Finalize service thread.')
+                # NOTE. Daemon thread, we do/should not need to stop it.
+                # if self.flag_heatbeat_running is False:
+                #     dbg_trace('Finalize service thread.')
+                #     break
 
                 time.sleep(self.var_threading_delay)
 

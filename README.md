@@ -18,6 +18,7 @@ pip install yfinance backtrader
 10. wihen date has been skiped(market not open as uasual). the update system will crsah(fail to update data, so it require every with every get_data).
 11. check all buy/sell are within the min/max value of config.
 12. on buy/sell, check the price, make sure we can get the real price and if not do the error handle of it.
+13. On buy, we check the transaction of this stock. we want to buy the easy sell stock.
 
 # TODO
 1. on strategy, do profit check on real time.
