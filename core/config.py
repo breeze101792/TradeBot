@@ -21,10 +21,10 @@ class AppConfig(BasicConfig):
         bt_report = 'backtest/report'
     class stock:
         # We could use this to control which kind of trading we are doing
-        lot_unit = 10
-        # minimum trade amount: 20 / 0.1425% = 14035
-        cash_min_per_trade = 15000
-        cash_max_per_trade = cash_min_per_trade * 2
+        lot_unit = 1
+        # since there is no minimum fee of it, so we lower down the trade limit.
+        cash_min_per_trade = 1000
+        cash_max_per_trade = 30000
 
 class AppConfigManager(ConfigManager):
     def __init__(self, *args, **kwargs):
