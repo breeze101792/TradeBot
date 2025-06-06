@@ -30,6 +30,18 @@ class MovingProfitStrategy(BasicExitStrategy):
         # stra initial
         self.stra_initial()
 
+        # liquidity check
+        # TODO, under dev
+        self.liquidity_check = True
+        if self.liquidity_check is True:
+            dbg_info(f'Enable liquidity check. For exp, we shows this message.')
+            # Volume
+            self.LIQUIDITY_VOL_THRESHOLD = 50 * 1000
+            self.sma_vol = bt.indicators.SimpleMovingAverage(self.data.volume, period=20)
+            # Turn over, maybe add it latter.
+            # self.LIQUIDITY_TOV_THRESHOLD = 50 * 10 * 1000 # 1M
+            # self.sma_tov = bt.indicators.SimpleMovingAverage(self.data.turnover, period=20)
+
     def next(self):
         # dbg_info(f"[{self.datas[0].datetime.date(0)}] {self.is_trading_date(self.datas[0].datetime.date(0))}")
         if not self.is_trading_date(self.datas[0].datetime.date(0)):
@@ -107,6 +119,14 @@ class MovingProfitStrategy(BasicExitStrategy):
 
             # Entry: Short MA crosses above Long MA
             elif not pos and self.stra_buy_in(data):
+                if self.liquidity_check is True:
+                    if self.sma_vol[0] < self.LIQUIDITY_VOL_THRESHOLD:
+                        dbg_info(f'Small VOL({self.sma_vol[0]}/{self.LIQUIDITY_VOL_THRESHOLD}), skip buying.')
+                        return
+                    # elif self.sma_tov[0] < self.LIQUIDITY_TOV_THRESHOLD:
+                    #     dbg_info(f'Small TurnOver({self.sma_tov[0]}/{self.LIQUIDITY_TOV_THRESHOLD}), skip buying.')
+                    #     return
+
                 lot_size = int(self.broker.get_cash() * self.params.risk_per_trade / (price * self.LOT_UNIT))
                 size = lot_size * self.LOT_UNIT
                 # TODO, add minimum cash transaction check.

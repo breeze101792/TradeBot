@@ -19,6 +19,7 @@ from market.market import *
 # from backtest.backtest import * # Self import removed
 from backtest.analyzer.partialtrade import *
 from backtest.backresult import BackResult # Added import
+from backtest.datafeed import ExtPandasDataFeed
 from strategy.strategy import *
 
 class Backtest:
@@ -408,7 +409,8 @@ class Backtest:
                 df = each_data['data']
                 symbol = each_data['symbol']
                 # Use internal attributes for date range
-                data = bt.feeds.PandasData(dataname=df, fromdate=self._from_date, todate=self._to_date)
+                # data = bt.feeds.PandasData(dataname=df, fromdate=self._from_date, todate=self._to_date)
+                data = ExtPandasDataFeed(dataname=df, fromdate=self._from_date, todate=self._to_date)
 
                 dbg_trace(f"Add product {symbol}.")
 
@@ -443,7 +445,8 @@ class Backtest:
             try:
                 df = self.market.get_data(each_product, start_date = self._from_date.date(), end_date = self._to_date.date())
                 # Use internal attributes for date range
-                data = bt.feeds.PandasData(dataname=df, fromdate=self._from_date, todate=self._to_date)
+                # data = bt.feeds.PandasData(dataname=df, fromdate=self._from_date, todate=self._to_date)
+                data = ExtPandasDataFeed(dataname=df, fromdate=self._from_date, todate=self._to_date)
 
                 dbg_trace(f"Add product {each_product}.")
 
