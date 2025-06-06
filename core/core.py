@@ -255,6 +255,12 @@ class Core:
         dbg_info('Selling Service Start.')
         self.flag_selling_service_running = True
 
+        # wake delay in trading.
+        # FIXME, not sure whether it will be banned by back.
+        # we may need to find out a way to fix it on data provider.
+        # maybe use TWSE for get current stock price continuously
+        intra_day_sleep_timedelta = timedelta(seconds=10)
+
         # do the evaluation daily during market hours
         while True:
             try:
@@ -282,7 +288,7 @@ class Core:
 
                     # Calculate sleep duration for the next 10 minutes, but not past market close
                     now = datetime.now()
-                    next_run_time = now + timedelta(minutes=10)
+                    next_run_time = now + intra_day_sleep_timedelta
                     sleep_duration = 0
 
                     if next_run_time < next_market_close_target:
