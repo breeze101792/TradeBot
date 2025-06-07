@@ -8,11 +8,13 @@ from tabulate import tabulate # Import tabulate for creating tables
 
 # Local file
 from utility.debug import * # Replace standard logging with custom debug system
+from core.config import AppConfigManager
 
 # Assuming MockBroker is the primary implementation for now
 from broker.mock.mockbroker import MockBroker, Position
-from broker.event import Event, OrderEvent
-from core.config import AppConfigManager
+from broker.event import Event
+from broker.orderservice import OrderService
+from broker.ordertracker import OrderTracker
 
 class BrokerManager:
     """
@@ -31,6 +33,7 @@ class BrokerManager:
         self.cm = AppConfigManager()
         self.broker: MockBroker # Type hint for the wrapped broker instance
         self.broker_type = broker_type
+        self.__is_connected = False
 
         self.transaction_log_path = kwargs.get('transaction_log_path', 
             os.path.join(self.cm.get_path('broker'), f'{broker_type}/transactions.csv'))
@@ -46,8 +49,7 @@ class BrokerManager:
                 initial_cash=initial_cash,
                 commission_rate=commission_rate,
                 broker_path = os.path.join(self.cm.get_path('broker'), f'{broker_type}'),
-                simulation = simulation,
-                event_callback = self.event_callback
+                simulation = simulation
             )
             # Set the state file path after initialization, this is for unitest.
             state_filepath = kwargs.get('state_filepath', "")
@@ -63,54 +65,59 @@ class BrokerManager:
             dbg_error(f"Unsupported broker type: {broker_type}")
             raise ValueError(f"Unsupported broker type: {broker_type}")
 
+        # Initialize OrderService with the broker instance for order tracking
+        self.order_svc = OrderService(self.broker, event_callback = self.event_callback)
+
+    def is_connected(self):
+        return self.__is_connected
     def event_callback(self, event: Event, data: Optional[Any] = None):
         """
         Callback function for handling events from the broker.
         This method processes different types of events, primarily focusing on order-related events.
         """
         if event == Event.OrderFilled:
-            if not isinstance(data, OrderEvent):
-                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderEvent, got {type(data)}.")
+            if not isinstance(data, OrderTracker):
+                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
                 return
 
-            # Data is an OrderEvent object
-            order_event: OrderEvent = data
+            # Data is an OrderTracker object
+            order_tracker: OrderTracker = data
 
-            order_event.show_event()
-            # dbg_info(f"Order Filled: Symbol={order_event.symbol}, Action={order_event.action}, "
-            #          f"Size={order_event.size}, Price={order_event.price}, Commission={order_event.commission}.")
+            order_tracker.show_order()
+            # dbg_info(f"Order Filled: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
+            #          f"Size={order_tracker.size}, Price={order_tracker.price}, Commission={order_tracker.commission}.")
 
-            # Log the transaction using data from the OrderEvent
+            # Log the transaction using data from the OrderTracker
             self._log_transaction(
-                symbol=order_event.symbol,
-                action=order_event.action,
-                size=order_event.size,
-                price=order_event.price,
-                commission=order_event.commission,
+                symbol=order_tracker.symbol,
+                action=order_tracker.action,
+                size=order_tracker.size,
+                price=order_tracker.price,
+                commission=order_tracker.commission,
                 cash_balance=self.get_balance() # Get current balance after the transaction
             )
         elif event == Event.OrderFailed:
-            if not isinstance(data, OrderEvent):
-                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderEvent, got {type(data)}.")
+            if not isinstance(data, OrderTracker):
+                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
                 return
-            order_event: OrderEvent = data
-            dbg_warning(f"Order Failed: Symbol={order_event.symbol}, Action={order_event.action}, "
-                        f"Size={order_event.size}, Reason={order_event.reason}.")
+            order_tracker: OrderTracker = data
+            dbg_warning(f"Order Failed: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
+                        f"Size={order_tracker.size}, Reason={order_tracker.reason}.")
             # Optionally log failed orders or take other actions
         elif event == Event.OrderPending:
-            if not isinstance(data, OrderEvent):
-                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderEvent, got {type(data)}.")
+            if not isinstance(data, OrderTracker):
+                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
                 return
-            order_event: OrderEvent = data
-            dbg_info(f"Order Pending: Symbol={order_event.symbol}, Action={order_event.action}, "
-                     f"Size={order_event.size}, Price={order_event.price}.")
+            order_tracker: OrderTracker = data
+            dbg_info(f"Order Pending: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
+                     f"Size={order_tracker.size}, Price={order_tracker.price}.")
         elif event == Event.OrderCanceled:
-            if not isinstance(data, OrderEvent):
-                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderEvent, got {type(data)}.")
+            if not isinstance(data, OrderTracker):
+                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
                 return
-            order_event: OrderEvent = data
-            dbg_info(f"Order Canceled: Symbol={order_event.symbol}, Order ID={order_event.order_id}, "
-                     f"Reason={order_event.reason}.")
+            order_tracker: OrderTracker = data
+            dbg_info(f"Order Canceled: Symbol={order_tracker.symbol}, Order ID={order_tracker.order_id}, "
+                     f"Reason={order_tracker.reason}.")
         else:
             dbg_info(f"Unhandled event received: {event}")
 
@@ -128,10 +135,20 @@ class BrokerManager:
                                      Execution, if successful, always happens at the current market price. Defaults to None.
 
         """
-        return self.broker.place_order(symbol, action, size, price)
+        if self.is_connected() is False:
+            dbg_info('Please connect it first.')
+            raise ValueError
+        order = self.broker.place_order(symbol, action, size, price)
+        if order is not None:
+            self.order_svc.add_order(order)
+            return True
+        return False
 
     def get_balance(self) -> float:
         """Returns the current available cash balance from the managed broker."""
+        if self.is_connected() is False:
+            dbg_info('Please connect it first.')
+            raise ValueError
         return self.broker.get_balance()
 
     def get_position_by_symbol(self, symbol: str) -> Position:
@@ -139,16 +156,25 @@ class BrokerManager:
         Returns the Position object for a given symbol from the managed broker.
         If the symbol is not held, returns a Position object with size 0.
         """
+        if self.is_connected() is False:
+            dbg_info('Please connect it first.')
+            raise ValueError
         return self.broker.get_position_by_symbol(symbol)
 
     def get_all_positions(self) -> Dict[str, Position]:
         """Returns a dictionary of all current positions from the managed broker."""
+        if self.is_connected() is False:
+            dbg_info('Please connect it first.')
+            raise ValueError
         return self.broker.get_all_positions()
 
     def get_last_price(self, symbol: str) -> float:
         """
         Returns the last known market price for a symbol from the managed broker.
         """
+        if self.is_connected() is False:
+            dbg_info('Please connect it first.')
+            raise ValueError
         # Note: This might need adjustment if different brokers handle price fetching differently.
         return self.broker.get_last_price(symbol)
 
@@ -156,6 +182,9 @@ class BrokerManager:
         """
         Calculates the total value of the portfolio using the managed broker.
         """
+        if self.is_connected() is False:
+            dbg_info('Please connect it first.')
+            raise ValueError
         return self.broker.get_portfolio_value()
 
     def set_state_filepath(self, filepath: str):
@@ -165,6 +194,9 @@ class BrokerManager:
         Args:
             filepath (str): The new default path for the state file.
         """
+        if self.is_connected() is False:
+            dbg_info('Please connect it first.')
+            raise ValueError
         self.broker.set_state_filepath(filepath)
 
     def summarize_positions(self):
@@ -172,6 +204,9 @@ class BrokerManager:
         Prints a summary table of all current positions held by the managed broker,
         including market value and unrealized profit/loss.
         """
+        if self.is_connected() is False:
+            dbg_info('Please connect it first.')
+            raise ValueError
         cash = self.broker.get_balance()
         positions = self.broker.get_all_positions()
         if not positions:
@@ -259,10 +294,14 @@ class BrokerManager:
         # dbg_info(f"BrokerManager: Initiating connection for {self.broker_type} broker...")
         try:
             self.broker.connect()
+            self.__is_connected = True
             # get initial status if file not exist.
             self._log_transaction_init()
+            self.order_svc.start()
             dbg_trace(f"BrokerManager: Connection process completed for {self.broker_type} broker.")
         except Exception as e:
+            self.disconnect()
+            self.__is_connected = False
             dbg_error(f"BrokerManager: Error during connection for {self.broker_type} broker: {e}")
             # Optionally re-raise or handle specific connection errors
             raise
@@ -274,10 +313,13 @@ class BrokerManager:
         """
         # dbg_info(f"BrokerManager: Initiating disconnection for {self.broker_type} broker...")
         try:
+            self.order_svc.stop() # Corrected typo: self.self -> self
             self.broker.disconnect()
+            self.__is_connected = False
             dbg_trace(f"BrokerManager: Disconnection process completed for {self.broker_type} broker.")
         except Exception as e:
             dbg_error(f"BrokerManager: Error during disconnection for {self.broker_type} broker: {e}")
+            self.__is_connected = False
             # Optionally re-raise or handle specific disconnection errors
             raise
 
@@ -356,6 +398,9 @@ class BrokerManager:
         Returns:
             List of transaction records with keys matching CSV headers
         """
+        if self.is_connected() is False:
+            dbg_info('Please connect it first.')
+            raise ValueError
         if not os.path.exists(self.transaction_log_path):
             return []
             
@@ -371,6 +416,9 @@ class BrokerManager:
         Args:
             duration (str): Optional filter for transactions ('month', 'year', 'week')
         """
+        if self.is_connected() is False:
+            dbg_info('Please connect it first.')
+            raise ValueError
         transactions = self.get_transactions()
         current_positions = self.get_all_positions()
 
@@ -666,112 +714,3 @@ class BrokerManager:
     # You might add other broker-specific methods here as needed,
     # potentially checking self.broker_type if they aren't universal.
 
-if __name__ == "__main__":
-    # Example usage relies on utility.debug now
-    print("--- Starting BrokerManager Example ---")
-
-    # Define a state file path for this example
-    example_state_file = "data/broker_manager_example_state.json"
-    import os
-    # Ensure the data directory exists
-    os.makedirs(os.path.dirname(example_state_file), exist_ok=True)
-
-    # --- Initialize BrokerManager with BaseBroker ---
-    print("\n--- Initializing BrokerManager ---")
-    try:
-        # Use specific parameters for the example
-        manager = BrokerManager(
-            broker_type='mock',
-            initial_cash=100000.0,
-            commission_rate=0.007,
-            state_filepath=example_state_file
-        )
-        print(f"BrokerManager initialized with {manager.broker_type} broker.")
-        print(f"Initial Cash: ${manager.get_balance():,.2f}")
-        print(f"State file path: {manager.broker.state_filepath}") # Access underlying broker's path for confirmation
-
-    except ValueError as e:
-        print(f"Error initializing BrokerManager: {e}")
-        exit() # Exit if initialization fails
-
-    # --- Place Orders via Manager ---
-    print("\n--- Placing Orders ---")
-    # Assuming BaseBroker's get_last_price works or is mocked appropriately for a real scenario
-    # For this example, BaseBroker might use its default fake price or market data if available
-    # Let's assume '2330' price is around 150 for illustration
-    product_price = manager.get_last_price("2330")
-    exec_result1 = manager.place_order(symbol="2330", action="buy", size=50, price=product_price + 10) # Limit buy (should fill if market <= 160)
-    print(f"Place Buy Order 2330 (Limit 160): {exec_result1}")
-    exec_result2 = manager.place_order(symbol="2330", action="buy", size=20, price=None) # Market buy
-    print(f"Place Buy Order 2330 (Market): {exec_result2}")
-    exec_result3 = manager.place_order(symbol="MSFT", action="buy", size=30) # Market buy (implicit None price)
-    print(f"Place Buy Order MSFT (Market): {exec_result3}")
-    exec_result4 = manager.place_order(symbol="2330", action="sell", size=10, price=product_price - 10) # Limit sell (should fill if market >= 140)
-    print(f"Place Sell Order 2330 (Limit 140): {exec_result4}")
-    exec_result_fail = manager.place_order(symbol="2330", action="sell", size=1000) # Try to sell more than owned
-    print(f"Place Sell Order 2330 (Fail - Insufficient): {exec_result_fail}")
-
-
-    # --- Check State via Manager ---
-    print("\n--- Checking State ---")
-    print(f"Current Cash: ${manager.get_balance():,.2f}")
-    print("Current Positions:")
-    positions = manager.get_all_positions()
-    if not positions:
-        print("  No positions held.")
-    for symbol, pos in positions.items():
-        print(f"  {pos}")
-    # Note: Portfolio value depends on the underlying broker's get_last_price implementation
-    print(f"Estimated Portfolio Value: ${manager.get_portfolio_value():,.2f}")
-
-    # --- Summarize Positions ---
-    manager.summarize_positions()
-
-    # --- Disconnect Manager (Saves State) ---
-    print("\n--- Disconnecting Manager (saves state) ---")
-    manager.disconnect() # Disconnects and saves state to the default path (example_state_file)
-    print(f"State saved implicitly via disconnect to {manager.broker.state_filepath}")
-
-    # --- Create New Manager and Connect (Loads State) ---
-    print("\n--- Creating New Manager and Connecting (loads state) ---")
-    manager2 = BrokerManager(
-        broker_type='mock',
-        initial_cash=5000.0, # Different initial cash, will be overwritten by loaded state
-        commission_rate=0.001, # Different commission, will be overwritten by loaded state
-        state_filepath=example_state_file # Must point to the same file to load
-    )
-    print(f"Manager 2 Initial Cash (before connect): ${manager2.get_balance():,.2f}")
-    manager2.connect() # Connects and loads state from the file
-    print("State loaded implicitly via connect.")
-
-    # --- Verify Loaded State in New Manager ---
-    print("\n--- Verifying Loaded State (Manager 2) ---")
-    print(f"Manager 2 Loaded Cash: ${manager2.get_balance():,.2f}")
-    print("Manager 2 Loaded Positions:")
-    loaded_positions = manager2.get_all_positions()
-    if not loaded_positions:
-        print("  No positions loaded.")
-    for symbol, pos in loaded_positions.items():
-        print(f"  {pos}") # Keep simple print for basic verification
-
-    # --- Summarize Positions for Manager 2 ---
-    manager2.summarize_positions()
-
-    # Disconnect manager2 (optional, saves state again)
-    print("\n--- Disconnecting Manager 2 ---")
-    manager2.disconnect()
-
-    # --- Clean up the example state file ---
-    try:
-        if os.path.exists(example_state_file):
-            os.remove(example_state_file)
-            print(f"\nCleaned up example state file: {example_state_file}")
-        # Attempt to remove the data directory if it's empty
-        if os.path.exists("data") and not os.listdir("data"):
-             os.rmdir("data")
-             print("Cleaned up empty data directory.")
-    except OSError as e:
-        print(f"\nError cleaning up: {e}")
-
-
-    print("--- BrokerManager Example Finished ---")

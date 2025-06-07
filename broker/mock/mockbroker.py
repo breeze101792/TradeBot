@@ -2,22 +2,26 @@ import json
 import os
 import datetime as dt
 from datetime import date, time, datetime # Import date and datetime for tracking open date and order events
-from typing import Callable
+from enum import Enum # Import Enum
+from dataclasses import dataclass, field # Import field
+from typing import Any, Optional, Dict # Import Any, Optional, Dict
 
 from utility.debug import *
 
 from market.market import *
 from market.provider.twse import *
+from broker.mock.mockorder import MockOrder
 from broker.base.position import Position
 from broker.base.basebroker import BaseBroker
-from broker.event import Event, default_event_callback, OrderEvent
+from broker.ordertracker import OrderTracker
+from broker.event import Event
 
 class MockBroker(BaseBroker):
     """
     A basic simulated broker handling cash, positions, and simple order execution.
     This mimics the interface needed by a backtesting or simple trading system.
     """
-    def __init__(self, initial_cash: float = 1000000.0, commission_rate: float = 0.003, simulation = True, event_callback: Callable[[Event, ...], None] = None, **kargs):
+    def __init__(self, initial_cash: float = 1000000.0, commission_rate: float = 0.003, simulation = True, **kargs):
         """
         Initializes the broker.
 
@@ -26,11 +30,6 @@ class MockBroker(BaseBroker):
             commission_rate (float): Fixed commission fee for each trade execution.
         """
         super().__init__(**kargs)
-
-        if event_callback is not None:
-            self.event_callback = event_callback
-        else:
-            self.event_callback = default_event_callback
 
         self.simulation=simulation
         self.initial_cash = initial_cash
@@ -72,6 +71,45 @@ class MockBroker(BaseBroker):
             dbg_trace(f"Market is closed: Current time {current_time.strftime('%H:%M:%S')} is outside trading hours ({market_open_time.strftime('%H:%M:%S')} - {market_close_time.strftime('%H:%M:%S')}).")
             return False
 
+    def _create_order_tracker(self, order: MockOrder) -> OrderTracker:
+        """
+        Creates an OrderTracker instance from a MockOrder object.
+        """
+        tracker = OrderTracker(
+            timestamp=order.timestamp,
+            symbol=order.symbol,
+            action=order.action,
+            size=order.size,
+            price=order.price,
+            commission=order.commission,
+            status=order.status,
+            reason=order.reason
+        )
+        tracker.order_instance = order # Link the original order instance
+        return tracker
+
+    def update_order_status(self, order_tracker: OrderTracker):
+        """
+        Updates the OrderTracker with the latest information from its internal order instance.
+        In a real broker, this would involve querying the broker's API for order status updates.
+        For MockBroker, the order_tracker is already created with the final status,
+        so this function primarily serves as a placeholder and ensures consistency.
+        """
+        # In a mock, the order_tracker's order_instance already holds the final state.
+        # We explicitly copy the fields to the tracker itself to fulfill the "update" concept.
+        if order_tracker.order_instance:
+            order_tracker.timestamp = order_tracker.order_instance.timestamp
+            order_tracker.symbol = order_tracker.order_instance.symbol
+            order_tracker.action = order_tracker.order_instance.action
+            order_tracker.size = order_tracker.order_instance.size
+            order_tracker.price = order_tracker.order_instance.price
+            order_tracker.commission = order_tracker.order_instance.commission
+            order_tracker.status = order_tracker.order_instance.status
+            order_tracker.reason = order_tracker.order_instance.reason
+            dbg_debug(f"OrderTracker updated for {order_tracker.symbol} to status: {order_tracker.status}")
+        else:
+            dbg_warning("Cannot update OrderTracker: order_instance is missing.")
+
     def place_order(self, symbol: str, action: str, size: int, price: float | None = None) -> dict | None:
         """
         Simulates placing and immediately filling an order.
@@ -91,31 +129,41 @@ class MockBroker(BaseBroker):
         Returns:
             dict: Details of the simulated execution ('filled' status), or None if order rejected.
         """
+        # For the mock function, we return with callback. it help us to test return different kind of event.
+        # but in real broker, this event only been sent wtih API response.
+        # if the issue is on our own, we could just fix it or return false/raise a exception.
         if not self.is_market_open():
-            dbg_warning(f"Order rejected for {symbol}: Market is closed.")
-            return False
+            reason = "Market is closed."
+            dbg_warning(f"Order rejected for {symbol}: {reason}")
+            return None
 
         if size <= 0:
-            dbg_error(f"Order rejected for {symbol}: Size must be positive, got {size}.")
-            return False
+            reason = f"Size must be positive, got {size}."
+            dbg_error(f"Order rejected for {symbol}: {reason}")
+            return None
+
         if action not in ['buy', 'sell']:
-            dbg_error(f"Order rejected for {symbol}: Invalid action '{action}'. Must be 'buy' or 'sell'.")
-            return False
+            reason = f"Invalid action '{action}'. Must be 'buy' or 'sell'."
+            dbg_error(f"Order rejected for {symbol}: {reason}")
+            return None
 
         # Get the current market price for execution comparison and potential fill
         market_price = self.get_last_price(symbol)
         if market_price <= 0.0:
-             dbg_error(f"Order rejected for {symbol}: Invalid or zero market price ({market_price:.2f}) obtained.")
-             return False # Cannot execute at zero or negative price
+             reason = f"Invalid or zero market price ({market_price:.2f}) obtained."
+             dbg_error(f"Order rejected for {symbol}: {reason}")
+             return None # Cannot execute at zero or negative price
 
         # Check limit price condition if specified
         if price is not None:
             if action == 'buy' and market_price > price:
-                dbg_warning(f"Buy order for {symbol} rejected: Market price ({market_price:.2f}) > Limit price ({price:.2f})")
-                return False
+                reason = f"Market price ({market_price:.2f}) > Limit price ({price:.2f})"
+                dbg_warning(f"Buy order for {symbol} rejected: {reason}")
+                return None
             elif action == 'sell' and market_price < price:
-                dbg_warning(f"Sell order for {symbol} rejected: Market price ({market_price:.2f}) < Limit price ({price:.2f})")
-                return False
+                reason = f"Market price ({market_price:.2f}) < Limit price ({price:.2f})"
+                dbg_warning(f"Sell order for {symbol} rejected: {reason}")
+                return None
             dbg_debug(f"Limit price condition met for {action} {symbol}: Market Price {market_price:.2f} vs Limit {price:.2f}")
         else:
             dbg_debug(f"Processing as market order for {action} {symbol} at Market Price {market_price:.2f}")
@@ -131,8 +179,8 @@ class MockBroker(BaseBroker):
             required_cash = cost + commission
             if self.cash < required_cash:
                 dbg_warning(f"Order rejected for {symbol}: Insufficient cash. Required: ${required_cash:.2f}, Available: ${self.cash:.2f}")
-                # Create an OrderEvent object to report the filled order
-                order_event = OrderEvent(
+                # Create an MockOrder object to report the filled order
+                order_instance = MockOrder(
                     event_type=Event.OrderFailed,
                     timestamp=datetime.now(),
                     symbol=symbol,
@@ -141,11 +189,11 @@ class MockBroker(BaseBroker):
                     price=market_price, # Actual execution price
                     commission=commission,
                     status='failed', # Always filled in this mock
-                    order_id=None, # Mock broker doesn't generate order IDs
                     reason=f"Insufficient cash. Required: ${required_cash:.2f}, Available: ${self.cash:.2f}"
                 )
-                self.event_callback(Event.OrderFailed, order_event)
-                return False
+                order_tracker = self._create_order_tracker(order_instance)
+                self.update_order_status(order_tracker) # Call update_order_status to "update" the tracker
+                return order_tracker
 
             # Update cash
             self.cash -= required_cash
@@ -163,8 +211,8 @@ class MockBroker(BaseBroker):
             current_position = self.get_position_by_symbol(symbol)
             if current_position.size < size:
                 dbg_warning(f"Order rejected for {symbol}: Insufficient position to sell. Required: {size}, Available: {current_position.size}")
-                # Create an OrderEvent object to report the filled order
-                order_event = OrderEvent(
+                # Create an MockOrder object to report the filled order
+                order_instance = MockOrder(
                     event_type=Event.OrderFailed,
                     timestamp=datetime.now(),
                     symbol=symbol,
@@ -173,11 +221,11 @@ class MockBroker(BaseBroker):
                     price=market_price, # Actual execution price
                     commission=commission,
                     status='failed', # Always filled in this mock
-                    order_id=None, # Mock broker doesn't generate order IDs
                     reason="Insufficient position to sell."
                 )
-                self.event_callback(Event.OrderFailed, order_event)
-                return False
+                order_tracker = self._create_order_tracker(order_instance)
+                self.update_order_status(order_tracker) # Call update_order_status to "update" the tracker
+                return order_tracker
 
             # Update cash
             proceeds = cost
@@ -195,8 +243,8 @@ class MockBroker(BaseBroker):
                 dbg_debug(f"Position closed for {symbol}. Removing from holdings.")
                 del self.positions[symbol]
 
-        # Create an OrderEvent object to report the filled order
-        order_event = OrderEvent(
+        # Create an MockOrder object to report the filled order
+        order_instance = MockOrder(
             event_type=Event.OrderFilled,
             timestamp=datetime.now(),
             symbol=symbol,
@@ -205,11 +253,12 @@ class MockBroker(BaseBroker):
             price=market_price, # Actual execution price
             commission=commission,
             status='filled', # Always filled in this mock
-            order_id=None, # Mock broker doesn't generate order IDs
-            reason=None
+            reason=None,
         )
-        self.event_callback(Event.OrderFilled, order_event)
-        return True
+        order_tracker = self._create_order_tracker(order_instance)
+        self.update_order_status(order_tracker) # Call update_order_status to "update" the tracker
+
+        return order_tracker
 
     def get_balance(self) -> float:
         """Returns the current available cash balance."""
@@ -379,114 +428,3 @@ class MockBroker(BaseBroker):
         #     dbg_trace(f"Disconnecting MockBroker: State unchanged since last load/save, skipping save to {self.state_filepath}.")
         pass
 
-
-if __name__ == "__main__":
-    dbg_info("--- Starting Broker Example ---")
-
-    # Test is_market_open
-    print("\n--- Checking Market Status ---")
-    # Create a temporary broker instance just for this check
-    # It doesn't need specific cash or commission for this test.
-    market_status_checker_broker = MockBroker()
-    if market_status_checker_broker.is_market_open():
-        print("Market is currently OPEN.")
-    else:
-        print("Market is currently CLOSED.")
-    # Clean up the temporary instance if it created any state files (though unlikely for this simple check)
-    # For MockBroker, disconnect might try to save state. If state_filepath is default and no trades, it's fine.
-    # Or, we can simply let it go out of scope if no side effects are expected from __init__ or is_market_open.
-    # For this specific test, we don't need to call disconnect().
-
-    # 1. Initialize Broker
-    broker1 = MockBroker(initial_cash=50000, commission_rate=4.95)
-    print(f"Initial Cash: ${broker1.get_balance():,.2f}")
-
-    # 2. Place Orders (Market and Limit Examples)
-    print("\n--- Placing Orders ---")
-    # Assuming get_last_price("2330") returns ~150 and get_last_price("2454") returns ~2500 for illustration
-    # Market Orders (price=None)
-    print("--- Market Orders ---")
-    exec_buy_market = broker1.place_order(symbol="2330", action="buy", size=10) # Market buy
-    print(f"Market Buy 2330 Execution: {exec_buy_market}")
-    exec_sell_market = broker1.place_order(symbol="2330", action="sell", size=5) # Market sell
-    print(f"Market Sell 2330 Execution: {exec_sell_market}")
-
-    # Limit Orders
-    print("\n--- Limit Orders ---")
-    # Buy Limit - Should execute if market <= 160 (assuming market is ~150)
-    exec_buy_limit_ok = broker1.place_order(symbol="2330", action="buy", size=5, price=160.00)
-    print(f"Limit Buy 2330 (Limit=160.00) Execution (expect success): {exec_buy_limit_ok}")
-    # Buy Limit - Should fail if market > 140 (assuming market is ~150)
-    exec_buy_limit_fail = broker1.place_order(symbol="2330", action="buy", size=5, price=140.00)
-    print(f"Limit Buy 2330 (Limit=140.00) Execution (expect fail): {exec_buy_limit_fail}")
-
-    # Sell Limit - Should execute if market >= 145 (assuming market is ~150)
-    exec_sell_limit_ok = broker1.place_order(symbol="2330", action="sell", size=2, price=145.00)
-    print(f"Limit Sell 2330 (Limit=145.00) Execution (expect success): {exec_sell_limit_ok}")
-    # Sell Limit - Should fail if market < 160 (assuming market is ~150)
-    exec_sell_limit_fail = broker1.place_order(symbol="2330", action="sell", size=2, price=160.00)
-    print(f"Limit Sell 2330 (Limit=160.00) Execution (expect fail): {exec_sell_limit_fail}")
-
-    # Order Failure (Insufficient Funds/Position)
-    print("\n--- Order Failures ---")
-    exec_buy_fail_cash = broker1.place_order(symbol="2454", action="buy", size=100) # Should fail (insufficient cash)
-    print(f"Buy 2454 Execution (expect fail - cash): {exec_buy_fail_cash}")
-    # Sell more than owned (check current position size after previous trades)
-    current_2330_pos = broker1.get_position_by_symbol("2330").size
-    exec_sell_fail_pos = broker1.place_order(symbol="2330", action="sell", size=current_2330_pos + 1) # Try to sell more than held
-    print(f"Sell 2330 Execution (expect fail - position): {exec_sell_fail_pos}")
-
-
-    # 3. Check State
-    print("\n--- Current Broker State (broker1) ---")
-    print(f"Current Cash: ${broker1.get_balance():,.2f}")
-    print("Current Positions:")
-    all_positions = broker1.get_all_positions()
-    if not all_positions:
-        print("  No positions held.")
-    for symbol, pos in all_positions.items():
-        print(f"  {pos}")
-    # Note: Portfolio value uses the latest market price via get_last_price
-    print(f"Estimated Portfolio Value: ${broker1.get_portfolio_value():,.2f}")
-
-    # 4. Disconnect broker1 (saves state to default path)
-    print("\n--- Disconnecting broker1 (saves state) ---")
-    broker1.disconnect()
-
-    # 5. Create broker2 and connect (loads state from default path)
-    print("\n--- Creating broker2 and Connecting (loads state) ---")
-    # Initialize broker2 with a different initial cash to show loading works
-    # It will use the default state_filepath: "./broker_state.json"
-    broker2 = MockBroker(initial_cash=10000, commission_rate=4.95)
-    print(f"broker2 Initial Cash (before connect): ${broker2.get_balance():,.2f}")
-    broker2.connect() # Connects and loads state from "./broker_state.json"
-
-    # 6. Verify Loaded State in broker2
-    print("\n--- Verifying Loaded State (broker2) ---")
-    print(f"broker2 Loaded Cash: ${broker2.get_balance():,.2f}")
-    print("broker2 Loaded Positions:")
-    loaded_positions_b2 = broker2.get_all_positions()
-    if not loaded_positions_b2:
-        print("  No positions loaded.")
-    for symbol, pos in loaded_positions_b2.items():
-        print(f"  {pos}")
-    broker2.disconnect() # Disconnect broker2 (saves state again, optional here)
-
-    # Clean up the created state files if desired
-    default_state_file = "./broker_state.json"
-    custom_path = "data/custom_broker_state.json" # Keep custom_path definition for cleanup
-    try:
-        if os.path.exists(default_state_file):
-            os.remove(default_state_file)
-            print(f"\nCleaned up default state file: {default_state_file}")
-        if os.path.exists(custom_path):
-            os.remove(custom_path)
-            print(f"Cleaned up custom state file: {custom_path}")
-        custom_dir = os.path.dirname(custom_path)
-        if custom_dir and os.path.exists(custom_dir) and not os.listdir(custom_dir): # Check if dir exists and is empty
-             os.rmdir(custom_dir)
-             print(f"Cleaned up directory: {custom_dir}")
-    except OSError as e:
-        print(f"\nError cleaning up state files/directory: {e}")
-
-    dbg_info("--- Broker Example Finished ---")
