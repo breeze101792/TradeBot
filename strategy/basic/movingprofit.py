@@ -34,7 +34,7 @@ class MovingProfitStrategy(BasicExitStrategy):
         # TODO, under dev
         self.liquidity_check = True
         if self.liquidity_check is True:
-            dbg_info(f'Enable liquidity check. For exp, we shows this message.')
+            # dbg_info(f'Enable liquidity check. For exp, we shows this message.')
             # Volume
             self.LIQUIDITY_VOL_THRESHOLD = 50 * 1000
             self.sma_vol = bt.indicators.SimpleMovingAverage(self.data.volume, period=20)
@@ -121,7 +121,7 @@ class MovingProfitStrategy(BasicExitStrategy):
             elif not pos and self.stra_buy_in(data):
                 if self.liquidity_check is True:
                     if self.sma_vol[0] < self.LIQUIDITY_VOL_THRESHOLD:
-                        dbg_info(f'Small VOL({self.sma_vol[0]}/{self.LIQUIDITY_VOL_THRESHOLD}), skip buying.')
+                        dbg_trace(f'Small VOL({self.sma_vol[0]}/{self.LIQUIDITY_VOL_THRESHOLD}), skip buying.')
                         return
                     # elif self.sma_tov[0] < self.LIQUIDITY_TOV_THRESHOLD:
                     #     dbg_info(f'Small TurnOver({self.sma_tov[0]}/{self.LIQUIDITY_TOV_THRESHOLD}), skip buying.')

@@ -137,14 +137,13 @@ class BaseBroker:
 
         Args:
             symbol (str): The stock symbol (e.g., "2330").
-            action (str): The type of order: 'buy' or 'sell'.
+            action (OrderAction): The type of order: 'buy' or 'sell'.
             size (int): The quantity of shares to trade (must be positive).
             price (float | None, optional): The limit price for the order. If None, it's a market order.
 
         Returns:
-            dict | None:
-                - A dictionary with execution details if the order is filled:
-                  Example: `{'symbol': '2330', 'action': 'buy', 'price': 150.50, 'size': 10, 'commission': 4.95, 'status': 'filled'}`
+            OrderTracker | None:
+                - An OrderTracker object with execution details if the order is filled.
                 - `None` if the order is rejected (e.g., insufficient funds, market closed, limit condition not met).
         """
         raise NotImplementedError

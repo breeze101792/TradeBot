@@ -125,12 +125,13 @@ class MockBroker(BaseBroker):
 
         Args:
             symbol (str): The stock symbol.
-            action (str): 'BUY' or 'SELL'.
+            action (OrderAction): The action to perform (e.g., OrderAction.BUY, OrderAction.SELL).
             size (int): The order quantity (must be positive).
             price (float | None, optional): The limit price. If None, treat as market order. Defaults to None.
 
         Returns:
-            dict: Details of the simulated execution ('filled' status), or None if order rejected.
+            OrderTracker: Details of the simulated execution, or None if the order is rejected
+                          due to market conditions (e.g., market closed, invalid size/action).
         """
         # For the mock function, we return with callback. it help us to test return different kind of event.
         # but in real broker, this event only been sent wtih API response.
