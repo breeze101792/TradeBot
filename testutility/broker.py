@@ -2,14 +2,16 @@
 import os
 import shutil # For cleaning up test directories
 from datetime import datetime,timedelta
-from broker.brokermanager import BrokerManager, Position # Assuming Position is also relevant
-from broker.event import Event
-from broker.ordertracker import OrderTracker
-from utility.debug import dbg_info, dbg_warning, dbg_error, dbg_trace
 import traceback
 import io # New import for capturing stdout
 import contextlib # New import for redirecting stdout
 from unittest.mock import patch, MagicMock # New imports for mocking
+
+from utility.debug import dbg_info, dbg_warning, dbg_error, dbg_trace
+from broker.brokermanager import BrokerManager, Position # Assuming Position is also relevant
+from broker.order.event import Event
+from broker.order.ordertracker import OrderTracker
+from broker.order.constant import OrderStatus, OrderAction
 
 # ANSI color codes
 RED = "\033[91m"
@@ -99,7 +101,7 @@ def test_place_buy_order_sufficient_cash(test_id: str, symbol=DEFAULT_BROKER_TES
         initial_cash = broker_manager.get_balance()
         initial_transactions_count = len(broker_manager.get_transactions())
 
-        broker_manager.place_order(symbol, "buy", qty, price=None) # No longer capture return value
+        broker_manager.place_order(symbol, OrderAction.BUY, qty, price=None) # No longer capture return value
 
         # Verify that a transaction was logged
         transactions = broker_manager.get_transactions()
@@ -108,7 +110,7 @@ def test_place_buy_order_sufficient_cash(test_id: str, symbol=DEFAULT_BROKER_TES
             return False
         
         latest_tx = transactions[-1]
-        if latest_tx['symbol'] != symbol or latest_tx['action'] != 'buy':
+        if latest_tx['symbol'] != symbol or latest_tx['action'] != OrderAction.BUY.value:
             dbg_error(f"Latest transaction is not the expected buy order for {symbol}. Got: {latest_tx}")
             return False
 
@@ -156,7 +158,7 @@ def test_place_buy_order_insufficient_cash(test_id: str, symbol=DEFAULT_BROKER_T
         broker_manager.broker._state_changed = True 
         
         # Place the order - it should fail, and we expect no change in state or new transaction
-        broker_manager.place_order(symbol, "buy", qty, price=None) # No longer capture return value
+        broker_manager.place_order(symbol, OrderAction.BUY, qty, price=None) # No longer capture return value
 
         # Verify cash and positions are unchanged
         if abs(broker_manager.get_balance() - 10.0) > 0.01: # Should still be 10.0
@@ -192,7 +194,7 @@ def test_get_position(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, expected_
     try:
         initial_transactions_count = len(broker_manager.get_transactions())
         # Ensure there's a position to get
-        broker_manager.place_order(symbol, "buy", expected_size, None)
+        broker_manager.place_order(symbol, OrderAction.BUY, expected_size, None)
         
         # Get the latest transaction to verify fill details for the setup order
         transactions = broker_manager.get_transactions()
@@ -200,7 +202,7 @@ def test_get_position(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, expected_
             dbg_error("Setup buy order did not result in a new transaction.")
             return False
         latest_tx = transactions[-1]
-        if latest_tx['symbol'] != symbol or latest_tx['action'] != 'buy':
+        if latest_tx['symbol'] != symbol or latest_tx['action'] != OrderAction.BUY.value:
             dbg_error(f"Latest transaction is not the expected setup buy order for {symbol}. Got: {latest_tx}")
             return False
         
@@ -242,13 +244,13 @@ def test_place_sell_order_sufficient_position(test_id: str, symbol=DEFAULT_BROKE
     try:
         # Ensure there's an initial position to sell from
         initial_buy_qty = DEFAULT_BROKER_TEST_QTY + qty_to_sell # Ensure enough to sell and still have some
-        broker_manager.place_order(symbol, "buy", initial_buy_qty, None) # Setup buy
+        broker_manager.place_order(symbol, OrderAction.BUY, initial_buy_qty, None) # Setup buy
         
         initial_position_size = broker_manager.get_position_by_symbol(symbol).size
         initial_cash = broker_manager.get_balance()
         initial_transactions_count = len(broker_manager.get_transactions())
 
-        broker_manager.place_order(symbol, "sell", qty_to_sell, price=None) # No longer capture return value
+        broker_manager.place_order(symbol, OrderAction.SELL, qty_to_sell, price=None) # No longer capture return value
 
         # Get the latest transaction for sell details
         transactions = broker_manager.get_transactions()
@@ -256,7 +258,7 @@ def test_place_sell_order_sufficient_position(test_id: str, symbol=DEFAULT_BROKE
             dbg_error("Sell order did not result in a new transaction.")
             return False
         latest_tx = transactions[-1]
-        if latest_tx['symbol'] != symbol or latest_tx['action'] != 'sell':
+        if latest_tx['symbol'] != symbol or latest_tx['action'] != OrderAction.SELL.value:
             dbg_error(f"Latest transaction is not the expected sell order for {symbol}. Got: {latest_tx}")
             return False
 
@@ -300,7 +302,7 @@ def test_place_sell_order_insufficient_position(test_id: str, symbol=DEFAULT_BRO
     with patch.object(broker_manager.order_svc, 'event_callback', wraps=broker_manager.event_callback) as mock_event_callback:
         try:
             # Ensure there's a small initial position, but not enough for the sell
-            broker_manager.place_order(symbol, "buy", 5, None) # Buy 5 shares
+            broker_manager.place_order(symbol, OrderAction.BUY, 5, None) # Buy 5 shares
             
             # After the buy, update initial state for comparison
             initial_cash_after_buy = broker_manager.get_balance()
@@ -311,7 +313,7 @@ def test_place_sell_order_insufficient_position(test_id: str, symbol=DEFAULT_BRO
             qty_to_sell_too_many = current_pos_size + 10 # Try to sell more than available
 
             # Place the order that should fail
-            broker_manager.place_order(symbol, "sell", qty_to_sell_too_many, price=None)
+            broker_manager.place_order(symbol, OrderAction.SELL, qty_to_sell_too_many, price=None)
 
             # Verify cash and positions are unchanged from *after the initial buy*
             if abs(broker_manager.get_balance() - initial_cash_after_buy) > 0.01:
@@ -338,11 +340,11 @@ def test_place_sell_order_insufficient_position(test_id: str, symbol=DEFAULT_BRO
                     if not isinstance(order_tracker, OrderTracker):
                         dbg_error(f"OrderFailed event data is not OrderTracker type: {type(order_tracker)}")
                         return False
-                    if order_tracker.symbol != symbol or order_tracker.action != 'sell' or order_tracker.size != qty_to_sell_too_many:
+                    if order_tracker.symbol != symbol or order_tracker.action != OrderAction.SELL or order_tracker.size != qty_to_sell_too_many:
                         dbg_error(f"OrderFailed event details mismatch. Expected {symbol}, sell, {qty_to_sell_too_many}. Got {order_tracker.symbol}, {order_tracker.action}, {order_tracker.size}")
                         return False
-                    if order_tracker.status != 'failed':
-                        dbg_error(f"OrderFailed event status mismatch. Expected 'failed', Got {order_tracker.status}")
+                    if order_tracker.status != OrderStatus.REJECTED:
+                        dbg_error(f"OrderFailed event status mismatch. Expected 'REJECTED', Got {order_tracker.status}")
                         return False
                     dbg_info(f"OrderFailed event correctly captured with reason: {order_tracker.reason}")
                     break
@@ -368,7 +370,7 @@ def test_portfolio_value(test_id: str) -> bool:
     try:
         if not broker_manager.get_all_positions():
             dbg_info("No positions to test portfolio value, placing a buy order.")
-            broker_manager.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", DEFAULT_BROKER_TEST_QTY, None)
+            broker_manager.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, DEFAULT_BROKER_TEST_QTY, None)
         
         pv = broker_manager.get_portfolio_value()
         dbg_info(f"Calculated Portfolio Value: {pv}")
@@ -397,8 +399,8 @@ def test_save_load_state(test_id: str) -> bool: # Changed test_id_for_files to t
     try:
         broker_save.connect() # ADDED
         # Using the same ticker for both orders. This will result in one aggregated position.
-        broker_save.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", 20, None)
-        broker_save.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", 5, None) # Buys more of the same stock
+        broker_save.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, 20, None)
+        broker_save.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, 5, None) # Buys more of the same stock
         cash_before_save = broker_save.get_balance()
         positions_before_save = broker_save.get_all_positions()
         dbg_info(f"State before save - Cash: {cash_before_save}, Positions: {len(positions_before_save)}")
@@ -451,8 +453,8 @@ def test_transaction_logging(test_id: str) -> bool: # Changed test_id_for_files 
     broker.connect()
     tx_log_path = broker.transaction_log_path
     try:
-        broker.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", 10, None)
-        broker.place_order(DEFAULT_BROKER_TEST_TICKER, "sell", 5, None)
+        broker.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, 10, None)
+        broker.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.SELL, 5, None)
         
         transactions = broker.get_transactions()
         if len(transactions) < 2:
@@ -484,7 +486,7 @@ def test_summarize_positions(test_id: str) -> bool:
     broker_manager.connect()
     try:
         if not broker_manager.get_all_positions():
-            broker_manager.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", DEFAULT_BROKER_TEST_QTY, None)
+            broker_manager.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, DEFAULT_BROKER_TEST_QTY, None)
         
         dbg_info("Calling summarize_positions(). Check output manually.")
         broker_manager.summarize_positions()
@@ -503,8 +505,8 @@ def test_summarize_transactions(test_id: str) -> bool:
     broker_manager.connect()
     try:
         if not broker_manager.get_transactions(): # Check if transactions already exist
-             broker_manager.place_order(DEFAULT_BROKER_TEST_TICKER, "buy", 3, None)
-             broker_manager.place_order(DEFAULT_BROKER_TEST_TICKER, "sell", 1, None)
+             broker_manager.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, 3, None)
+             broker_manager.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.SELL, 1, None)
 
         dbg_info("Calling summarize_transactions(). Check output manually.")
         broker_manager.summarize_transactions(duration=None)
@@ -637,7 +639,7 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
                 size=qty,
                 price=fill_price,
                 commission=commission,
-                status='filled',
+                status=OrderStatus.FILLED,
             )
             
             # Manually call the BrokerManager's event_callback.
@@ -651,8 +653,8 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
             return None # Explicitly return None as BrokerManager.place_order does not return anything.
 
         with patch('broker.brokermanager.datetime', wraps=datetime) as mock_dt, \
-             patch.object(broker_manager.broker, 'get_last_price', side_effect=lambda s: mock_market_prices.get(s, 0.0)), \
-             patch.object(broker_manager.broker, 'place_order', side_effect=_mock_broker_place_order_side_effect):
+                patch.object(broker_manager.broker, 'get_last_price', side_effect=lambda s: mock_market_prices.get(s, 0.0)), \
+                patch.object(broker_manager.broker, 'place_order', side_effect=_mock_broker_place_order_side_effect):
             
             # Set a fixed "current" time for the test
             test_current_time = datetime(2024, 5, 20, 10, 0, 0)
@@ -660,19 +662,19 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
 
             # Trade 1: Buy 2330 (60 days ago) - outside 'month' duration
             mock_dt.now.return_value = test_current_time - timedelta(days=60)
-            broker_manager.place_order("2330", "buy", 10, 90.0)
+            broker_manager.place_order("2330", OrderAction.BUY, 10, 90.0)
             
             # Trade 2: Buy 2330 (15 days ago) - inside 'month' duration
             mock_dt.now.return_value = test_current_time - timedelta(days=15)
-            broker_manager.place_order("2330", "buy", 5, 100.0)
+            broker_manager.place_order("2330", OrderAction.BUY, 5, 100.0)
             
             # Trade 3: Sell 2330 (5 days ago) - inside 'month' duration
             mock_dt.now.return_value = test_current_time - timedelta(days=5)
-            broker_manager.place_order("2330", "sell", 7, 120.0)
+            broker_manager.place_order("2330", OrderAction.SELL, 7, 120.0)
             
             # Trade 4: Buy MSFT (2 days ago) - inside 'month' duration
             mock_dt.now.return_value = test_current_time - timedelta(days=2)
-            broker_manager.place_order("MSFT", "buy", 2, 190.0)
+            broker_manager.place_order("MSFT", OrderAction.BUY, 2, 190.0)
 
             # Reset datetime.now() to current for summarize call
             mock_dt.now.return_value = test_current_time
@@ -771,7 +773,7 @@ def test_event_callback(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, qty=DEF
         # Use patch.object to temporarily replace the event_callback method
         with patch.object(broker_manager.order_svc, 'event_callback', new=mock_callback):
             # Place a buy order that should succeed
-            broker_manager.place_order(symbol, "buy", qty, price=None)
+            broker_manager.place_order(symbol, OrderAction.BUY, qty, price=None)
 
             # Assert that the event_callback was called
             mock_callback.assert_called_once()
@@ -794,14 +796,14 @@ def test_event_callback(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, qty=DEF
             if order_tracker.symbol != symbol:
                 dbg_error(f"OrderTracker symbol mismatch. Expected {symbol}, Got {order_tracker.symbol}")
                 return False
-            if order_tracker.action != 'buy':
+            if order_tracker.action != OrderAction.BUY:
                 dbg_error(f"OrderTracker action mismatch. Expected 'buy', Got {order_tracker.action}")
                 return False
             if order_tracker.size != qty:
                 dbg_error(f"OrderTracker size mismatch. Expected {qty}, Got {order_tracker.size}")
                 return False
-            if order_tracker.status != 'filled':
-                dbg_error(f"OrderTracker status mismatch. Expected 'filled', Got {order_tracker.status}")
+            if order_tracker.status != OrderStatus.FILLED:
+                dbg_error(f"OrderTracker status mismatch. Expected 'FILLED', Got {order_tracker.status}")
                 return False
 
         dbg_info(f"Event callback successfully triggered and verified for OrderFilled event.")

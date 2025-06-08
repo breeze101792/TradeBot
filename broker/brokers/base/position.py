@@ -3,6 +3,7 @@ import os
 import datetime as dt
 from datetime import date, time # Import date for tracking open date
 from utility.debug import *
+from broker.order.constant import OrderStatus, OrderAction
 
 class Position:
     """Represents a holding in a specific asset."""
@@ -15,10 +16,10 @@ class Position:
         # Store the date when the position was first opened
         self.open_date = open_date
 
-    def update(self, action: str, size: int, price: float):
+    def update(self, action: OrderAction, size: int, price: float):
         """Updates the position based on a transaction."""
         total_cost_before = self.size * self.average_entry_price
-        if action == 'buy':
+        if action == OrderAction.BUY:
             # Record the price and date of the first buy
             if self.initial_entry_price == 0.0: # Assuming initial price is 0 only before first buy
                 self.initial_entry_price = price
@@ -32,7 +33,7 @@ class Position:
             else:
                 # Should not happen if buying, but handle defensively
                 self.average_entry_price = 0.0
-        elif action == 'sell':
+        elif action == OrderAction.SELL:
             # Average entry price doesn't change on sell, PnL is realized
             self.size -= size
             if self.size < 0:
@@ -43,6 +44,8 @@ class Position:
                 self.average_entry_price = 0.0 # Reset average price when position is closed
                 self.initial_entry_price = 0.0 # Also reset initial entry price when closed
                 self.open_date = None # Reset open date when closed
+        else:
+            dbg_error(f"Unknown Action: {action} for symbol {self.symbol}")
 
     def get_market_value(self, current_price: float) -> float:
         """Calculates the current market value of the position."""

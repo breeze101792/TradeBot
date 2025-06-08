@@ -1,0 +1,17 @@
+from enum import Enum # Import Enum
+
+class OrderAction(Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+
+class OrderStatus(Enum):
+    FILLED = "FILLED"
+    PARTIALLY_FILLED = "PARTIALLY_FILLED"
+    PENDING_SUBMIT = "PENDING_SUBMIT"
+    PENDING_CANCEL = "PENDING_CANCEL"
+    PRE_SUBMITTED = "PRE_SUBMITTED"
+    SUBMITTED = "SUBMITTED"
+    CANCELLED = "CANCELLED"
+    EXPIRED = "EXPIRED"
+    REJECTED = "REJECTED"
+    INACTIVE = "INACTIVE"

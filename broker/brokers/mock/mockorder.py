@@ -4,7 +4,8 @@ from enum import Enum # Import Enum
 from dataclasses import dataclass, field # Import field
 from typing import Any, Optional, Dict # Import Any, Optional, Dict
 
-from broker.event import Event
+from broker.order.event import Event
+from broker.order.constant import OrderStatus, OrderAction
 @dataclass
 class MockOrder:
     """
@@ -13,11 +14,11 @@ class MockOrder:
     event_type: Event
     timestamp: datetime
     symbol: str
-    action: str # 'buy' or 'sell'
+    action: OrderAction # 'buy' or 'sell'
     size: int
     price: float # Execution price for filled, requested price for others
     commission: float # Commission paid for filled orders, 0 for others
-    status: str # A string representation of the order's status (e.g., 'filled', 'failed', 'pending', 'canceled')
+    status: OrderStatus # A string representation of the order's status (e.g., 'filled', 'failed', 'pending', 'canceled')
     reason: Optional[str] = None # Reason for failure or cancellation
 
     def __post_init__(self):
@@ -31,11 +32,11 @@ class MockOrder:
             'event_type': self.event_type.value,
             'timestamp': self.timestamp.isoformat(),
             'symbol': self.symbol,
-            'action': self.action,
+            'action': self.action.value,
             'size': self.size,
             'price': self.price,
             'commission': self.commission,
-            'status': self.status,
+            'status': self.status.value,
             'reason': self.reason,
         }
 
@@ -46,10 +47,10 @@ class MockOrder:
             event_type=Event(data['event_type']),
             timestamp=datetime.fromisoformat(data['timestamp']),
             symbol=data['symbol'],
-            action=data['action'],
+            action=OrderAction(data['action']),
             size=data['size'],
             price=float(data['price']),
             commission=float(data['commission']),
-            status=data['status'],
+            status=OrderStatus(data['status']),
             reason=data.get('reason')
         )

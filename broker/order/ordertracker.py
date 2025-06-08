@@ -4,6 +4,7 @@ from dataclasses import dataclass, field # Import field
 from tabulate import tabulate # Import tabulate locally
 
 from utility.debug import * # Replace standard logging with custom debug system
+from broker.order.constant import OrderStatus, OrderAction
 
 @dataclass
 class OrderTracker:
@@ -13,10 +14,10 @@ class OrderTracker:
     """
     timestamp: datetime
     symbol: str
-    action: str # 'buy' or 'sell'
+    action: OrderAction
     size: int
     price: float # Execution price for filled, requested price for others
-    status: str # A string representation of the order's status (e.g., 'filled', 'failed', 'pending', 'canceled')
+    status: OrderStatus
     reason: Optional[str] = None # Reason for failure or cancellation
     commission: Optional[float] = None # Commission incurred for the order
     
@@ -35,11 +36,11 @@ class OrderTracker:
         return {
             'timestamp': self.timestamp.isoformat(),
             'symbol': self.symbol,
-            'action': self.action,
+            'action': self.action.value,
             'size': self.size,
             'price': self.price,
             'commission': self.commission,
-            'status': self.status,
+            'status': self.status.value,
             'reason': self.reason,
         }
 
@@ -51,14 +52,15 @@ class OrderTracker:
         instance = cls(
             timestamp=datetime.fromisoformat(data['timestamp']),
             symbol=data['symbol'],
-            action=data['action'],
+            action=OrderAction(data['action']),
             size=data['size'],
             price=float(data['price']),
             commission=data.get('commission', 0),
-            status=data['status'],
+            status=OrderStatus(data['status']),
             reason=data.get('reason', None),
             order_instance=data.get('order_instance', None),
         )
+        return instance
 
     def show_order(self, title: str = "Order Tracker Details"):
         headers = [
@@ -68,11 +70,11 @@ class OrderTracker:
         table_data = [[
             self.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
             self.symbol,
-            self.action,
+            self.action.value,
             self.size,
             f"{self.price:,.2f}",
             f"{self.commission:,.2f}" if self.commission is not None else 'N/A',
-            self.status,
+            self.status.value,
             self.reason if self.reason else 'N/A'
         ]]
 

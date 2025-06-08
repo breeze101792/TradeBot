@@ -10,11 +10,12 @@ from utility.debug import *
 
 from market.market import *
 from market.provider.twse import *
-from broker.mock.mockorder import MockOrder
-from broker.base.position import Position
-from broker.base.basebroker import BaseBroker
-from broker.ordertracker import OrderTracker
-from broker.event import Event
+from broker.brokers.mock.mockorder import MockOrder
+from broker.brokers.base.position import Position
+from broker.brokers.base.basebroker import BaseBroker
+from broker.order.ordertracker import OrderTracker
+from broker.order.constant import OrderStatus, OrderAction
+from broker.order.event import Event
 
 class MockBroker(BaseBroker):
     """
@@ -75,14 +76,15 @@ class MockBroker(BaseBroker):
         """
         Creates an OrderTracker instance from a MockOrder object.
         """
+        # MockOrder's action and status are already Enum types
         tracker = OrderTracker(
             timestamp=order.timestamp,
             symbol=order.symbol,
-            action=order.action,
+            action=order.action, # Use the enum directly
             size=order.size,
             price=order.price,
             commission=order.commission,
-            status=order.status,
+            status=order.status, # Use the enum directly
             reason=order.reason
         )
         tracker.order_instance = order # Link the original order instance
@@ -98,19 +100,20 @@ class MockBroker(BaseBroker):
         # In a mock, the order_tracker's order_instance already holds the final state.
         # We explicitly copy the fields to the tracker itself to fulfill the "update" concept.
         if order_tracker.order_instance:
+            # MockOrder's action and status are already Enum types
             order_tracker.timestamp = order_tracker.order_instance.timestamp
             order_tracker.symbol = order_tracker.order_instance.symbol
-            order_tracker.action = order_tracker.order_instance.action
+            order_tracker.action = order_tracker.order_instance.action # Use the enum directly
             order_tracker.size = order_tracker.order_instance.size
             order_tracker.price = order_tracker.order_instance.price
             order_tracker.commission = order_tracker.order_instance.commission
-            order_tracker.status = order_tracker.order_instance.status
+            order_tracker.status = order_tracker.order_instance.status # Use the enum directly
             order_tracker.reason = order_tracker.order_instance.reason
-            dbg_debug(f"OrderTracker updated for {order_tracker.symbol} to status: {order_tracker.status}")
+            dbg_debug(f"OrderTracker updated for {order_tracker.symbol} to status: {order_tracker.status.value}")
         else:
             dbg_warning("Cannot update OrderTracker: order_instance is missing.")
 
-    def place_order(self, symbol: str, action: str, size: int, price: float | None = None) -> dict | None:
+    def place_order(self, symbol: str, action: OrderAction, size: int, price: float | None = None) -> dict | None:
         """
         Simulates placing and immediately filling an order.
         If price is None, it's a market order filled at the current market price.
@@ -142,7 +145,7 @@ class MockBroker(BaseBroker):
             dbg_error(f"Order rejected for {symbol}: {reason}")
             return None
 
-        if action not in ['buy', 'sell']:
+        if action not in [OrderAction.BUY, OrderAction.SELL]:
             reason = f"Invalid action '{action}'. Must be 'buy' or 'sell'."
             dbg_error(f"Order rejected for {symbol}: {reason}")
             return None
@@ -156,11 +159,11 @@ class MockBroker(BaseBroker):
 
         # Check limit price condition if specified
         if price is not None:
-            if action == 'buy' and market_price > price:
+            if action == OrderAction.BUY and market_price > price:
                 reason = f"Market price ({market_price:.2f}) > Limit price ({price:.2f})"
                 dbg_warning(f"Buy order for {symbol} rejected: {reason}")
                 return None
-            elif action == 'sell' and market_price < price:
+            elif action == OrderAction.SELL and market_price < price:
                 reason = f"Market price ({market_price:.2f}) < Limit price ({price:.2f})"
                 dbg_warning(f"Sell order for {symbol} rejected: {reason}")
                 return None
@@ -173,9 +176,9 @@ class MockBroker(BaseBroker):
         cost = market_price * size # Cost/Proceeds based on actual market price
         commission = self.commission_rate * cost
 
-        dbg_debug(f"Attempting {action} order: {symbol}, Size: {size}, Execution Price: {market_price:.2f}, Cost/Proceeds: {cost:.2f}, Commission: {commission:.2f}")
+        dbg_debug(f"Attempting {action.value} order: {symbol}, Size: {size}, Execution Price: {market_price:.2f}, Cost/Proceeds: {cost:.2f}, Commission: {commission:.2f}")
 
-        if action == 'buy':
+        if action == OrderAction.BUY:
             required_cash = cost + commission
             if self.cash < required_cash:
                 dbg_warning(f"Order rejected for {symbol}: Insufficient cash. Required: ${required_cash:.2f}, Available: ${self.cash:.2f}")
@@ -184,11 +187,11 @@ class MockBroker(BaseBroker):
                     event_type=Event.OrderFailed,
                     timestamp=datetime.now(),
                     symbol=symbol,
-                    action=action,
+                    action=action, # Pass the enum directly
                     size=size,
                     price=market_price, # Actual execution price
                     commission=commission,
-                    status='failed', # Always filled in this mock
+                    status=OrderStatus.REJECTED, # Use the enum directly
                     reason=f"Insufficient cash. Required: ${required_cash:.2f}, Available: ${self.cash:.2f}"
                 )
                 order_tracker = self._create_order_tracker(order_instance)
@@ -207,7 +210,7 @@ class MockBroker(BaseBroker):
             self._save_state() # Save state using the configured filepath
             dbg_info(f"Executed BUY: {symbol}, Size: {size}, Price: {market_price:.2f}. New Position: {self.positions[symbol]}")
 
-        elif action == 'sell':
+        elif action == OrderAction.SELL:
             current_position = self.get_position_by_symbol(symbol)
             if current_position.size < size:
                 dbg_warning(f"Order rejected for {symbol}: Insufficient position to sell. Required: {size}, Available: {current_position.size}")
@@ -216,11 +219,11 @@ class MockBroker(BaseBroker):
                     event_type=Event.OrderFailed,
                     timestamp=datetime.now(),
                     symbol=symbol,
-                    action=action,
+                    action=action, # Pass the enum directly
                     size=size,
                     price=market_price, # Actual execution price
                     commission=commission,
-                    status='failed', # Always filled in this mock
+                    status=OrderStatus.REJECTED, # Use the enum directly
                     reason="Insufficient position to sell."
                 )
                 order_tracker = self._create_order_tracker(order_instance)
@@ -248,11 +251,11 @@ class MockBroker(BaseBroker):
             event_type=Event.OrderFilled,
             timestamp=datetime.now(),
             symbol=symbol,
-            action=action,
+            action=action, # Pass the enum directly
             size=size,
             price=market_price, # Actual execution price
             commission=commission,
-            status='filled', # Always filled in this mock
+            status=OrderStatus.FILLED, # Use the enum directly
             reason=None,
         )
         order_tracker = self._create_order_tracker(order_instance)

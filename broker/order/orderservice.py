@@ -1,10 +1,12 @@
 import threading
 from queue import Queue
-from utility.debug import * # Replace standard logging with custom debug system
-from broker.ordertracker import OrderTracker
-from broker.event import Event, default_event_callback
 from typing import Callable
 import time
+
+from utility.debug import * # Replace standard logging with custom debug system
+from broker.order.ordertracker import OrderTracker # Import OrderStatus
+from broker.order.constant import OrderStatus, OrderAction
+from broker.order.event import Event, default_event_callback
 
 class OrderService(threading.Thread):
     def __init__(self, broker_ins, event_callback: Callable[[Event, ...], None] = None): # Removed unused order_queue
@@ -22,15 +24,15 @@ class OrderService(threading.Thread):
         # Add the OrderTracker object to the list of active orders for tracking.
         # check before we added it.
         status = order_tracker.status
-        if status in ("filled"):
-            dbg_trace(f"OrderService: Order {order_tracker} status changed to {status}, call back now.")
+        if status == OrderStatus.FILLED:
+            dbg_trace(f"OrderService: Order {order_tracker} status changed to {status.value}, call back now.")
             self.event_callback(Event.OrderFilled, order_tracker)
-        elif status in ("cancelled", "rejected", "failed"):
-            dbg_trace(f"OrderService: Order {order_tracker} status changed to {status}, call back now.")
+        elif status in (OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED, OrderStatus.INACTIVE): # Added EXPIRED and INACTIVE as failure states
+            dbg_trace(f"OrderService: Order {order_tracker} status changed to {status.value}, call back now.")
             self.event_callback(Event.OrderFailed, order_tracker)
         else:
             self.active_orders.append(order_tracker)
-            dbg_debug(f"OrderService: Added order tracker for order ID {order_tracker.symbol} to active tracking. Status: {status}")
+            dbg_debug(f"OrderService: Added order tracker for order ID {order_tracker.symbol} to active tracking. Status: {status.value}")
 
     def run(self):
         dbg_info('start running order service.')
@@ -40,14 +42,14 @@ class OrderService(threading.Thread):
             for order_tracker in self.active_orders:
                 try:
                     self.broker_ins.update_order_status(order_tracker)
-                    dbg_debug(f"Order {order_tracker} status: {status}")
                     status = order_tracker.status
+                    dbg_debug(f"Order {order_tracker} status: {status.value}")
 
-                    if status in ("filled"):
-                        dbg_info(f"OrderService: Order {order_tracker} status changed to {status}, removed from tracking.")
+                    if status == OrderStatus.FILLED:
+                        dbg_info(f"OrderService: Order {order_tracker} status changed to {status.value}, removed from tracking.")
                         self.event_callback(Event.OrderFilled, order_tracker)
-                    elif status in ("cancelled", "rejected"):
-                        dbg_info(f"OrderService: Order {order_tracker} status changed to {status}, removed from tracking.")
+                    elif status in (OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED, OrderStatus.INACTIVE): # Added EXPIRED and INACTIVE as failure states
+                        dbg_info(f"OrderService: Order {order_tracker} status changed to {status.value}, removed from tracking.")
                         self.event_callback(Event.OrderFailed, order_tracker)
                     else:
                         new_active_orders.append(order_tracker) # Keep tracking

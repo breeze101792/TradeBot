@@ -7,7 +7,8 @@ from utility.debug import *
 
 from market.market import *
 from market.provider.twse import *
-from broker.base.position import Position
+from broker.brokers.base.position import Position
+from broker.order.ordertracker import OrderTracker, OrderAction
 
 class BaseBroker:
     """
@@ -112,7 +113,17 @@ class BaseBroker:
         """
         raise NotImplementedError
 
-    def place_order(self, symbol: str, action: str, size: int, price: float | None = None) -> dict | None:
+    def update_order_status(self, order_tracker: OrderTracker):
+        """
+        Abstract method to update the status of a given order tracker.
+        Concrete implementations should query their internal order system or API
+        to fetch the latest status and details for the order associated with the tracker.
+
+        Args:
+            order_tracker (OrderTracker): The order tracker instance to be updated.
+        """
+        raise NotImplementedError
+    def place_order(self, symbol: str, action: OrderAction, size: int, price: float | None = None) -> OrderTracker | None:
         """
         Abstract method to simulate placing and immediately filling an order.
         This method should handle order validation (e.g., sufficient cash/position, valid size/action),

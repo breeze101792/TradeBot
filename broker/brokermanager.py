@@ -11,10 +11,12 @@ from utility.debug import * # Replace standard logging with custom debug system
 from core.config import AppConfigManager
 
 # Assuming MockBroker is the primary implementation for now
-from broker.mock.mockbroker import MockBroker, Position
-from broker.event import Event
-from broker.orderservice import OrderService
-from broker.ordertracker import OrderTracker
+from broker.brokers.mock.mockbroker import MockBroker, Position
+
+from broker.order.event import Event
+from broker.order.orderservice import OrderService
+from broker.order.ordertracker import OrderTracker
+from broker.order.constant import OrderStatus, OrderAction
 
 class BrokerManager:
     """
@@ -90,7 +92,7 @@ class BrokerManager:
             # Log the transaction using data from the OrderTracker
             self._log_transaction(
                 symbol=order_tracker.symbol,
-                action=order_tracker.action,
+                action=order_tracker.action.value, # Use the string value of the enum
                 size=order_tracker.size,
                 price=order_tracker.price,
                 commission=order_tracker.commission,
@@ -121,13 +123,13 @@ class BrokerManager:
         else:
             dbg_info(f"Unhandled event received: {event}")
 
-    def place_order(self, symbol: str, action: str, size: int, price: Optional[float] = None) -> Optional[Dict[str, Any]]:
+    def place_order(self, symbol: str, action: OrderAction, size: int, price: Optional[float] = None) -> Optional[Dict[str, Any]]:
         """
         Places an order through the managed broker.
 
         Args:
             symbol (str): The stock symbol.
-            action (str): 'buy' or 'sell'.
+            action (str): 'BUY' or 'SELL'.
             size (int): The order quantity (must be positive).
             price (Optional[float]): The limit price. If None, the order is treated as a market order.
                                      For a buy order, it executes only if the market price is less than or equal to the limit price.
@@ -366,7 +368,7 @@ class BrokerManager:
         
         Args:
             symbol: Trading symbol
-            action: 'buy' or 'sell'
+            action: 'BUY' or 'SELL'
             size: Number of shares
             price: Execution price per share
             commission: Commission paid
@@ -525,11 +527,12 @@ class BrokerManager:
                 commission = t_data['commission']
                 
                 current_pos_state = initial_positions_at_cutoff[symbol]
-                if action == 'buy' or action == 'initial':
+                # TODO, remove initial after check no one use it.
+                if action == OrderAction.BUY.value or action == 'initial' or action == 'INITIAL':
                     cost_of_this_buy = (price * size) + commission
                     current_pos_state['total_cost_basis'] += cost_of_this_buy
                     current_pos_state['size'] += size
-                elif action == 'sell':
+                elif action == OrderAction.SELL.value:
                     if current_pos_state['size'] > 0:
                         avg_cost_per_share = current_pos_state['total_cost_basis'] / current_pos_state['size']
                         cost_basis_of_sold_shares = avg_cost_per_share * min(size, current_pos_state['size'])
@@ -601,7 +604,7 @@ class BrokerManager:
             details = symbol_period_details[symbol]
             current_pnl_state = pnl_tracking_state[symbol]
 
-            if action == 'buy' or action == 'initial': # 'initial' should ideally not be in period transactions
+            if action == OrderAction.BUY.value or action == 'initial': # 'initial' should ideally not be in period transactions
                 details['period_buy_volume'] += size
                 details['period_buy_value'] += price * size
                 details['period_buy_commissions'] += commission
@@ -610,7 +613,7 @@ class BrokerManager:
                 current_pnl_state['current_total_cost_basis'] += cost_of_this_buy
                 current_pnl_state['current_size'] += size
             
-            elif action == 'sell':
+            elif action == OrderAction.SELL.value:
                 details['period_sell_volume'] += size
                 details['period_sell_value'] += price * size
                 details['period_sell_commissions'] += commission
@@ -671,8 +674,8 @@ class BrokerManager:
         per_symbol_table_data.sort(key=lambda x: x[7], reverse=True)
 
         # Overall Summary Table
-        total_period_buy_orders = sum(1 for t in processed_period_transactions if t['action'] == 'buy' or t['action'] == 'initial')
-        total_period_sell_orders = sum(1 for t in processed_period_transactions if t['action'] == 'sell')
+        total_period_buy_orders = sum(1 for t in processed_period_transactions if t['action'] == OrderAction.BUY.value or t['action'] == 'initial')
+        total_period_sell_orders = sum(1 for t in processed_period_transactions if t['action'] == OrderAction.SELL.value)
         grand_total_period_commission = sum(t['commission'] for t in processed_period_transactions)
 
         summary_data = [
