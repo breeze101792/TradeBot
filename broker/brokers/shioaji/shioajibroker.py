@@ -1,7 +1,7 @@
 
 import traceback
 import datetime as dt
-from datetime import date, time # Import date for tracking open date
+from datetime import date, time, datetime # Import date and datetime for tracking open date and order events
 from dotenv import load_dotenv
 import os
 # from queue import Queue
@@ -11,33 +11,15 @@ import shioaji as sj
 from tabulate import tabulate
 
 from utility.debug import *
+from utility.utils import format_bytes
 from core.config import AppConfigManager
 
 from broker.brokers.base.basebroker import BaseBroker
 from broker.brokers.base.position import Position
-
-def format_bytes(size):
-    """Converts bytes to a human-readable format (KB, MB, GB, etc.), handling negative values."""
-    if size is None:
-        return "N/A"
-    if size == 0:
-        return "0 B" # Handle zero case explicitly
-
-    sign = "-" if size < 0 else ""
-    size = abs(size)
-
-    # Define the units and their corresponding byte values
-    power = 2**10 # 1024
-    n = 0
-    power_labels = {0 : 'B', 1: 'KB', 2: 'MB', 3: 'GB', 4: 'TB'} # Start label with 'B'
-
-    # Find the appropriate unit
-    while size >= power and n < len(power_labels) - 1:
-        size /= power
-        n += 1
-
-    # Format the output, adding the sign back if needed
-    return f"{sign}{size:.2f} {power_labels[n]}"
+from broker.order.ordertracker import OrderTracker
+from broker.order.constant import OrderStatus, OrderAction
+from broker.order.event import Event
+from broker.order.checker import OrderChecker
 
 class ShioajiBroker(BaseBroker):
     """
@@ -66,6 +48,12 @@ class ShioajiBroker(BaseBroker):
         # if lot_trading is false, allow trading under 1 lot(meaning trading with value under 1000)
         self._is_lot_trade = False
         # get_last_price/place_order is depends on this flag.
+
+        # cash manager.
+        cfgmgr = AppConfigManager()
+        self.cash_limit_per_trade = cfgmgr.get('stock.cash_max_per_trade') * 1.1
+        self.daily_cash_limit = cfgmgr.get('stock.cash_max_per_trade') * 5
+        self.daily_cash_amount = 0
 
         ## class variable.
         self.shioaji_api = None
@@ -170,6 +158,9 @@ class ShioajiBroker(BaseBroker):
         if not self.is_connected():
             dbg_warning("Accound not connected.")
             return False
+        if self.simulation is True:
+            dbg_info(f"Simulation mode, faking account balance.")
+            return 10000
 
         balance = 0.0
         try:
@@ -333,21 +324,123 @@ class ShioajiBroker(BaseBroker):
         dbg_debug(f"Total portfolio value: {total_value:.2f}")
         return total_value
 
+    def _map_shioaji_action_to_orderaction(self, sj_action: sj.constant.Action) -> OrderAction:
+        if sj_action == sj.constant.Action.Buy:
+            return OrderAction.BUY
+        elif sj_action == sj.constant.Action.Sell:
+            return OrderAction.SELL
+        return OrderAction.UNKNOWN # Or raise an error
+
+    def _map_shioaji_status_to_orderstatus(self, sj_status: sj.constant.Status) -> OrderStatus:
+        if sj_status == sj.constant.Status.Filled:
+            return OrderStatus.FILLED
+        elif sj_status == sj.constant.Status.PartFilled:
+            return OrderStatus.PARTIALLY_FILLED
+        elif sj_status == sj.constant.Status.Cancelled:
+            return OrderStatus.CANCELLED
+        elif sj_status == sj.constant.Status.PendingSubmit:
+            return OrderStatus.PENDING_SUBMIT
+        elif sj_status == sj.constant.Status.PreSubmitted:
+            return OrderStatus.PRE_SUBMITTED
+        elif sj_status == sj.constant.Status.Submitted:
+            return OrderStatus.SUBMITTED
+        elif sj_status == sj.constant.Status.Failed:
+            return OrderStatus.REJECTED # Map Shioaji's Failed to REJECTED
+        elif sj_status == sj.constant.Status.Expired:
+            return OrderStatus.EXPIRED
+        elif sj_status == sj.constant.Status.Rejected:
+            return OrderStatus.REJECTED
+        elif sj_status == sj.constant.Status.Inactive:
+            return OrderStatus.INACTIVE
+        return OrderStatus.UNKNOWN # Or raise an error
+
+    def _create_order_tracker(self, trade: sj.order.Trade, event_type: Event, reason: str | None = None) -> OrderTracker:
+        """
+        Creates an OrderTracker instance from a Shioaji Trade object, linking the original trade.
+        Initializes with basic info; full details are populated by update_order_status.
+        """
+        if not trade:
+            dbg_error("Attempted to create OrderTracker from a None Shioaji Trade object.")
+            return OrderTracker(
+                timestamp=datetime.now(),
+                symbol="UNKNOWN",
+                action=OrderAction.UNKNOWN,
+                size=0,
+                price=0.0,
+                commission=0.0,
+                status=OrderStatus.FAILED,
+                reason=reason if reason else "No Shioaji Trade object provided.",
+                event_type=event_type
+            )
+
+        # Initial status based on the trade object's current status
+        initial_status = self._map_shioaji_status_to_orderstatus(trade.status.status)
+
+        tracker = OrderTracker(
+            timestamp=trade.status.order_datetime if trade.status.order_datetime else datetime.now(),
+            symbol=trade.contract.code,
+            action=self._map_shioaji_action_to_orderaction(trade.order.action),
+            size=trade.order.quantity, # Initial order quantity
+            price=trade.order.price,   # Initial order price (limit price)
+            commission=0.0,            # Commission calculated in update_order_status
+            status=initial_status,
+            reason=f"Tracker Created, status code: {trade.status.status_code}"
+        )
+        tracker.order_instance = trade # Link the original Shioaji Trade object
+        return tracker
+
+    def update_order_status(self, order_tracker: OrderTracker):
+        """
+        Updates the OrderTracker with the latest information from its internal Shioaji Trade instance.
+        """
+        trade = order_tracker.order_instance
+        if not trade or not isinstance(trade, sj.order.Trade):
+            dbg_warning("Cannot update OrderTracker: order_instance is missing or not a Shioaji Trade object.")
+            return
+
+        self.shioaji_api.update_status(trade=trade)
+        # api.update_status(api.stock_account)
+        # list trade and check?
+        # api.list_trades()
+
+        # Determine the executed price. If filled, use deal_price, otherwise order price.
+        executed_price = trade.deal_price if trade.status.status == sj.constant.Status.Filled and trade.deal_price else trade.order.price
+        executed_size = trade.deal_quantity if trade.status.status == sj.constant.Status.Filled and trade.deal_quantity else trade.order.quantity
+
+        # Recalculate commission based on updated executed price and size
+        # commission_rate = 0.001425 # 0.1425%
+        # calculated_commission = executed_price * executed_size * commission_rate
+        # commission = max(calculated_commission, 0.0) # Ensure non-negative
+        # We didn't get commission on this broker.
+        commission = 0
+
+        order_tracker.timestamp = trade.status.order_datetime if trade.status.order_datetime else datetime.now()
+        order_tracker.symbol = trade.contract.code
+        order_tracker.action = self._map_shioaji_action_to_orderaction(trade.order.action)
+        order_tracker.size = executed_size
+        order_tracker.price = executed_price
+        order_tracker.commission = commission
+        order_tracker.status = self._map_shioaji_status_to_orderstatus(trade.status.status)
+        order_tracker.reason = f"Status code: {trade.status.status_code}"
+        dbg_debug(f"OrderTracker updated for {order_tracker.symbol} to status: {order_tracker.status.value}")
+
     def __get_last_price_odd(self, symbol: str) -> float:
         timeout=3
         tick_queue = queue.Queue()
         last_price = 0.0
 
         if not self.is_connected():
-            dbg_warning("Account not connected. Cannot fetch positions for portfolio value.")
-            return total_value # Return cash balance if not connected
+            dbg_warning("Account not connected. Cannot fetch last price.")
+            return 0.0 # Return 0.0 if not connected
 
-        def quote_callback_quote(exchange: sj.Exchange, tick:sj.TickSTKv1):
-            print(f"Exchange: {exchange}, Quote: {quote}")
-            if quote.code == symbol:
-                tick_queue.put(quote)
+        def quote_callback_quote(exchange: sj.Exchange, tick:sj.TickSTKv1): # Changed 'quote' to 'tick'
+            # print(f"Exchange: {exchange}, Quote: {quote}")
+            if tick.code == symbol: # Changed 'quote.code' to 'tick.code'
+                tick_queue.put(tick) # Changed 'quote' to 'tick'
 
+        contract = None # Initialize contract outside try block for finally
         try:
+            # FIXME, use quene to manger all request.
             # self.shioaji_api.set_quote_callback(tick_cb)
             self.shioaji_api.quote.set_on_quote_stk_v1_callback(quote_callback_quote)
 
@@ -356,6 +449,9 @@ class ShioajiBroker(BaseBroker):
 
             # Find the stock contract (common for full and odd lots)
             contract = self.shioaji_api.Contracts.Stocks[symbol]
+            if not contract:
+                dbg_warning(f"Contract for symbol {symbol} not found for price fetching.")
+                return 0.0
 
             # Subscribe to odd lot quotes
             self.shioaji_api.quote.subscribe(
@@ -376,33 +472,42 @@ class ShioajiBroker(BaseBroker):
             # }
             last_price = float(msg.close)
         except queue.Empty:
-            dbg_debug(f'[{symbol}] tick get empty.')
+            dbg_debug(f'[{symbol}] tick get empty. No price received within timeout.')
             last_price = 0.0
         except Exception as e:
-            dbg_warning(e)
-        
+            dbg_warning(f"Error fetching odd lot price for {symbol}: {e}")
             traceback_output = traceback.format_exc()
             dbg_warning(traceback_output)
+            last_price = 0.0 # Ensure last_price is set to 0.0 on error
         finally:
             # Automatically unsubscribe after completion
-            self.shioaji_api.quote.unsubscribe(
-                contract=contract,
-                quote_type=sj.constant.QuoteType.Tick,
-                intraday_odd=True
-            )
+            if contract: # Only unsubscribe if contract was successfully found
+                self.shioaji_api.quote.unsubscribe(
+                    contract=contract,
+                    quote_type=sj.constant.QuoteType.Tick,
+                    intraday_odd=True
+                )
         return last_price
 
-    def __place_order_odd(self, symbol: str, action: str, size: int, price: float | None = None) -> dict | None:
+    def __place_order_odd(self, symbol: str, action: OrderAction, size: int, price: float | None = None) -> OrderTracker | None:
         """
         Places an odd lot order (buy or sell) for a given stock symbol.
         Assumes immediate filling for the purpose of this base broker.
         """
-        if not self.is_connected():
-            dbg_warning("Account not connected. Cannot place odd lot order.")
+        # Determine OrderAction enum
+        if action not in [OrderAction.SELL, OrderAction.BUY]:
+            reason = f"Invalid odd lot action: {action}. Must be BUY/SELL."
+            dbg_warning(reason)
             return None
 
         if size <= 0:
-            dbg_error(f"Invalid odd lot order size: {size}. Must be positive.")
+            reason = f"Invalid odd lot order size: {size}. Must be positive."
+            dbg_error(reason)
+            return None
+
+        if not self.is_connected():
+            reason = "Account not connected. Cannot place odd lot order."
+            dbg_warning(reason)
             return None
 
         try:
@@ -410,88 +515,87 @@ class ShioajiBroker(BaseBroker):
 
             contract = self.shioaji_api.Contracts.Stocks[symbol]
             if not contract:
-                dbg_error(f"Contract for symbol {symbol} not found.")
+                reason = f"Contract for symbol {symbol} not found."
+                dbg_error(reason)
                 return None
 
             # Determine Shioaji Action type
             sj_action = None
-            if action.lower() == 'buy':
+            if action == OrderAction.BUY:
                 sj_action = sj.constant.Action.Buy
-            elif action.lower() == 'sell':
+            elif action == OrderAction.SELL:
                 sj_action = sj.constant.Action.Sell
             else:
-                dbg_error(f"Invalid action: {action}. Must be 'buy' or 'sell'.")
+                reason = f"Invalid action: {action}. Must be 'buy' or 'sell'."
+                dbg_error(reason)
                 return None
 
-            # Determine Shioaji PriceType
-            # sj_price_type = sj.constant.StockPriceType.LMT
             if price is None:
-                price = self.get_last_price(symbol)
+                # For market orders, get the last price to set as limit price for Shioaji
+                current_market_price = self.get_last_price(symbol)
+                if current_market_price <= 0:
+                    reason = f"Could not get a valid market price for {symbol} to place order."
+                    dbg_error(reason)
+                    return None
+                price = current_market_price
+
+            # Sanity check
+            ########################################################################
+            # first sanity check
+            if self.order_checker(action=action, price=price, size=size) is False:
+                dbg_error(f"Check failed: {action.value} order: {symbol}, Size: {size}, Execution Price: {price:.2f}")
+                return None
+
+            # second sanity check
+            if OrderChecker.check(action=action, price=price, size=size) is False:
+                dbg_error(f"Check failed: {action.value} order: {symbol}, Size: {size}, Execution Price: {price:.2f}")
+                return None
+            ########################################################################
 
             # Create an OddLotOrder
             order = self.shioaji_api.Order(
                 price=price,
                 quantity=size,
                 action=sj_action,
-                price_type=sj.constant.StockPriceType.LMT,
+                price_type=sj.constant.StockPriceType.LMT, # Always use LMT for odd lots with a price
                 order_type=sj.constant.OrderType.ROD,
                 order_lot=sj.constant.StockOrderLot.IntradayOdd, 
                 account=self.shioaji_api.stock_account,
             )
-            # dbg_debug(f"Placing odd lot order: Symbol={symbol}, Action={action}, Size={size}, Price={price}")
 
             # Place the order
             trade = self.shioaji_api.place_order(contract, order)
-            # print(f"trade({type(trade)}): {trade}")
             self.__show_trade([trade]) # Pass as a list
 
-            # Status code:
-            # status (:obj:Status): {
-            #     Cancelled: 已刪除, 
-            #     Filled: 完全成交, 
-            #     PartFilled: 部分成交, 
-            #     Failed: 失敗, 
-            #     PendingSubmit: 傳送中, 
-            #     PreSubmitted: 預約單, 
-            #     Submitted: 傳送成功
-            # }
-            # For the purpose of this base broker, we assume immediate fill if the API accepts the order.
-            # In a real-time scenario, you would monitor trade.status for 'Filled'.
-            if trade and trade.status.status == 'Filled':
-                filled_price = trade.deal_price
-                filled_size = trade.deal_quantity
-                dbg_info(f"Odd lot order filled: Symbol={symbol}, Action={action}, Filled Price={filled_price}, Filled Size={filled_size}")
+            # update daily cash usage.
+            if action == OrderAction.BUY:
+                self.daily_cash_amount + size * price
 
-                # Placeholder for commission calculation.
-                # Actual commission rules (e.g., minimums, taxes) vary and might be different for odd lots.
-                commission_rate = 0.001425 # 0.1425%
-                calculated_commission = filled_price * filled_size * commission_rate
-                # A common minimum commission for full lots is 20 TWD, but often waived for odd lots or very small trades.
-                # For simplicity, we'll use the calculated value, or a small default if it's zero.
-                commission = max(calculated_commission, 0.0) # Ensure non-negative
-
-                # FIXME, Remove return, since not one know if this ok or not in this monent.
-                # Maybe we use callback for it.
-                return {
-                    'symbol': symbol,
-                    'action': action,
-                    'price': filled_price,
-                    'size': filled_size,
-                    'commission': commission,
-                    'status': 'filled'
-                }
+            if trade and trade.status.status == sj.constant.Status.Filled:
+                dbg_info(f"Odd lot order filled: Symbol={symbol}, Action={action}, Filled Price={trade.deal_price}, Filled Size={trade.deal_quantity}")
+                order_tracker = self._create_order_tracker(trade, Event.OrderFilled)
+                self.update_order_status(order_tracker) # Call update_order_status to populate full details
+                return order_tracker
             else:
-                dbg_warning(f"Odd lot order failed or not filled: Symbol={symbol}, Action={action}, Status={trade.status.status if trade else 'No Trade Object'}")
-                return None
+                if trade:
+                    order_tracker = self._create_order_tracker(trade, Event.OrderFailed)
+                    self.update_order_status(order_tracker) # Populate details for failed trade
+                    return order_tracker
+                else:
+                    # Fallback if trade object itself is None (e.g., API call failed before returning trade)
+                    reason = f"Odd lot order failed or not filled: Symbol={symbol}, Action={action}, Status={trade.status.status.value if trade else 'No Trade Object'}"
+                    dbg_warning(reason)
+                    return None
 
         except Exception as e:
-            dbg_error(f"Error placing odd lot order for {symbol}: {e}")
+            reason = f"Error placing odd lot order for {symbol}: {e}"
+            dbg_error(reason)
             traceback_output = traceback.format_exc()
             dbg_error(traceback_output)
             return None
     def __get_last_price_lot(self, symbol: str) -> float:
         raise NotImplementedError
-    def __place_order_lot(self, symbol: str, action: str, size: int, price: float | None = None) -> dict | None:
+    def __place_order_lot(self, symbol: str, action: OrderAction, size: int, price: float | None = None) -> OrderTracker | None:
         raise NotImplementedError
     def get_last_price(self, symbol: str) -> float:
         """
@@ -510,7 +614,42 @@ class ShioajiBroker(BaseBroker):
         else:
             return self.__get_last_price_odd(symbol)
 
-    def place_order(self, symbol: str, action: str, size: int, price: float | None = None) -> dict | None:
+    def order_checker(self, action, price, size) -> bool:
+        """
+        Abstract method to perform validation checks on order parameters (action, price, size).
+        This method ensures that the provided order details are valid before attempting
+        to place or process an order, preventing miscalculations or invalid trades.
+
+        Args:
+            action (OrderAction): The type of order (e.g., 'buy', 'sell').
+            price (float): The price at which the order is intended to be executed.
+            size (int): The quantity of shares for the order.
+
+        Returns:
+            bool: True if the order parameters pass the validation checks, False otherwise.
+        """
+        # update daily_cash_limit
+        current_balance = self.get_balance()
+        if current_balance < self.daily_cash_limit:
+            dbg_warning('Account banalce({current_balance}) warning, it is lower then daily_cash_limit({self.daily_cash_limit}).')
+            daily_limit = current_balance
+        else:
+            daily_limit = self.daily_cash_limit
+        if action == OrderAction.BUY and self.daily_cash_amount + size * price > daily_limit:
+            reason = f"order reject by daily cash checker, size: {size}, price:{price}, current: {self.daily_cash_amount},limit: {daily_limit}"
+            dbg_error(reason)
+            return False
+
+        if action == OrderAction.BUY and price * size > self.cash_limit_per_trade:
+            reason = f"order reject by size checker, size: {size}, price:{price}, current: {size * price},limit: {self.cash_limit_per_trade}"
+            dbg_error(reason)
+            return False
+
+        # current we don't have check on this.
+        # if action == OrderAction.SELL:
+        #     pass
+        return True
+    def place_order(self, symbol: str, action: OrderAction, size: int, price: float | None = None) -> OrderTracker | None:
         """
         Abstract method to simulate placing and immediately filling an order.
         This method should handle order validation (e.g., sufficient cash/position, valid size/action),
@@ -529,10 +668,9 @@ class ShioajiBroker(BaseBroker):
             price (float | None, optional): The limit price for the order. If None, it's a market order.
 
         Returns:
-            dict | None:
-                - A dictionary with execution details if the order is filled:
-                  Example: `{'symbol': '2330', 'action': 'buy', 'price': 150.50, 'size': 10, 'commission': 4.95, 'status': 'filled'}`
-                - `None` if the order is rejected (e.g., insufficient funds, market closed, limit condition not met).
+            OrderTracker | None:
+                - An OrderTracker object with execution details if the order is filled or rejected.
+                - `None` if a critical error prevents even creating a rejected tracker.
         """
         if self._is_lot_trade:
             return self.__place_order_lot(symbol, action, size, price)

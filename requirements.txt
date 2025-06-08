@@ -3,7 +3,6 @@ pandas
 yfinance
 twstock
 lxml
-shioaji
 tabulate
 wcwidth
 matplotlib
@@ -12,4 +11,6 @@ FinMind
 tqdm
 tornado
 dotenv
+# shioaji
+shioaji[speed]
 # python-dotenv

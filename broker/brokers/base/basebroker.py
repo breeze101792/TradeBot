@@ -9,6 +9,7 @@ from market.market import *
 from market.provider.twse import *
 from broker.brokers.base.position import Position
 from broker.order.ordertracker import OrderTracker, OrderAction
+from broker.order.checker import OrderChecker
 
 class BaseBroker:
     """
@@ -113,6 +114,21 @@ class BaseBroker:
         """
         raise NotImplementedError
 
+    def order_checker(self, action, price, size) -> bool:
+        """
+        Abstract method to perform validation checks on order parameters (action, price, size).
+        This method ensures that the provided order details are valid before attempting
+        to place or process an order, preventing miscalculations or invalid trades.
+
+        Args:
+            action (OrderAction): The type of order (e.g., 'buy', 'sell').
+            price (float): The price at which the order is intended to be executed.
+            size (int): The quantity of shares for the order.
+
+        Returns:
+            bool: True if the order parameters pass the validation checks, False otherwise.
+        """
+        raise NotImplementedError
     def update_order_status(self, order_tracker: OrderTracker):
         """
         Abstract method to update the status of a given order tracker.
@@ -146,5 +162,17 @@ class BaseBroker:
                 - An OrderTracker object with execution details if the order is filled.
                 - `None` if the order is rejected (e.g., insufficient funds, market closed, limit condition not met).
         """
+        # Sanity check
+        ########################################################################
+        # first sanity check
+        if self.order_checker(action=action, price=price, size=size) is False:
+            dbg_error(f"Check failed: {action.value} order: {symbol}, Size: {size}, Execution Price: {price:.2f}")
+            return None
+
+        # second sanity check
+        if OrderChecker.check(action=action, price=price, size=size) is False:
+            dbg_error(f"Check failed: {action.value} order: {symbol}, Size: {size}, Execution Price: {price:.2f}")
+            return None
+        ########################################################################
         raise NotImplementedError
 

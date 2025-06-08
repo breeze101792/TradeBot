@@ -3,6 +3,7 @@ from enum import Enum # Import Enum
 class OrderAction(Enum):
     BUY = "BUY"
     SELL = "SELL"
+    UNKNOWN = "UNKNOWN"
 
 class OrderStatus(Enum):
     FILLED = "FILLED"
@@ -15,3 +16,4 @@ class OrderStatus(Enum):
     EXPIRED = "EXPIRED"
     REJECTED = "REJECTED"
     INACTIVE = "INACTIVE"
+    UNKNOWN = "UNKNOWN"

@@ -8,6 +8,7 @@ from typing import Any, Optional, Dict # Import Any, Optional, Dict
 
 from utility.debug import *
 
+from core.config import AppConfigManager
 from market.market import *
 from market.provider.twse import *
 from broker.brokers.mock.mockorder import MockOrder
@@ -16,6 +17,7 @@ from broker.brokers.base.basebroker import BaseBroker
 from broker.order.ordertracker import OrderTracker
 from broker.order.constant import OrderStatus, OrderAction
 from broker.order.event import Event
+from broker.order.checker import OrderChecker
 
 class MockBroker(BaseBroker):
     """
@@ -36,6 +38,8 @@ class MockBroker(BaseBroker):
         self.initial_cash = initial_cash
         self.cash = initial_cash
         self.commission_rate = commission_rate
+        cfgmgr = AppConfigManager()
+        self.cash_limit_per_trade = cfgmgr.get('stock.cash_max_per_trade') * 1.1
 
         self.state_filepath: str = os.path.join(self.broker_path, "broker_state.json") # Default path for saving/loading state
         # positions stores Position objects, keyed by symbol
@@ -90,6 +94,25 @@ class MockBroker(BaseBroker):
         tracker.order_instance = order # Link the original order instance
         return tracker
 
+    def order_checker(self, action, price, size) -> bool:
+        """
+        Abstract method to perform validation checks on order parameters (action, price, size).
+        This method ensures that the provided order details are valid before attempting
+        to place or process an order, preventing miscalculations or invalid trades.
+
+        Args:
+            action (OrderAction): The type of order (e.g., 'buy', 'sell').
+            price (float): The price at which the order is intended to be executed.
+            size (int): The quantity of shares for the order.
+
+        Returns:
+            bool: True if the order parameters pass the validation checks, False otherwise.
+        """
+        if action == OrderAction.BUY and price * size > self.cash_limit_per_trade:
+            reason = f"order reject by size checker, size: {size}, price:{price}, current: {size * price},limit: {self.cash_limit_per_trade}"
+            dbg_error(reason)
+            return False
+        return True
     def update_order_status(self, order_tracker: OrderTracker):
         """
         Updates the OrderTracker with the latest information from its internal order instance.
@@ -113,7 +136,7 @@ class MockBroker(BaseBroker):
         else:
             dbg_warning("Cannot update OrderTracker: order_instance is missing.")
 
-    def place_order(self, symbol: str, action: OrderAction, size: int, price: float | None = None) -> dict | None:
+    def place_order(self, symbol: str, action: OrderAction, size: int, price: float | None = None) -> OrderTracker | None:
         """
         Simulates placing and immediately filling an order.
         If price is None, it's a market order filled at the current market price.
@@ -178,6 +201,18 @@ class MockBroker(BaseBroker):
         commission = self.commission_rate * cost
 
         dbg_debug(f"Attempting {action.value} order: {symbol}, Size: {size}, Execution Price: {market_price:.2f}, Cost/Proceeds: {cost:.2f}, Commission: {commission:.2f}")
+        # Sanity check
+        ########################################################################
+        # first sanity check
+        if self.order_checker(action=action, price=market_price, size=size) is False:
+            dbg_error(f"Check failed: {action.value} order: {symbol}, Size: {size}, Execution Price: {market_price:.2f}")
+            return None
+
+        # second sanity check
+        if OrderChecker.check(action=action, price=market_price, size=size) is False:
+            dbg_error(f"Check failed: {action.value} order: {symbol}, Size: {size}, Execution Price: {market_price:.2f}")
+            return None
+        ########################################################################
 
         if action == OrderAction.BUY:
             required_cash = cost + commission

@@ -4,7 +4,8 @@ from datetime import date, time # Import date for tracking open date
 import os
 import argparse # Added for command-line argument parsing
 
-from broker.shioaji.shioajibroker import ShioajiBroker
+from broker.brokers.shioaji.shioajibroker import ShioajiBroker
+from broker.order.constant import OrderAction
 
 def test_connection():
     # test for account connect/disconnect
@@ -72,10 +73,9 @@ def test_place_buy_order():
         # Use realistic but fixed prices for testing in simulation
         current_price = broker.get_last_price(symbol)
         if current_price == 0:
-            # print(f'{symbol} get price fail. Using default price 1000.')
-            # current_price = 1000
-            print(f'{symbol} get price fail.')
-            raise ValueError
+            # since it's just a test for place order, we ignore get price fail.
+            print(f'{symbol} get price fail. Using default price 1000.')
+            current_price = 1000
         test_price_buy = current_price + 10
 
         initial_cash = broker.get_balance()
@@ -84,7 +84,7 @@ def test_place_buy_order():
         print(f"Initial positions: {initial_positions}")
 
         print(f"\n--- Attempting to place a BUY odd lot order for {symbol}@{test_price_buy} ---")
-        buy_order_result = broker.place_order(symbol, 'buy', buy_size, test_price_buy)
+        buy_order_result = broker.place_order(symbol, OrderAction.BUY, buy_size, test_price_buy)
 
         if buy_order_result:
             print(f"Buy order successful: {buy_order_result}")
@@ -124,6 +124,7 @@ def test_place_sell_order():
         # Use realistic but fixed prices for testing in simulation
         current_price = broker.get_last_price(symbol)
         if current_price == 0:
+            # since it's just a test for place order, we ignore get price fail.
             print(f'{symbol} get price fail. Using default price 1000.')
             current_price = 1000
         test_price_sell = current_price - 10
@@ -137,7 +138,7 @@ def test_place_sell_order():
         # For sell, we need to ensure we have a position.
         # In a real test, you might place a buy order first, then sell.
         # For this test, we'll just try to sell, acknowledging it might fail if no position.
-        sell_order_result = broker.place_order(symbol, 'sell', sell_size, test_price_sell)
+        sell_order_result = broker.place_order(symbol, OrderAction.SELL, sell_size, test_price_sell)
 
         if sell_order_result:
             print(f"Sell order successful: {sell_order_result}")
