@@ -10,6 +10,7 @@ from market.market import Market # Import Market class
 from testutility.market import run_market_tests # Import the test runner
 from testutility.broker import run_broker_tests # Import the broker test runner
 from testutility.backtest import run_backtest_tests # Import the backtest test runner
+from testutility.core import run_core_tests # Import the core test runner
 from trading.evaluate import Evaluate # Import Evaluate class
 from trading.trading import Trading # Import Trading class
 from testutility.trading import run_trading_tests # Import the trading test runner
@@ -40,6 +41,25 @@ class TestCLI(CommandLineInterface):
 
     def _register_test_commands(self):
         """Registers all test commands."""
+        # Define available core sub-tests
+        self.core_sub_tests = [
+            "initialization",
+            "start_stop_flow",
+            "sanity_check_method",
+            "cmd_status_output",
+            "datasource_service_loop",
+            "trading_service_flow",
+            "selling_service_flow",
+            "all" # Special command to run all tests
+        ]
+        self.regist_cmd(
+            "core",
+            self.cmd_core,
+            description=f"Run tests for core.py. Sub-tests: {', '.join(self.core_sub_tests)}",
+            arg_list=self.core_sub_tests,
+            group='testing'
+        )
+
         # Define available market sub-tests
         self.market_sub_tests = [
             "list_providers",
@@ -130,7 +150,7 @@ class TestCLI(CommandLineInterface):
         )
 
         # Define top-level test groups
-        self.test_groups = ["market", "broker", "trading", "backtest", "all"]
+        self.test_groups = ["market", "broker", "trading", "backtest", "core", "all"]
         self.regist_cmd(
             "test",
             self.cmd_test,
@@ -139,6 +159,37 @@ class TestCLI(CommandLineInterface):
             group='testing' # Group for the master test command
         )
         # Add other command registrations if needed
+
+    def cmd_core(self, args):
+        """Command handler for 'core' tests."""
+        if args['#'] == 0:
+            dbg_error("Please specify a core sub-test or 'all'.")
+            dbg_info(f"Available sub-tests: {', '.join(self.core_sub_tests)}")
+            return False
+
+        tests_to_run = []
+        for i in range(1, args['#'] + 1):
+            sub_cmd = args[str(i)]
+            if sub_cmd in self.core_sub_tests:
+                tests_to_run.append(sub_cmd)
+            else:
+                self.print_warning(f"Unknown core sub-test '{sub_cmd}', ignoring.")
+
+        if not tests_to_run:
+            dbg_error("No valid core sub-tests specified.")
+            return False
+
+        if "all" in tests_to_run:
+            tests_to_run = ["all"]
+
+        dbg_info(f"Running core tests: {', '.join(tests_to_run)}")
+        try:
+            run_core_tests(tests_to_run)
+            return True # Command execution success (tests pass/fail internally)
+        except Exception as e:
+            dbg_error(f"An error occurred while running core tests: {e}")
+            dbg_error(traceback.format_exc())
+            return False # Command execution failure
 
     def cmd_market(self, args):
         """Command handler for 'market' tests."""
@@ -362,6 +413,18 @@ class TestCLI(CommandLineInterface):
                     if backtest_results.get("failed", 0) > 0:
                         overall_success = False # Mark overall as failed if any suite fails
                 dbg_info("=== Backtest Test Suite Complete ===\n")
+
+            if run_all_tests or "core" in requested_groups:
+                dbg_info("\n=== Running Core Test Suite (all) ===")
+                core_results = run_core_tests(["all"])
+                if core_results:
+                    results_summary["Core"] = core_results
+                    total_tests_run += core_results.get("total", 0)
+                    total_tests_passed += core_results.get("passed", 0)
+                    total_tests_failed += core_results.get("failed", 0)
+                    if core_results.get("failed", 0) > 0:
+                        overall_success = False
+                dbg_info("=== Core Test Suite Complete ===\n")
 
             # Add calls to other test group runners here if created later
             # Example:

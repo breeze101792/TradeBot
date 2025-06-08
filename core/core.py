@@ -467,6 +467,7 @@ class Core:
             self.market = Market()
             self.trading = Trading()
             self.tdcli = TDCLI()
+
             self.tdcli.regist_cmd("sanity", self.__sanitycheck, description="Run internal health checks for the core system.", group='tools')
             self.tdcli.regist_cmd("update", self.__update_datasource, description="Manually trigger an update of market data from configured sources.", group='tools')
             self.tdcli.regist_cmd("trade", self.trading.trading_eval, description="Do Trading/buy analysis and buy stock.", group='tools')
@@ -553,19 +554,19 @@ class Core:
             # set event to stop sleep.
             self.stop_event.set()
 
-            if self.flag_trade_service_running and self.trading_service_thread is not None:
+            if self.trading_service_thread is not None:
                 self.trading_service_thread.join()
                 self.trading_service_thread = None
 
-            if self.flag_selling_service_running and self.selling_service_thread is not None:
+            if self.selling_service_thread is not None:
                 self.selling_service_thread.join()
                 self.selling_service_thread = None
 
-            if self.flag_datasource_service_running and self.datasource_service_thread is not None:
+            if self.datasource_service_thread is not None:
                 self.datasource_service_thread.join()
                 self.datasource_service_thread = None
 
-            if self.flag_heatbeat_running and self.heatbeat_thread is not None:
+            if self.heatbeat_thread is not None:
                 self.heatbeat_thread.join()
                 self.heatbeat_thread = None
 
