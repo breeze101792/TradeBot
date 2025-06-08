@@ -226,6 +226,7 @@ class Evaluate:
     def __get_realtime_data_list(self, symbol):
         # we append the last day to daily data for evaluation.
         trade_broker = BrokerManager()
+        trade_broker.connect()
 
         temp_df = self.market.get_data(symbol) # df with DatetimeIndex
         
@@ -307,6 +308,7 @@ class Evaluate:
             target_df = pd.concat([temp_df, new_row_df])
             target_df.sort_index(inplace=True)
         
+        trade_broker.disconnect()
         dbg_debug(f"Target data for {symbol} (tail after modification):\n{target_df.tail()}")
 
         return target_df
@@ -323,6 +325,7 @@ class Evaluate:
             return []
 
         trade_broker = BrokerManager()
+        trade_broker.connect()
 
         selling_analyzer = Analyzer(self.market)
         selling_analyzer.clean_result()
@@ -419,6 +422,7 @@ class Evaluate:
                 traceback_output = traceback.format_exc()
                 dbg_warning(traceback_output)
         # selling_analyzer.show_result()
+        trade_broker.disconnect()
         return selling_list
     def selling_evaluation(self, position_dict):
         selling_list = self.__sell_find_candidate(position_dict)
