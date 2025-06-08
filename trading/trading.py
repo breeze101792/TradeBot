@@ -6,6 +6,7 @@ from core.config import AppConfigManager
 from market.market import *
 from trading.evaluate import Evaluate
 from broker.brokermanager import BrokerManager
+from broker.order.constant import OrderStatus, OrderAction
 
 class Trading:
     # def __init__(self):
@@ -41,10 +42,10 @@ class Trading:
                     order_lot = math.floor(buying_budget / (current_price * LOT_UNIT))
                     order_size = order_lot * LOT_UNIT
 
-                    dbg_info(CASH_MIN_PER_TRADE,',', current_price * order_size ,',',  buying_budget)
+                    dbg_info(f'[{each_symbol}] price:{current_price}, order_size: {order_size}, budget: {buying_budget}/CASH_MIN_PER_TRADE')
                     # sanity check
                     if CASH_MIN_PER_TRADE <= current_price * order_size <= buying_budget:
-                        trade_broker.place_order(symbol=each_symbol, size=order_size, action='buy')
+                        trade_broker.place_order(symbol=each_symbol, size=order_size, action=OrderAction.BUY)
                     else:
                         dbg_warning(f'Insufficient cash (buget {buying_budget}), ignore buying product:{each_symbol} at size:{order_size}, price:{current_price}')
                 except Exception as e:
@@ -88,7 +89,7 @@ class Trading:
                     # sanity check
                     if selling_size == holding_size:
                         # if equal then we just sell it all.
-                        trade_broker.place_order(symbol=symbol, size=selling_size, action='sell')
+                        trade_broker.place_order(symbol=symbol, size=selling_size, action=OrderAction.SELL)
                     if current_price == 0:
                         # FIXME, find another way to take actions.
                         dbg_warning("can't get current price of {symbol}, ignore actions.")
@@ -98,16 +99,16 @@ class Trading:
                         checking_size = selling_size if selling_size <= holding_size - selling_size else holding_size - selling_size
                         # if selling size smaller then hodling size, we check if it match the minimum trading cash.
                         if checking_size * current_price < CASH_MIN_PER_TRADE:
-                            trade_broker.place_order(symbol=symbol, size=holding_size, action='sell')
+                            trade_broker.place_order(symbol=symbol, size=holding_size, action=OrderAction.SELL)
                             dbg_info(f'[{symbol}] remining/selling size will hit CASH_MIN_PER_TRADE, so we sell/close the trade.')
                         else:
                             # it's checked, sell with expecited size.
-                            trade_broker.place_order(symbol=symbol, size=selling_size, action='sell')
+                            trade_broker.place_order(symbol=symbol, size=selling_size, action=OrderAction.SELL)
 
                     else:
                         # if selling size greater then hodling size, there is en error in it, but we just sell it all.
                         dbg_warning(f'[{symbol}] selling size({selling_size}) is greate then hoding size({holding_size}), set to hoding size.')
-                        trade_broker.place_order(symbol=symbol, size=holding_size, action='sell')
+                        trade_broker.place_order(symbol=symbol, size=holding_size, action=OrderAction.SELL)
                 except Exception as e:
                     dbg_error(e)
                 

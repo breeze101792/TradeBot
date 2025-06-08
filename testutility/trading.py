@@ -10,6 +10,7 @@ from trading.evaluate import Evaluate
 from trading.trading import Trading # Import the Trading class
 from utility.debug import dbg_info, dbg_warning, dbg_error, dbg_trace
 from core.config import AppConfigManager # Evaluate uses this
+from broker.order.constant import OrderAction
 
 # ANSI color codes
 RED = "\033[91m"
@@ -166,7 +167,7 @@ def test_trading_buying_exec(trading_instance: Trading, mock_broker_manager_clas
         # order_size = 300 * 10 = 3000
         # Check: 15000 <= (10 * 3000) <= 30000 -> 15000 <= 30000 <= 30000 (True)
         target_size = 3000
-        mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=target_size, action='buy')
+        mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=target_size, action=OrderAction.BUY)
         mock_broker_instance.summarize_positions.assert_called_once()
         mock_broker_instance.disconnect.assert_called_once()
         dbg_info("Scenario 2: Passed")
@@ -265,7 +266,7 @@ def test_trading_selling_exec(trading_instance: Trading, mock_broker_manager_cla
         trading_instance.selling_exec(selling_list_s2)
         mock_broker_instance.connect.assert_called_once()
         mock_broker_instance.get_position_by_symbol.assert_called_with(DEFAULT_TEST_TICKER)
-        mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=500, action='sell')
+        mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=500, action=OrderAction.SELL)
         mock_broker_instance.summarize_positions.assert_called_once()
         mock_broker_instance.disconnect.assert_called_once()
         dbg_info("Scenario 2: Passed")
@@ -280,7 +281,7 @@ def test_trading_selling_exec(trading_instance: Trading, mock_broker_manager_cla
         trading_instance.selling_exec(selling_list_s3)
         mock_broker_instance.connect.assert_called_once()
         mock_broker_instance.get_position_by_symbol.assert_called_with(DEFAULT_TEST_TICKER)
-        mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=200, action='sell') # Should sell holding size
+        mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=200, action=OrderAction.SELL) # Should sell holding size
         dbg_info("Scenario 3: Passed")
 
         # Scenario 4: Partial sell, but remaining/selling size value is less than CASH_MIN_PER_TRADE, so sell all.
@@ -306,7 +307,7 @@ def test_trading_selling_exec(trading_instance: Trading, mock_broker_manager_cla
         trading_instance.selling_exec(selling_list_s4)
         mock_broker_instance.connect.assert_called_once()
         mock_broker_instance.get_position_by_symbol.assert_called_with(DEFAULT_TEST_TICKER)
-        mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=100, action='sell') # Should sell holding size
+        mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=100, action=OrderAction.SELL) # Should sell holding size
         mock_broker_instance.summarize_positions.assert_called_once()
         mock_broker_instance.disconnect.assert_called_once()
         dbg_info("Scenario 4: Passed")
@@ -334,7 +335,7 @@ def test_trading_selling_exec(trading_instance: Trading, mock_broker_manager_cla
         trading_instance.selling_exec(selling_list_s5)
         mock_broker_instance.connect.assert_called_once()
         mock_broker_instance.get_position_by_symbol.assert_called_with(DEFAULT_TEST_TICKER)
-        mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=20, action='sell') # Should sell expected size
+        mock_broker_instance.place_order.assert_called_with(symbol=DEFAULT_TEST_TICKER, size=20, action=OrderAction.SELL) # Should sell expected size
         mock_broker_instance.summarize_positions.assert_called_once()
         mock_broker_instance.disconnect.assert_called_once()
         dbg_info("Scenario 5: Passed")

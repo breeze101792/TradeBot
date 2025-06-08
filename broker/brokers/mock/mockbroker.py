@@ -125,7 +125,7 @@ class MockBroker(BaseBroker):
 
         Args:
             symbol (str): The stock symbol.
-            action (str): 'buy' or 'sell'.
+            action (str): 'BUY' or 'SELL'.
             size (int): The order quantity (must be positive).
             price (float | None, optional): The limit price. If None, treat as market order. Defaults to None.
 

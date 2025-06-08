@@ -16,8 +16,10 @@ class Evaluate:
     BUY_CANDIDATE_SCORE_THRESHOLD = 1
     def __init__(self, development = False):
         # TODO, add multiple strategy support.
-        stra_mgr = StrategyManager()
-        self.default_strategy = stra_mgr.get_default_strategy()
+        self.stra_mgr = StrategyManager()
+        self.market = Market()
+
+        self.default_strategy = self.stra_mgr.get_default_strategy()
         dbg_info(f"default strategy: {self.default_strategy}")
 
         self.cm = AppConfigManager()
@@ -38,20 +40,18 @@ class Evaluate:
         candidate_dict = dict()
 
         # predefine for development
-        strategyMgr = StrategyManager()
         strategy_list=[self.default_strategy]
 
-        market = Market()
-        product_list = market.get_data_list()
+        product_list = self.market.get_data_list()
         if self.flag_development:
-            # product_list = market.get_data_list()[:50]
+            # product_list = self.market.get_data_list()[:50]
             product_list = self.test_buy_list
 
         last_trading_day = MarketTime.get_previous_market_update_time()
 
         dbg_info(f"Last Trad date {last_trading_day}")
 
-        trade_analyzer = Analyzer(market)
+        trade_analyzer = Analyzer(self.market)
         trade_analyzer.clean_result()
         for each_strategy in strategy_list:
 
@@ -98,11 +98,8 @@ class Evaluate:
         candidate_buying_dict = dict()
         buying_dict = dict()
 
-        strategyMgr = StrategyManager()
-        market = Market()
-
         last_trading_day = MarketTime.get_previous_market_update_time()
-        candidate_analyzer = Analyzer(market)
+        candidate_analyzer = Analyzer(self.market)
         candidate_analyzer.clean_result()
         candidate_keys = list(candidate_dict.keys())
         dbg_info(f"Start filtering.")
@@ -197,8 +194,6 @@ class Evaluate:
 
         return buying_dict
     def buying_evaluation(self):
-        market = Market()
-
         candidate_dict = self.__buy_find_candidate()
 
         buying_dict = self.__buy_filering_profitable_product(candidate_dict)
@@ -210,7 +205,7 @@ class Evaluate:
             headers = ["Product", "Name", "Category", "Strategy", "Profit (%)", "Sharpe", "VWR", "Drawdown (%)", "SQN", "Score"]
             table_data = []
             for product, data in buying_dict.items():
-                product_info = market.get_data_info(product)
+                product_info = self.market.get_data_info(product)
                 table_data.append([
                     product,
                     product_info.get('name', 'N/A'),
@@ -230,10 +225,9 @@ class Evaluate:
         return buying_dict
     def __get_realtime_data_list(self, symbol):
         # we append the last day to daily data for evaluation.
-        market = Market()
         trade_broker = BrokerManager()
 
-        temp_df = market.get_data(symbol) # df with DatetimeIndex
+        temp_df = self.market.get_data(symbol) # df with DatetimeIndex
         
         if temp_df is None or temp_df.empty:
             dbg_warning(f"No historical data found for {symbol}. Skipping sell evaluation for this symbol.")
@@ -327,12 +321,10 @@ class Evaluate:
         if len(position_dict) == 0:
             dbg_debug(f"No position.")
             return []
-        strategyMgr = StrategyManager()
 
-        market = Market()
         trade_broker = BrokerManager()
 
-        selling_analyzer = Analyzer(market)
+        selling_analyzer = Analyzer(self.market)
         selling_analyzer.clean_result()
 
         last_trading_day = MarketTime.get_previous_market_update_time()
@@ -391,7 +383,7 @@ class Evaluate:
                 selling_analyzer.add_history(order_history)
 
                 # Setting strategy used for the original purchase
-                target_strategy = strategyMgr.get_strategy_by_name(strategy_name)
+                target_strategy = self.stra_mgr.get_strategy_by_name(strategy_name)
                 # FIXME, it's kindle of a weird workaround. just need to fix it.
                 # target_strategy.reset_status(target_strategy, clean_all = True)
                 # # reset trading day to evaluate.
@@ -429,7 +421,6 @@ class Evaluate:
         # selling_analyzer.show_result()
         return selling_list
     def selling_evaluation(self, position_dict):
-        market = Market()
         selling_list = self.__sell_find_candidate(position_dict)
 
         if len(selling_list) != 0:
@@ -440,7 +431,7 @@ class Evaluate:
         for sell_candidate in selling_list:
             # Use 'symbol' key which is consistent now
             symbol = sell_candidate['symbol']
-            product_info = market.get_data_info(symbol)
+            product_info = self.market.get_data_info(symbol)
             strategy_name = sell_candidate['strategy'].NAME # Get name from strategy object
             dbg_info(f"Product to Sell: {symbol} ({product_info.get('name', 'N/A')}/{product_info.get('category', 'N/A')}), Strategy: {strategy_name}, Size: {sell_candidate['size']:.2f}, Indicative Price: {sell_candidate['price']:.2f}")
 

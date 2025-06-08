@@ -11,6 +11,7 @@ from testutility.market import run_market_tests # Import the test runner
 from testutility.broker import run_broker_tests # Import the broker test runner
 from testutility.backtest import run_backtest_tests # Import the backtest test runner
 from testutility.core import run_core_tests # Import the core test runner
+from testutility.integration import run_integration_tests # Import the integration test runner
 from trading.evaluate import Evaluate # Import Evaluate class
 from trading.trading import Trading # Import Trading class
 from testutility.trading import run_trading_tests # Import the trading test runner
@@ -149,8 +150,22 @@ class TestCLI(CommandLineInterface):
             group='testing'
         )
 
+        # Define available integration sub-tests (match keys in run_integration_tests)
+        self.integration_sub_tests = [
+            "buying_flow",
+            "selling_flow",
+            "all" # Special command to run all tests
+        ]
+        self.regist_cmd(
+            "integration",
+            self.cmd_integration,
+            description=f"Run tests for integration. Sub-tests: {', '.join(self.integration_sub_tests)}",
+            arg_list=self.integration_sub_tests,
+            group='testing'
+        )
+
         # Define top-level test groups
-        self.test_groups = ["market", "broker", "trading", "backtest", "core", "all"]
+        self.test_groups = ["market", "broker", "trading", "backtest", "core", "integration", "all"]
         self.regist_cmd(
             "test",
             self.cmd_test,
@@ -330,6 +345,37 @@ class TestCLI(CommandLineInterface):
             dbg_error(traceback.format_exc())
             return False # Command execution failure
 
+    def cmd_integration(self, args):
+        """Command handler for 'integration' tests."""
+        if args['#'] == 0:
+            dbg_error("Please specify an integration sub-test or 'all'.")
+            dbg_info(f"Available sub-tests: {', '.join(self.integration_sub_tests)}")
+            return False
+
+        tests_to_run = []
+        for i in range(1, args['#'] + 1):
+            sub_cmd = args[str(i)]
+            if sub_cmd in self.integration_sub_tests:
+                tests_to_run.append(sub_cmd)
+            else:
+                self.print_warning(f"Unknown integration sub-test '{sub_cmd}', ignoring.")
+
+        if not tests_to_run:
+            dbg_error("No valid integration sub-tests specified.")
+            return False
+
+        if "all" in tests_to_run:
+            tests_to_run = ["all"]
+
+        dbg_info(f"Running integration tests: {', '.join(tests_to_run)}")
+        try:
+            run_integration_tests(tests_to_run)
+            return True # Command execution success (tests pass/fail internally)
+        except Exception as e:
+            dbg_error(f"An error occurred while running integration tests: {e}")
+            dbg_error(traceback.format_exc())
+            return False # Command execution failure
+
     def cmd_test(self, args):
         """Command handler for running all or specified test groups."""
         run_all_tests = False
@@ -425,6 +471,18 @@ class TestCLI(CommandLineInterface):
                     if core_results.get("failed", 0) > 0:
                         overall_success = False
                 dbg_info("=== Core Test Suite Complete ===\n")
+
+            if run_all_tests or "integration" in requested_groups:
+                dbg_info("\n=== Running Integration Test Suite (all) ===")
+                integration_results = run_integration_tests(["all"])
+                if integration_results:
+                    results_summary["Integration"] = integration_results
+                    total_tests_run += integration_results.get("total", 0)
+                    total_tests_passed += integration_results.get("passed", 0)
+                    total_tests_failed += integration_results.get("failed", 0)
+                    if integration_results.get("failed", 0) > 0:
+                        overall_success = False
+                dbg_info("=== Integration Test Suite Complete ===\n")
 
             # Add calls to other test group runners here if created later
             # Example:

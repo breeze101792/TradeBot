@@ -129,7 +129,7 @@ class BrokerManager:
 
         Args:
             symbol (str): The stock symbol.
-            action (str): 'BUY' or 'SELL'.
+            action (OrderAction): `OrderAction.BUY` or `OrderAction.SELL`.
             size (int): The order quantity (must be positive).
             price (Optional[float]): The limit price. If None, the order is treated as a market order.
                                      For a buy order, it executes only if the market price is less than or equal to the limit price.
@@ -140,6 +140,18 @@ class BrokerManager:
         if self.is_connected() is False:
             dbg_info('Please connect it first.')
             raise ValueError
+        # it's backward compatible.
+        if action in ['sell', 'SELL']:
+            dbg_warning(f'Deprecated action({action}) detected, change it to use OrderAction.SELL')
+            action = OrderAction.SELL
+        elif action in ['buy', 'BUY']:
+            dbg_warning(f'Deprecated action({action}) detected, change it to use OrderAction.BUY')
+            action = OrderAction.BUY
+        elif action not in [OrderAction.BUY, OrderAction.SELL]:
+            reason = f"Invalid action '{action}'. Must be 'buy' or 'sell'."
+            dbg_error(f"Order rejected for {symbol}: {reason}")
+            raise ValueError
+
         order = self.broker.place_order(symbol, action, size, price)
         if order is not None:
             self.order_svc.add_order(order)
