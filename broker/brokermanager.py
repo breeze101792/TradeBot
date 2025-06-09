@@ -540,11 +540,12 @@ class BrokerManager:
                 
                 current_pos_state = initial_positions_at_cutoff[symbol]
                 # TODO, remove initial after check no one use it.
-                if action == OrderAction.BUY.value or action == 'initial' or action == 'INITIAL':
+                # buy/BUY/sell/SELL is for compatiable.
+                if action in [OrderAction.BUY.value, 'buy', 'BUY', 'initial', 'INITIAL']:
                     cost_of_this_buy = (price * size) + commission
                     current_pos_state['total_cost_basis'] += cost_of_this_buy
                     current_pos_state['size'] += size
-                elif action == OrderAction.SELL.value:
+                elif action in [OrderAction.SELL.value, 'sell', 'SELL']:
                     if current_pos_state['size'] > 0:
                         avg_cost_per_share = current_pos_state['total_cost_basis'] / current_pos_state['size']
                         cost_basis_of_sold_shares = avg_cost_per_share * min(size, current_pos_state['size'])
@@ -553,6 +554,8 @@ class BrokerManager:
                     current_pos_state['size'] = max(0, current_pos_state['size'])
                     if current_pos_state['size'] == 0:
                         current_pos_state['total_cost_basis'] = 0.0
+                else:
+                    dbg_warning(f"Unkown action: {action}")
         
         # Check if there's any data to show (either period transactions or initial positions)
         if not filtered_transactions and not any(p['size'] > 0 for p in initial_positions_at_cutoff.values()):
