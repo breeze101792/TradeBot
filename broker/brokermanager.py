@@ -11,12 +11,15 @@ from utility.debug import * # Replace standard logging with custom debug system
 from core.config import AppConfigManager
 
 # Assuming MockBroker is the primary implementation for now
-from broker.brokers.mock.mockbroker import MockBroker, Position
+from broker.brokers.base.position import Position
+from broker.brokers.base.basebroker import BaseBroker
+from broker.brokers.mock.mockbroker import MockBroker
+from broker.brokers.shioaji.shioajibroker import ShioajiBroker
 
 from broker.order.event import Event
 from broker.order.orderservice import OrderService
 from broker.order.ordertracker import OrderTracker
-from broker.order.constant import OrderStatus, OrderAction
+from broker.order.constant import OrderStatus, OrderAction, OrderPrice
 
 class BrokerManager:
     """
@@ -33,7 +36,7 @@ class BrokerManager:
                       (e.g., initial_cash, commission_rate, broker_path).
         """
         self.cm = AppConfigManager()
-        self.broker: MockBroker # Type hint for the wrapped broker instance
+        self.broker: BaseBroker # Type hint for the wrapped broker instance
         self.broker_type = broker_type
         self.__is_connected = False
 
@@ -57,9 +60,18 @@ class BrokerManager:
             state_filepath = kwargs.get('state_filepath', "")
             if state_filepath != "":
                 self.broker.set_state_filepath(state_filepath)
-            dbg_debug(f"Initialized MockBroker via BrokerManager. Cash: ${initial_cash:,.2f}, Commission Rate: ${commission_rate:.2f}")
+            dbg_info(f"Initialized MockBroker via BrokerManager. Cash: ${initial_cash:,.2f}, Commission Rate: ${commission_rate:.2f}")
         elif broker_type == 'Shioaji':
-            pass
+            # Extract relevant kwargs for ShioajiBroker, providing defaults if not present
+            # Current we only enable simulation use.
+            # simulation = kwargs.get('simulation', False)
+            simulation = True
+
+            self.broker = ShioajiBroker(
+                broker_path = os.path.join(self.cm.get_path('broker'), f'{broker_type}'),
+                simulation = simulation
+            )
+            dbg_info(f"Initialized ShioajiBroker via BrokerManager.")
         # Add elif blocks here for other broker types in the future
         # elif broker_type == 'interactive_brokers':
         #     self.broker = InteractiveBrokersBroker(**kwargs)
@@ -182,7 +194,7 @@ class BrokerManager:
             raise ValueError
         return self.broker.get_all_positions()
 
-    def get_last_price(self, symbol: str) -> float:
+    def get_last_price(self, symbol: str, price_type: OrderPrice) -> float:
         """
         Returns the last known market price for a symbol from the managed broker.
         """
@@ -190,7 +202,7 @@ class BrokerManager:
             dbg_info('Please connect it first.')
             raise ValueError
         # Note: This might need adjustment if different brokers handle price fetching differently.
-        return self.broker.get_last_price(symbol)
+        return self.broker.get_last_price(symbol, price_type)
 
     def get_portfolio_value(self) -> float:
         """
@@ -239,7 +251,7 @@ class BrokerManager:
         # dbg_info("Summarizing positions...")
         for symbol, pos in positions.items():
             try:
-                current_price = self.broker.get_last_price(symbol)
+                current_price = self.broker.get_last_price(symbol, OrderPrice.LAST)
                 if current_price <= 0:
                     dbg_warning(f"Could not get valid market price for {symbol}, using 0.0 for calculations.")
                     current_price = 0.0 # Handle case where price might be invalid
@@ -457,7 +469,7 @@ class BrokerManager:
                 stock_status_data = []
                 for symbol, pos in current_positions.items():
                     try:
-                        current_price = self.get_last_price(symbol)
+                        current_price = self.get_last_price(symbol, OrderPrice.LAST)
                     except Exception:
                         current_price = 0.0 # Handle error fetching price
                     stock_status_data.append([

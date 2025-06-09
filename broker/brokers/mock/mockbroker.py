@@ -15,7 +15,7 @@ from broker.brokers.mock.mockorder import MockOrder
 from broker.brokers.base.position import Position
 from broker.brokers.base.basebroker import BaseBroker
 from broker.order.ordertracker import OrderTracker
-from broker.order.constant import OrderStatus, OrderAction
+from broker.order.constant import OrderStatus, OrderAction, OrderPrice
 from broker.order.event import Event
 from broker.order.checker import OrderChecker
 
@@ -174,8 +174,9 @@ class MockBroker(BaseBroker):
             dbg_error(f"Order rejected for {symbol}: {reason}")
             return None
 
+        price_type = OrderPrice.BID if action == OrderAction.SELL else OrderPrice.ASK
         # Get the current market price for execution comparison and potential fill
-        market_price = self.get_last_price(symbol)
+        market_price = self.get_last_price(symbol, price_type)
         if market_price <= 0.0:
              reason = f"Invalid or zero market price ({market_price:.2f}) obtained."
              dbg_error(f"Order rejected for {symbol}: {reason}")
@@ -314,24 +315,14 @@ class MockBroker(BaseBroker):
         """Returns a dictionary of all current positions."""
         return self.positions.copy() # Return a copy to prevent external modification
 
-    def get_last_price(self, symbol: str) -> float:
+    def get_last_price(self, symbol: str, price_type: OrderPrice) -> float:
         """
         Returns the last known market price for a symbol.
         In this basic simulation, it returns a fixed fake price.
         A real implementation would fetch this from a market data source.
         """
         try:
-            return self.data_provider.get_current_price(symbol)
-            # result_df = self.market.get_data(symbol)
-            # if result_df is not None and not result_df.empty:
-            #     # Assuming the DataFrame is sorted chronologically (latest date last)
-            #     # and has a 'Close' column.
-            #     last_price = result_df['Close'].iloc[-1]
-            #     dbg_debug(f"Retrieved last price for {symbol}: {last_price}")
-            #     return float(last_price) # Ensure it's a float
-            # else:
-            #     dbg_warning(f"Could not get last price for {symbol}: No data returned or DataFrame is empty.")
-            #     return 0.0 # Return 0.0 if no data is available
+            return self.data_provider.get_current_price(symbol, price_type)
         except (KeyError, IndexError, TypeError) as e:
             dbg_error(f"Error retrieving last price for {symbol} from DataFrame: {e}")
             return 0.0 # Return 0.0 on error
@@ -346,7 +337,7 @@ class MockBroker(BaseBroker):
         """
         holdings_value = 0.0
         for symbol, position in self.positions.items():
-            current_price = self.get_last_price(symbol) # Needs real price data
+            current_price = self.get_last_price(symbol, OrderPrice.LAST) # Needs real price data
             holdings_value += position.get_market_value(current_price)
 
         total_value = self.cash + holdings_value

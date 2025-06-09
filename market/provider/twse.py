@@ -10,7 +10,7 @@ from market.dataprovider import *
 
 import twstock
 from twstock import Stock
-
+from broker.order.constant import OrderPrice
 
 # 2. 定義 Backtrader 的 DataFeed，並保留完整數據
 # class PandasData(bt.feeds.PandasData):
@@ -36,7 +36,7 @@ class TWSE(DataProvider):
     def __init__(self):
         super().__init__()
 
-    def get_current_price(self, symbol, price_type = 'bid'):
+    def get_current_price(self, symbol, price_type:OrderPrice = OrderPrice.BID) -> float:
         # price_type => bid/ask/trade
         result = None
         # this is for mock broker, don't use it on real code.
@@ -49,12 +49,14 @@ class TWSE(DataProvider):
                 trade = result.get('realtime').get('latest_trade_price')
                 bid = result.get('realtime').get('best_bid_price')[0]
                 ask = result.get('realtime').get('best_ask_price')[0]
-                if price_type == 'bid':
+                if price_type == OrderPrice.BID:
                     return float(bid)
-                elif price_type == 'ask':
+                elif price_type == OrderPrice.ASK:
                     return float(ask)
-                else:
+                elif price_type == OrderPrice.LAST:
                     return float(trade)
+                else:
+                    return 0
             except ValueError:
                 dbg_debug(f'[{symbol}] value error: {result}. Attempt {attempt + 1}/{max_retries}')
                 time.sleep(1) # Wait a bit before retrying

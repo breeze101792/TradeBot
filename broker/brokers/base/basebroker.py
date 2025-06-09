@@ -8,7 +8,8 @@ from utility.debug import *
 from market.market import *
 from market.provider.twse import *
 from broker.brokers.base.position import Position
-from broker.order.ordertracker import OrderTracker, OrderAction
+from broker.order.ordertracker import OrderTracker
+from broker.order.constant import OrderAction, OrderPrice
 from broker.order.checker import OrderChecker
 
 class BaseBroker:
@@ -100,16 +101,18 @@ class BaseBroker:
         """
         raise NotImplementedError
 
-    def get_last_price(self, symbol: str) -> float:
+    def get_last_price(self, symbol: str, price_type: OrderPrice) -> float:
         """
-        Abstract method to retrieve the last known market price for a given stock symbol.
-        Concrete implementations will fetch this data from a market data source.
+        Abstract method to retrieve a specific market price (e.g., BID, ASK, LAST)
+        for a given stock symbol. Concrete implementations will fetch this data
+        from a market data source.
 
         Args:
             symbol (str): The stock symbol.
+            price_type (OrderPrice): The type of price to retrieve (e.g., BID, ASK, LAST).
 
         Returns:
-            float: The last traded price of the stock. Returns 0.0 or raises an
+            float: The requested market price of the stock. Returns 0.0 or raises an
                    appropriate error if the price cannot be retrieved.
         """
         raise NotImplementedError

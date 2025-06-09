@@ -9,6 +9,7 @@ from backtest.backtest import Backtest as Analyzer
 from strategy.strategy import StrategyManager
 from market.market import Market, MarketTime
 from broker.brokermanager import BrokerManager
+from broker.order.constant import OrderPrice
 from core.config import *
 
 class Evaluate:
@@ -237,7 +238,7 @@ class Evaluate:
         # dbg_debug(f"Original data for {symbol} (tail before modification):\n{temp_df.tail()}")
 
         # 'price' variable will store the latest price
-        price = trade_broker.get_last_price(symbol) # float 
+        price = trade_broker.get_last_price(symbol, OrderPrice.BID) # float 
         if price == 0:
             dbg_warning(f"Current price for {symbol} is 0.")
             return None

@@ -6,7 +6,7 @@ from core.config import AppConfigManager
 from market.market import *
 from trading.evaluate import Evaluate
 from broker.brokermanager import BrokerManager
-from broker.order.constant import OrderStatus, OrderAction
+from broker.order.constant import OrderStatus, OrderAction, OrderPrice
 
 class Trading:
     # def __init__(self):
@@ -31,7 +31,7 @@ class Trading:
                     current_cash = trade_broker.get_balance() * 0.9
                     # budget should smaller then CASH_MAX_PER_TRADE.
                     buying_budget = current_cash if current_cash < CASH_MAX_PER_TRADE else CASH_MAX_PER_TRADE
-                    current_price = trade_broker.get_last_price(each_symbol)
+                    current_price = trade_broker.get_last_price(each_symbol, OrderPrice.ASK)
 
                     # sanity check
                     if current_price == 0:
@@ -81,7 +81,7 @@ class Trading:
                     selling_size = each_symbol['size']
 
                     current_cash = trade_broker.get_balance()
-                    current_price = trade_broker.get_last_price(symbol)
+                    current_price = trade_broker.get_last_price(symbol, OrderPrice.BID)
                     holding_size = trade_broker.get_position_by_symbol(symbol).size
 
                     dbg_info(f'Selling product: {symbol}, current hoding: {holding_size}')

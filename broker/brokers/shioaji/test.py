@@ -5,7 +5,7 @@ import os
 import argparse # Added for command-line argument parsing
 
 from broker.brokers.shioaji.shioajibroker import ShioajiBroker
-from broker.order.constant import OrderAction
+from broker.order.constant import OrderStatus, OrderAction, OrderPrice
 
 def test_connection():
     # test for account connect/disconnect
@@ -44,7 +44,7 @@ def test_get_last_price():
         broker.connect()
         # Use a common stock symbol for testing, e.g., TSMC (2330)
         symbol = '2330'
-        last_price = broker.get_last_price(symbol)
+        last_price = broker.get_last_price(symbol, OrderPrice.LAST)
         print(f"Last price for {symbol}: {last_price}")
     except Exception as e:
         print(f"Error during get_last_price test: {e}")
@@ -71,7 +71,7 @@ def test_place_buy_order():
         symbol = '2330'
         buy_size = 1 # Odd lot
         # Use realistic but fixed prices for testing in simulation
-        current_price = broker.get_last_price(symbol)
+        current_price = broker.get_last_price(symbol, OrderPrice.LAST)
         if current_price == 0:
             # since it's just a test for place order, we ignore get price fail.
             print(f'{symbol} get price fail. Using default price 1000.')
@@ -122,7 +122,7 @@ def test_place_sell_order():
         symbol = '2330'
         sell_size = 1 # Odd lot
         # Use realistic but fixed prices for testing in simulation
-        current_price = broker.get_last_price(symbol)
+        current_price = broker.get_last_price(symbol, OrderPrice.LAST)
         if current_price == 0:
             # since it's just a test for place order, we ignore get price fail.
             print(f'{symbol} get price fail. Using default price 1000.')

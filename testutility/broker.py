@@ -11,7 +11,7 @@ from utility.debug import dbg_info, dbg_warning, dbg_error, dbg_trace
 from broker.brokermanager import BrokerManager, Position # Assuming Position is also relevant
 from broker.order.event import Event
 from broker.order.ordertracker import OrderTracker
-from broker.order.constant import OrderStatus, OrderAction
+from broker.order.constant import OrderStatus, OrderAction, OrderPrice
 
 # ANSI color codes
 RED = "\033[91m"
@@ -94,7 +94,7 @@ def test_place_buy_order_sufficient_cash(test_id: str, symbol=DEFAULT_BROKER_TES
     broker_manager = _create_test_broker(test_name=test_id)
     broker_manager.connect()
     try:
-        market_price = broker_manager.get_last_price(symbol)
+        market_price = broker_manager.get_last_price(symbol, OrderPrice.ASK)
         if market_price <= 0:
              dbg_warning(f"Market price for {symbol} is {market_price}, test might be unreliable. Assuming a mock price of 100 for cost calculation.")
 
@@ -608,7 +608,7 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
         # Configure the mock broker's place_order to always succeed
         def mock_broker_place_order(symbol, action, qty, price=None):
             # The price used for the fill. If price is provided, use it. Otherwise, use mocked market price.
-            fill_price = price if price is not None else mock_internal_broker.get_last_price(symbol)
+            fill_price = price if price is not None else mock_internal_broker.get_last_price(symbol, OrderPrice.LAST)
             # Use the fixed commission amount expected by the test's assertions
             commission = 0.005 
 

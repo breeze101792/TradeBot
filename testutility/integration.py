@@ -11,7 +11,7 @@ from market.market import Market, MarketTime
 from core.config import AppConfigManager
 from strategy.strategy import StrategyManager
 from backtest.backtest import Backtest
-from broker.order.constant import OrderAction
+from broker.order.constant import OrderAction, OrderPrice
 
 # ANSI color codes
 RED = "\033[91m"
@@ -89,7 +89,7 @@ def test_buying_flow(test_id: str) -> bool:
             # Configure Mock BrokerManager
             mock_broker = MagicMock(spec=BrokerManager)
             mock_broker.get_balance.return_value = 10000000 # Mock balance
-            mock_broker.get_last_price.side_effect = lambda symbol: {'2330': 600, '0050': 150}.get(symbol, 0)
+            mock_broker.get_last_price.side_effect = lambda symbol, price_type: {'2330': 600, '0050': 150}.get(symbol, 0)
             mock_broker.place_order.return_value = True # Mock order placement success
             mock_broker.summarize_positions.return_value = None
             mock_broker.connect.return_value = True
@@ -215,7 +215,7 @@ def test_selling_flow(test_id: str) -> bool:
             # Configure Mock BrokerManager
             mock_broker = MagicMock(spec=BrokerManager)
             mock_broker.get_balance.return_value = 1000000 # Mock balance
-            mock_broker.get_last_price.side_effect = lambda symbol: {'2330': 600, '0050': 150}.get(symbol, 0)
+            mock_broker.get_last_price.side_effect = lambda symbol, price_type: {'2330': 600, '0050': 150}.get(symbol, 0)
             mock_broker.place_order.return_value = True # Mock order placement success
             mock_broker.summarize_positions.return_value = None
             mock_broker.connect.return_value = True

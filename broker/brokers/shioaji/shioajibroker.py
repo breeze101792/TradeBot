@@ -17,9 +17,17 @@ from core.config import AppConfigManager
 from broker.brokers.base.basebroker import BaseBroker
 from broker.brokers.base.position import Position
 from broker.order.ordertracker import OrderTracker
-from broker.order.constant import OrderStatus, OrderAction
+from broker.order.constant import OrderStatus, OrderAction, OrderPrice
 from broker.order.event import Event
 from broker.order.checker import OrderChecker
+
+## TODO. 
+"""
+################################################################################
+1. Add queme management for pulling tick data.
+2. Add a reset for daily cash, may be add a class for cash management.
+################################################################################
+"""
 
 class ShioajiBroker(BaseBroker):
     """
@@ -424,7 +432,7 @@ class ShioajiBroker(BaseBroker):
         order_tracker.reason = f"Status code: {trade.status.status_code}"
         dbg_debug(f"OrderTracker updated for {order_tracker.symbol} to status: {order_tracker.status.value}")
 
-    def __get_last_price_odd(self, symbol: str) -> float:
+    def __get_last_price_odd(self, symbol: str, price_type: OrderPrice) -> float:
         timeout=3
         tick_queue = queue.Queue()
         last_price = 0.0
@@ -433,19 +441,42 @@ class ShioajiBroker(BaseBroker):
             dbg_warning("Account not connected. Cannot fetch last price.")
             return 0.0 # Return 0.0 if not connected
 
-        def quote_callback_quote(exchange: sj.Exchange, tick:sj.TickSTKv1): # Changed 'quote' to 'tick'
-            # print(f"Exchange: {exchange}, Quote: {quote}")
+        def tick_callback_quote(exchange: sj.Exchange, tick:sj.TickSTKv1): # Changed 'quote' to 'tick'
+            print(f"Exchange: {exchange}, Tick: {tick}")
             if tick.code == symbol: # Changed 'quote.code' to 'tick.code'
                 tick_queue.put(tick) # Changed 'quote' to 'tick'
+            # code (str): 商品代碼
+            # datetime (datetime): 時間
+            # open (decimal): 開盤價
+            # avg_price (decimal): 均價
+            # close (decimal): 成交價
+            # high (decimal): 最高價(自開盤)
+            # low (decimal): 最低價(自開盤)
+            # amount (decimal): 成交額 (NTD)
+            # total_amount (decimal): 總成交額 (NTD)
+            # volume (int): 成交量 (整股:張, 盤中零股: 股)
+            # total_volume (int): 總成交量 (整股:張, 盤中零股: 股)
+            # tick_type (int): 內外盤別{1: 外盤, 2: 內盤, 0: 無法判定}
+            # chg_type (int): 漲跌註記{1: 漲停, 2: 漲, 3: 平盤, 4: 跌, 5: 跌停}
+            # price_chg (decimal): 漲跌
+            # pct_chg (decimal):  漲跌幅
+            # bid_side_total_vol (int): 買盤成交總量 (整股:張, 盤中零股: 股)
+            # ask_side_total_vol (int): 賣盤成交總量 (整股:張, 盤中零股: 股)
+            # bid_side_total_cnt (int): 買盤成交筆數 
+            # ask_side_total_cnt (int): 賣盤成交筆數 
+            # closing_oddlot_shares (int): 盤後零股成交股數(股)   
+            # fixed_trade_vol (int): 定盤成交量 (整股:張, 盤中零股: 股)
+            # suspend (bool): 暫停交易
+            # simtrade (bool): 試撮
+            # intraday_odd (int): 盤中零股 {0: 整股, 1:盤中零股}
 
         contract = None # Initialize contract outside try block for finally
         try:
-            # FIXME, use quene to manger all request.
-            # self.shioaji_api.set_quote_callback(tick_cb)
-            self.shioaji_api.quote.set_on_quote_stk_v1_callback(quote_callback_quote)
-
             # fetch contracts, it may already fetched.
             self.shioaji_api.fetch_contracts(contract_download=True)
+
+            # FIXME, use quene to manger all request.
+            self.shioaji_api.quote.set_on_tick_stk_v1_callback(tick_callback_quote)
 
             # Find the stock contract (common for full and odd lots)
             contract = self.shioaji_api.Contracts.Stocks[symbol]
@@ -462,17 +493,16 @@ class ShioajiBroker(BaseBroker):
             )
 
             # Attempt to get the first data point
-            msg = tick_queue.get(timeout=timeout)
-            # return {
-            #     "symbol": msg.code,
-            #     "price": msg.close,
-            #     "volume": msg.volume,
-            #     "tick_type": msg.tick_type,
-            #     "time": f"{msg.datetime.time()}"
-            # }
-            last_price = float(msg.close)
+            tick_data = tick_queue.get(timeout=timeout)
+
+            # NOTE. we don't have bid/ask price for shioaji, use close for it.
+            # Determine which price to return based on price_type
+            if tick_data.suspend is True:
+                return float(0.0)
+            else:
+                last_price = float(tick_data.close)
         except queue.Empty:
-            dbg_debug(f'[{symbol}] tick get empty. No price received within timeout.')
+            dbg_warning(f'[{symbol}] tick get empty. No price received within timeout.')
             last_price = 0.0
         except Exception as e:
             dbg_warning(f"Error fetching odd lot price for {symbol}: {e}")
@@ -528,11 +558,11 @@ class ShioajiBroker(BaseBroker):
             else:
                 reason = f"Invalid action: {action}. Must be 'buy' or 'sell'."
                 dbg_error(reason)
-                return None
+            return None
 
             if price is None:
-                # For market orders, get the last price to set as limit price for Shioaji
-                current_market_price = self.get_last_price(symbol)
+                price_type = OrderPrice.BID if action == OrderAction.SELL else OrderPrice.ASK
+                current_market_price = self.get_last_price(symbol, price_type)
                 if current_market_price <= 0:
                     reason = f"Could not get a valid market price for {symbol} to place order."
                     dbg_error(reason)
@@ -569,7 +599,8 @@ class ShioajiBroker(BaseBroker):
 
             # update daily cash usage.
             if action == OrderAction.BUY:
-                self.daily_cash_amount + size * price
+                # TODO, reset by daily update.
+                self.daily_cash_amount += size * price
 
             if trade and trade.status.status == sj.constant.Status.Filled:
                 dbg_info(f"Odd lot order filled: Symbol={symbol}, Action={action}, Filled Price={trade.deal_price}, Filled Size={trade.deal_quantity}")
@@ -593,26 +624,27 @@ class ShioajiBroker(BaseBroker):
             traceback_output = traceback.format_exc()
             dbg_error(traceback_output)
             return None
-    def __get_last_price_lot(self, symbol: str) -> float:
+    def __get_last_price_lot(self, symbol: str, price_type: OrderPrice) -> float:
         raise NotImplementedError
     def __place_order_lot(self, symbol: str, action: OrderAction, size: int, price: float | None = None) -> OrderTracker | None:
         raise NotImplementedError
-    def get_last_price(self, symbol: str) -> float:
+    def get_last_price(self, symbol: str, price_type: OrderPrice) -> float:
         """
         Abstract method to retrieve the last known market price for a given stock symbol.
         Concrete implementations will fetch this data from a market data source.
 
         Args:
             symbol (str): The stock symbol.
+            price_type (OrderPrice): The type of price to retrieve (e.g., LAST, BID, ASK).
 
         Returns:
             float: The last traded price of the stock. Returns 0.0 or raises an
                    appropriate error if the price cannot be retrieved.
         """
         if self._is_lot_trade:
-            return self.__get_last_price_lot(symbol)
+            return self.__get_last_price_lot(symbol, price_type)
         else:
-            return self.__get_last_price_odd(symbol)
+            return self.__get_last_price_odd(symbol, price_type)
 
     def order_checker(self, action, price, size) -> bool:
         """
