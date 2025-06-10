@@ -10,7 +10,7 @@ from broker.order.event import Event, default_event_callback
 
 class OrderService(threading.Thread):
     def __init__(self, broker_ins, event_callback: Callable[[Event, ...], None] = None): # Removed unused order_queue
-        super().__init__(daemon=True)
+        super().__init__()
         self.broker_ins = broker_ins # Corrected typo: broker_ini -> broker_ins
         self.running = True
         self.active_orders = []  # Track all active OrderTracker objects

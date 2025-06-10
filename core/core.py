@@ -259,7 +259,7 @@ class Core:
         # FIXME, not sure whether it will be banned by back.
         # we may need to find out a way to fix it on data provider.
         # maybe use TWSE for get current stock price continuously
-        intra_day_sleep_timedelta = timedelta(seconds=10)
+        intra_day_sleep_timedelta = timedelta(seconds=60)
 
         # do the evaluation daily during market hours
         while True:
@@ -456,6 +456,7 @@ class Core:
         dbg_info('Core start initialize.')
         try:
             self.cm = AppConfigManager()
+            BrokerManager.initialize(broker_type = "mock")
 
             # Checking & init database
             # self.database = Database(self.cm.get_path('tarding_database'))
@@ -575,6 +576,8 @@ class Core:
     def quit(self):
         dbg_info('Core Quit.')
         # TODO, do final check.
+        # self.broker_mgr.finalize()
+        BrokerManager.finalize()
 
         # if self.database is not None:
         #     self.database.close()

@@ -2,16 +2,19 @@
 import os
 import shutil # For cleaning up test directories
 from datetime import datetime,timedelta
+import time
 import traceback
 import io # New import for capturing stdout
 import contextlib # New import for redirecting stdout
 from unittest.mock import patch, MagicMock # New imports for mocking
+from typing import Optional
 
 from utility.debug import dbg_info, dbg_warning, dbg_error, dbg_trace
 from broker.brokermanager import BrokerManager, Position # Assuming Position is also relevant
 from broker.order.event import Event
 from broker.order.ordertracker import OrderTracker
 from broker.order.constant import OrderStatus, OrderAction, OrderPrice
+from broker.brokermanager import event_callback as original_event_callback # Import the original function to wrap
 
 # ANSI color codes
 RED = "\033[91m"
@@ -25,27 +28,30 @@ DEFAULT_BROKER_TYPE = 'mock'
 TEST_STATE_DIR = "data/test_broker_states" # Directory for temporary state files
 TEST_TRANSACTION_DIR = "data/test_broker_transactions"
 
-def _create_test_broker(test_name: str, initial_cash=1000000.0, commission_rate=0.001) -> BrokerManager:
-    """Helper to create a broker instance with a unique state file for testing."""
+def _setup_test_broker_manager(test_name: str, initial_cash=1000000.0, commission_rate=0.001, 
+                               state_filepath: Optional[str] = None, transaction_log_path: Optional[str] = None, clean_file = True):
+    """Helper to initialize the BrokerManager class for testing."""
     # Ensure the main test directories exist
     os.makedirs(TEST_STATE_DIR, exist_ok=True)
     os.makedirs(TEST_TRANSACTION_DIR, exist_ok=True)
 
-    state_filepath = os.path.join(TEST_STATE_DIR, f"broker_state_{test_name}.json")
-    transaction_log_path = os.path.join(TEST_TRANSACTION_DIR, f"transactions_{test_name}.csv")
+    # Use provided paths or generate default ones
+    actual_state_filepath = state_filepath if state_filepath else os.path.join(TEST_STATE_DIR, f"broker_state_{test_name}.json")
+    actual_transaction_log_path = transaction_log_path if transaction_log_path else os.path.join(TEST_TRANSACTION_DIR, f"transactions_{test_name}.csv")
     
-    if os.path.exists(state_filepath):
-        os.remove(state_filepath)
-    if os.path.exists(transaction_log_path):
-        os.remove(transaction_log_path)
+    if clean_file is True:
+        if os.path.exists(actual_state_filepath):
+            os.remove(actual_state_filepath)
+        if os.path.exists(actual_transaction_log_path):
+            os.remove(actual_transaction_log_path)
 
-    dbg_trace(f"Creating BrokerManager for test '{test_name}' with state: {state_filepath}, transactions: {transaction_log_path}")
-    return BrokerManager(
+    dbg_trace(f"Initializing BrokerManager for test '{test_name}' with state: {actual_state_filepath}, transactions: {actual_transaction_log_path}")
+    BrokerManager.initialize(
         broker_type=DEFAULT_BROKER_TYPE,
         initial_cash=initial_cash,
         commission_rate=commission_rate,
-        state_filepath=state_filepath, 
-        transaction_log_path=transaction_log_path,
+        state_filepath=actual_state_filepath, 
+        transaction_log_path=actual_transaction_log_path,
         simulation = True
     )
 
@@ -68,8 +74,8 @@ def cleanup_test_broker_files(test_name: str):
 
 def test_initial_state(test_id: str, initial_cash_expected=1000000.0) -> bool:
     dbg_info("--- Running Test: Initial Broker State ---")
-    broker_manager = _create_test_broker(test_name=test_id, initial_cash=initial_cash_expected)
-    broker_manager.connect()
+    _setup_test_broker_manager(test_name=test_id, initial_cash=initial_cash_expected)
+    broker_manager = BrokerManager()
     try:
         cash = broker_manager.get_balance()
         positions = broker_manager.get_all_positions()
@@ -86,13 +92,13 @@ def test_initial_state(test_id: str, initial_cash_expected=1000000.0) -> bool:
         dbg_error(traceback.format_exc())
         return False
     finally:
-        broker_manager.disconnect()
+        BrokerManager.finalize()
         cleanup_test_broker_files(test_id)
 
 def test_place_buy_order_sufficient_cash(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, qty=DEFAULT_BROKER_TEST_QTY) -> bool:
     dbg_info(f"--- Running Test: Place Buy Order ({symbol}, {qty}) - Sufficient Cash ---")
-    broker_manager = _create_test_broker(test_name=test_id)
-    broker_manager.connect()
+    _setup_test_broker_manager(test_name=test_id)
+    broker_manager = BrokerManager()
     try:
         market_price = broker_manager.get_last_price(symbol, OrderPrice.ASK)
         if market_price <= 0:
@@ -143,13 +149,13 @@ def test_place_buy_order_sufficient_cash(test_id: str, symbol=DEFAULT_BROKER_TES
         dbg_error(traceback.format_exc())
         return False
     finally:
-        broker_manager.disconnect()
+        BrokerManager.finalize()
         cleanup_test_broker_files(test_id)
 
 def test_place_buy_order_insufficient_cash(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, qty=100) -> bool:
     dbg_info(f"--- Running Test: Place Buy Order ({symbol}, {qty}) - Insufficient Cash ---")
-    broker_manager = _create_test_broker(test_name=test_id)
-    broker_manager.connect()
+    _setup_test_broker_manager(test_name=test_id)
+    broker_manager = BrokerManager()
     original_cash_in_broker = broker_manager.broker.cash # Store original cash before modification
     initial_transactions_count = len(broker_manager.get_transactions())
     
@@ -184,13 +190,13 @@ def test_place_buy_order_insufficient_cash(test_id: str, symbol=DEFAULT_BROKER_T
     finally:
         broker_manager.broker.cash = original_cash_in_broker # Restore cash
         broker_manager.broker._state_changed = True
-        broker_manager.disconnect()
+        BrokerManager.finalize()
         cleanup_test_broker_files(test_id)
 
 def test_get_position(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, expected_size=DEFAULT_BROKER_TEST_QTY) -> bool:
     dbg_info(f"--- Running Test: Get Position ({symbol}) ---")
-    broker_manager = _create_test_broker(test_name=test_id)
-    broker_manager.connect()
+    _setup_test_broker_manager(test_name=test_id)
+    broker_manager = BrokerManager()
     try:
         initial_transactions_count = len(broker_manager.get_transactions())
         # Ensure there's a position to get
@@ -234,13 +240,13 @@ def test_get_position(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, expected_
         dbg_error(traceback.format_exc())
         return False
     finally:
-        broker_manager.disconnect()
+        BrokerManager.finalize()
         cleanup_test_broker_files(test_id)
 
 def test_place_sell_order_sufficient_position(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, qty_to_sell=5) -> bool:
     dbg_info(f"--- Running Test: Place Sell Order ({symbol}, {qty_to_sell}) - Sufficient Position ---")
-    broker_manager = _create_test_broker(test_name=test_id)
-    broker_manager.connect()
+    _setup_test_broker_manager(test_name=test_id)
+    broker_manager = BrokerManager()
     try:
         # Ensure there's an initial position to sell from
         initial_buy_qty = DEFAULT_BROKER_TEST_QTY + qty_to_sell # Ensure enough to sell and still have some
@@ -287,19 +293,19 @@ def test_place_sell_order_sufficient_position(test_id: str, symbol=DEFAULT_BROKE
         dbg_error(traceback.format_exc())
         return False
     finally:
-        broker_manager.disconnect()
+        BrokerManager.finalize()
         cleanup_test_broker_files(test_id)
 
 def test_place_sell_order_insufficient_position(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER) -> bool:
     dbg_info(f"--- Running Test: Place Sell Order ({symbol}) - Insufficient Position ---")
-    broker_manager = _create_test_broker(test_name=test_id)
-    broker_manager.connect()
+    _setup_test_broker_manager(test_name=test_id)
+    broker_manager = BrokerManager()
     
     initial_cash = broker_manager.get_balance()
     initial_transactions_count = len(broker_manager.get_transactions())
 
     # Use patch.object to mock the event_callback method of the broker_manager instance
-    with patch.object(broker_manager.order_svc, 'event_callback', wraps=broker_manager.event_callback) as mock_event_callback:
+    with patch.object(broker_manager.order_svc, 'event_callback', wraps=original_event_callback) as mock_event_callback:
         try:
             # Ensure there's a small initial position, but not enough for the sell
             broker_manager.place_order(symbol, OrderAction.BUY, 5, None) # Buy 5 shares
@@ -360,13 +366,12 @@ def test_place_sell_order_insufficient_position(test_id: str, symbol=DEFAULT_BRO
             dbg_error(traceback.format_exc())
             return False
         finally:
-            broker_manager.disconnect()
             cleanup_test_broker_files(test_id)
 
 def test_portfolio_value(test_id: str) -> bool:
     dbg_info("--- Running Test: Portfolio Value ---")
-    broker_manager = _create_test_broker(test_name=test_id)
-    broker_manager.connect()
+    _setup_test_broker_manager(test_name=test_id)
+    broker_manager = BrokerManager()
     try:
         if not broker_manager.get_all_positions():
             dbg_info("No positions to test portfolio value, placing a buy order.")
@@ -385,33 +390,54 @@ def test_portfolio_value(test_id: str) -> bool:
         dbg_error(traceback.format_exc())
         return False
     finally:
-        broker_manager.disconnect()
+        BrokerManager.finalize()
         cleanup_test_broker_files(test_id)
 
-def test_save_load_state(test_id: str) -> bool: # Changed test_id_for_files to test_id
+def test_save_load_state(test_id: str) -> bool:
     dbg_info("--- Running Test: Save and Load State ---")
-    broker_save = _create_test_broker(test_name=f"{test_id}_save", initial_cash=50000, commission_rate=0.001)
-    state_file_to_use = broker_save.broker.state_filepath
-    tx_log_for_load_test = os.path.join(TEST_TRANSACTION_DIR, f"transactions_{test_id}_load.csv")
-    if os.path.exists(tx_log_for_load_test):
-        os.remove(tx_log_for_load_test) # Clean up before test
+    state_file_for_save = os.path.join(TEST_STATE_DIR, f"broker_state_{test_id}_save.json")
+    tx_log_for_save = os.path.join(TEST_TRANSACTION_DIR, f"transactions_{test_id}_save.csv")
+    tx_log_for_load = os.path.join(TEST_TRANSACTION_DIR, f"transactions_{test_id}_load.csv")
+
+    # Clean up files before starting
+    if os.path.exists(state_file_for_save): os.remove(state_file_for_save)
+    if os.path.exists(tx_log_for_save): os.remove(tx_log_for_save)
+    if os.path.exists(tx_log_for_load): os.remove(tx_log_for_load)
 
     try:
-        broker_save.connect() # ADDED
-        # Using the same ticker for both orders. This will result in one aggregated position.
-        broker_save.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, 20, None)
-        broker_save.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, 5, None) # Buys more of the same stock
-        cash_before_save = broker_save.get_balance()
-        positions_before_save = broker_save.get_all_positions()
+        # --- Part 1: Save State ---
+        _setup_test_broker_manager(
+            test_name=f"{test_id}", 
+            initial_cash=50000, 
+            commission_rate=0.001,
+            state_filepath=state_file_for_save, # Explicitly pass paths
+            transaction_log_path=tx_log_for_save
+        )
+        broker_save_instance = BrokerManager() # Get the instance that uses the class-level broker
+
+        broker_save_instance.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, 20, None)
+        broker_save_instance.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, 5, None)
+        cash_before_save = broker_save_instance.get_balance()
+        positions_before_save = broker_save_instance.get_all_positions()
         dbg_info(f"State before save - Cash: {cash_before_save}, Positions: {len(positions_before_save)}")
 
-        broker_save.disconnect()
+        # wait for callback event to log transaction.
+        # time.sleep(1)
 
-        broker_load = BrokerManager(broker_type=DEFAULT_BROKER_TYPE, initial_cash=1000, commission_rate=1.0, state_filepath=state_file_to_use, transaction_log_path=tx_log_for_load_test)
-        broker_load.connect()
+        # --- Part 2: Load State ---
+        # Initialize BrokerManager again, pointing to the saved state file
+        _setup_test_broker_manager(
+            test_name=f"{test_id}", # Use a different test_name for cleanup purposes if needed, but state_filepath is key
+            initial_cash=1000, # These initial values are ignored if state_filepath exists and loads
+            commission_rate=1.0,
+            state_filepath=state_file_for_save, # Crucially, load from the *saved* file
+            transaction_log_path=tx_log_for_load, # New transaction log for the loaded session
+            clean_file = False
+        )
+        broker_load_instance = BrokerManager() # Get the instance that uses the class-level broker
 
-        cash_after_load = broker_load.get_balance()
-        positions_after_load = broker_load.get_all_positions()
+        cash_after_load = broker_load_instance.get_balance()
+        positions_after_load = broker_load_instance.get_all_positions()
         dbg_info(f"State after load - Cash: {cash_after_load}, Positions: {len(positions_after_load)}")
 
         if abs(cash_after_load - cash_before_save) > 0.01:
@@ -437,20 +463,13 @@ def test_save_load_state(test_id: str) -> bool: # Changed test_id_for_files to t
         dbg_error(traceback.format_exc())
         return False
     finally:
-        # Ensure broker_load is disconnected as well
-        if 'broker_load' in locals() and broker_load.is_connected: # Check if broker_load was successfully created and connected
-            broker_load.disconnect() # ADDED
-        cleanup_test_broker_files(f"{test_id}_save")
-        if os.path.exists(tx_log_for_load_test):
-            try:
-                os.remove(tx_log_for_load_test)
-            except Exception as e:
-                dbg_warning(f"Could not remove load test transaction log {tx_log_for_load_test}: {e}")
+        BrokerManager.finalize() # Finalize the last initialized broker
+        # cleanup_test_broker_files(f"{test_id}") # Clean up the save files
 
-def test_transaction_logging(test_id: str) -> bool: # Changed test_id_for_files to test_id
+def test_transaction_logging(test_id: str) -> bool:
     dbg_info("--- Running Test: Transaction Logging ---")
-    broker = _create_test_broker(test_name=test_id)
-    broker.connect()
+    _setup_test_broker_manager(test_name=test_id)
+    broker = BrokerManager()
     tx_log_path = broker.transaction_log_path
     try:
         broker.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, 10, None)
@@ -477,13 +496,13 @@ def test_transaction_logging(test_id: str) -> bool: # Changed test_id_for_files 
         dbg_error(traceback.format_exc())
         return False
     finally:
-        broker.disconnect()
+        BrokerManager.finalize()
         cleanup_test_broker_files(test_id)
 
 def test_summarize_positions(test_id: str) -> bool:
     dbg_info("--- Running Test: Summarize Positions ---")
-    broker_manager = _create_test_broker(test_name=test_id)
-    broker_manager.connect()
+    _setup_test_broker_manager(test_name=test_id)
+    broker_manager = BrokerManager()
     try:
         if not broker_manager.get_all_positions():
             broker_manager.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, DEFAULT_BROKER_TEST_QTY, None)
@@ -496,13 +515,13 @@ def test_summarize_positions(test_id: str) -> bool:
         dbg_error(traceback.format_exc())
         return False
     finally:
-        broker_manager.disconnect()
+        BrokerManager.finalize()
         cleanup_test_broker_files(test_id)
 
 def test_summarize_transactions(test_id: str) -> bool:
     dbg_info("--- Running Test: Summarize Transactions ---")
-    broker_manager = _create_test_broker(test_name=test_id)
-    broker_manager.connect()
+    _setup_test_broker_manager(test_name=test_id)
+    broker_manager = BrokerManager()
     try:
         if not broker_manager.get_transactions(): # Check if transactions already exist
              broker_manager.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, 3, None)
@@ -517,13 +536,13 @@ def test_summarize_transactions(test_id: str) -> bool:
         dbg_error(traceback.format_exc())
         return False
     finally:
-        broker_manager.disconnect()
+        BrokerManager.finalize()
         cleanup_test_broker_files(test_id)
 
 def test_summarize_positions_no_positions(test_id="sum_pos_no_pos") -> bool:
     dbg_info("--- Running Test: Summarize Positions (No Positions) ---")
-    broker_manager = _create_test_broker(test_name=test_id, initial_cash=100000.0, commission_rate=0.001)
-    broker_manager.connect() # Ensure log is initialized if needed, and state is loaded (empty)
+    _setup_test_broker_manager(test_name=test_id, initial_cash=100000.0, commission_rate=0.001)
+    broker_manager = BrokerManager() # Ensure log is initialized if needed, and state is loaded (empty)
     try:
         # Ensure no positions are held (should be by default for a new broker)
         if broker_manager.get_all_positions():
@@ -550,16 +569,16 @@ def test_summarize_positions_no_positions(test_id="sum_pos_no_pos") -> bool:
         dbg_error(traceback.format_exc())
         return False
     finally:
-        broker_manager.disconnect()
+        BrokerManager.finalize()
         cleanup_test_broker_files(test_id)
 
 def test_summarize_transactions_no_history(test_id="sum_tx_no_hist") -> bool:
     dbg_info("--- Running Test: Summarize Transactions (No History) ---")
-    broker_manager = _create_test_broker(test_name=test_id, initial_cash=100000.0, commission_rate=0.001)
-    broker_manager.connect() # Ensure log is initialized if needed, and state is loaded (empty)
+    _setup_test_broker_manager(test_name=test_id, initial_cash=100000.0, commission_rate=0.001)
+    broker_manager = BrokerManager() # Ensure log is initialized if needed, and state is loaded (empty)
     try:
         # Ensure transaction log is empty and no positions
-        # _create_test_broker already cleans up files, and new broker has no positions.
+        # _setup_test_broker_manager already cleans up files, and new broker has no positions.
         # So, just ensure no transactions are logged before calling summarize.
         
         captured_output = io.StringIO()
@@ -582,14 +601,14 @@ def test_summarize_transactions_no_history(test_id="sum_tx_no_hist") -> bool:
         dbg_error(traceback.format_exc())
         return False
     finally:
-        broker_manager.disconnect()
+        BrokerManager.finalize()
         cleanup_test_broker_files(test_id)
 
 def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") -> bool:
     dbg_info("--- Running Test: Summarize Transactions (P/L and Duration) ---")
     # Set commission_rate to 0.0 as the mock will provide a fixed commission
-    broker_manager = _create_test_broker(test_name=test_id, initial_cash=100000.0, commission_rate=0.0)
-    broker_manager.connect() # Ensure log is initialized
+    _setup_test_broker_manager(test_name=test_id, initial_cash=100000.0, commission_rate=0.0)
+    broker_manager = BrokerManager() # Ensure log is initialized
 
     try:
         # Mock datetime.datetime.now() to control transaction timestamps
@@ -600,26 +619,11 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
         }
 
         # Create a MagicMock for the internal broker object
-        mock_internal_broker = MagicMock()
-
-        # Configure the mock broker's get_last_price
-        mock_internal_broker.get_last_price.side_effect = lambda s: mock_market_prices.get(s, 0.0)
-
-        # Configure the mock broker's place_order to always succeed
-        def mock_broker_place_order(symbol, action, qty, price=None):
-            # The price used for the fill. If price is provided, use it. Otherwise, use mocked market price.
-            fill_price = price if price is not None else mock_internal_broker.get_last_price(symbol, OrderPrice.LAST)
-            # Use the fixed commission amount expected by the test's assertions
-            commission = 0.005 
-
-            # Return a dictionary simulating a successful order fill from the broker
-            return {
-                'status': 'filled',
-                'price': fill_price,
-                'commission': commission
-            }
-        
-        mock_internal_broker.place_order.side_effect = mock_broker_place_order
+        # This mock_internal_broker is not directly used for patching broker_manager.broker
+        # but rather for defining the side_effect for the patched place_order.
+        # The actual patching happens in the `with patch.object` block below.
+        mock_internal_broker_for_side_effect = MagicMock()
+        mock_internal_broker_for_side_effect.get_last_price.side_effect = lambda s, price_type: mock_market_prices.get(s, 0.0)
 
         # Define a helper function for the mocked place_order side_effect
         # This function will simulate the MockBroker's behavior of calling the event_callback
@@ -628,7 +632,7 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
             current_mock_time = mock_dt.now() # Access the mocked datetime.now()
 
             # Determine fill price (use provided price or mocked market price)
-            fill_price = price if price is not None else mock_market_prices.get(symbol, 0.0)
+            fill_price = price if price is not None else mock_internal_broker_for_side_effect.get_last_price(symbol, OrderPrice.LAST)
             commission = 0.005 # Fixed commission for this test
 
             # Create an OrderTracker to simulate a filled order
@@ -645,7 +649,7 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
             # Manually call the BrokerManager's event_callback.
             # This is what MockBroker would do internally upon a successful fill.
             # This call will then trigger BrokerManager's _log_transaction.
-            broker_manager.event_callback(Event.OrderFilled, order_tracker)
+            original_event_callback(Event.OrderFilled, order_tracker)
 
             # MockBroker.place_order (and thus BrokerManager.place_order) does not return anything for successful fills.
             # For failed orders, MockBroker.place_order returns None and triggers OrderFailed event.
@@ -653,7 +657,7 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
             return None # Explicitly return None as BrokerManager.place_order does not return anything.
 
         with patch('broker.brokermanager.datetime', wraps=datetime) as mock_dt, \
-                patch.object(broker_manager.broker, 'get_last_price', side_effect=lambda s: mock_market_prices.get(s, 0.0)), \
+                patch.object(broker_manager.broker, 'get_last_price', side_effect=lambda s, price_type: mock_market_prices.get(s, 0.0)), \
                 patch.object(broker_manager.broker, 'place_order', side_effect=_mock_broker_place_order_side_effect):
             
             # Set a fixed "current" time for the test
@@ -756,13 +760,13 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
         dbg_error(traceback.format_exc())
         return False
     finally:
-        broker_manager.disconnect() # Ensure state is saved/cleaned up
+        BrokerManager.finalize() # Ensure state is saved/cleaned up
         cleanup_test_broker_files(test_id)
 
 def test_event_callback(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, qty=DEFAULT_BROKER_TEST_QTY) -> bool:
     dbg_info(f"--- Running Test: Event Callback ({symbol}, {qty}) ---")
-    broker_manager = _create_test_broker(test_name=test_id)
-    broker_manager.connect()
+    _setup_test_broker_manager(test_name=test_id)
+    broker_manager = BrokerManager()
 
     # Mock the event_callback method
     mock_callback = MagicMock()
@@ -813,7 +817,7 @@ def test_event_callback(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, qty=DEF
         dbg_error(traceback.format_exc())
         return False
     finally:
-        broker_manager.disconnect()
+        BrokerManager.finalize()
         cleanup_test_broker_files(test_id)
 
 # --- Test Runner ---

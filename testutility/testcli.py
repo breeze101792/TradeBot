@@ -27,16 +27,16 @@ class TestCLI(CommandLineInterface):
     def __init__(self):
         super().__init__(promote='test') # Initialize parent CLI
         self.market = Market() # Instantiate Market for testing
-        self.evaluate_instance = Evaluate(development = True) # Instantiate Evaluate for testing
-        self.trading_instance = Trading() # Instantiate Trading for testing
+        # self.evaluate_instance = Evaluate(development = True) # Instantiate Evaluate for testing
+        # self.trading_instance = Trading() # Instantiate Trading for testing
         # For testing purposes, we often want to use controlled/smaller datasets
         # or specific test paths within the Evaluate class.
         # Setting flag_development to True can enable this if Evaluate is designed accordingly.
         # self.evaluate_instance.flag_development = True
-        dbg_info(f"TestCLI: Evaluate instance created with flag_development={self.evaluate_instance.flag_development}")
-        if self.evaluate_instance.flag_development:
-            dbg_info(f"  Evaluate test_buy_list: {self.evaluate_instance.test_buy_list}")
-            dbg_info(f"  Evaluate test_sell_list: {self.evaluate_instance.test_sell_list}")
+        # dbg_info(f"TestCLI: Evaluate instance created with flag_development={self.evaluate_instance.flag_development}")
+        # if self.evaluate_instance.flag_development:
+        #     dbg_info(f"  Evaluate test_buy_list: {self.evaluate_instance.test_buy_list}")
+        #     dbg_info(f"  Evaluate test_sell_list: {self.evaluate_instance.test_sell_list}")
 
         self._register_test_commands()
 
@@ -269,11 +269,7 @@ class TestCLI(CommandLineInterface):
             # self.evaluate_instance.flag_development = True
 
             # Pass both instances; run_trading_tests will determine which to use for each specific test
-            run_trading_tests(
-                tests_to_run,
-                evaluate_instance=self.evaluate_instance,
-                trading_instance=self.trading_instance
-            )
+            run_trading_tests(tests_to_run)
             return True # Command execution success (tests pass/fail internally)
         except Exception as e:
             dbg_error(f"An error occurred while running trading tests: {e}")
@@ -422,11 +418,7 @@ class TestCLI(CommandLineInterface):
                 # Ensure evaluate_instance.flag_development is True for these tests
                 # self.evaluate_instance.flag_development = True # Set in __init__
                 # Pass both instances to run all applicable trading tests
-                trading_results = run_trading_tests(
-                    ["all"],
-                    evaluate_instance=self.evaluate_instance,
-                    trading_instance=self.trading_instance
-                )
+                trading_results = run_trading_tests(["all"])
                 if trading_results:
                     results_summary["Trading"] = trading_results
                     total_tests_run += trading_results.get("total", 0)

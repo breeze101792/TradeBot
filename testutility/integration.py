@@ -92,8 +92,6 @@ def test_buying_flow(test_id: str) -> bool:
             mock_broker.get_last_price.side_effect = lambda symbol, price_type: {'2330': 600, '0050': 150}.get(symbol, 0)
             mock_broker.place_order.return_value = True # Mock order placement success
             mock_broker.summarize_positions.return_value = None
-            mock_broker.connect.return_value = True
-            mock_broker.disconnect.return_value = True
             mock_broker.get_all_positions.return_value = {} # No positions initially for buying test
             mock_broker.get_position_by_symbol.return_value = None
 
@@ -218,8 +216,6 @@ def test_selling_flow(test_id: str) -> bool:
             mock_broker.get_last_price.side_effect = lambda symbol, price_type: {'2330': 600, '0050': 150}.get(symbol, 0)
             mock_broker.place_order.return_value = True # Mock order placement success
             mock_broker.summarize_positions.return_value = None
-            mock_broker.connect.return_value = True
-            mock_broker.disconnect.return_value = True
 
             # Set up mock positions for selling evaluation
             mock_positions = {

@@ -5,6 +5,7 @@ import csv
 from datetime import datetime, timedelta
 from collections import defaultdict # Import defaultdict
 from tabulate import tabulate # Import tabulate for creating tables
+import time # Import time for delays
 
 # Local file
 from utility.debug import * # Replace standard logging with custom debug system
@@ -21,45 +22,134 @@ from broker.order.orderservice import OrderService
 from broker.order.ordertracker import OrderTracker
 from broker.order.constant import OrderStatus, OrderAction, OrderPrice
 
+def event_callback(event: Event, data: Optional[Any] = None):
+    """
+    Callback function for handling events from the OrderService.
+    This method processes different types of order-related events (e.g., OrderFilled, OrderFailed).
+
+    Args:
+        event (Event): The type of event that occurred.
+        data (Optional[Any]): The data associated with the event, typically an `OrderTracker` object.
+    """
+    if event == Event.OrderFilled:
+        if not isinstance(data, OrderTracker):
+            dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
+            return
+
+        # Data is an OrderTracker object
+        order_tracker: OrderTracker = data
+
+        order_tracker.show_order()
+        dbg_info(f"Order Filled: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
+                 f"Size={order_tracker.size}, Price={order_tracker.price}, Commission={order_tracker.commission}.")
+
+        bm = BrokerManager()
+        # Log the transaction using data from the OrderTracker
+        bm._log_transaction(
+            symbol=order_tracker.symbol,
+            action=order_tracker.action.value, # Use the string value of the enum
+            size=order_tracker.size,
+            price=order_tracker.price,
+            commission=order_tracker.commission,
+            cash_balance=bm.get_balance() # Get current balance after the transaction
+        )
+    elif event == Event.OrderFailed:
+        if not isinstance(data, OrderTracker):
+            dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
+            return
+        order_tracker: OrderTracker = data
+        dbg_warning(f"Order Failed: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
+                    f"Size={order_tracker.size}, Reason={order_tracker.reason}.")
+        # Optionally log failed orders or take other actions
+    elif event == Event.OrderPending:
+        if not isinstance(data, OrderTracker):
+            dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
+            return
+        order_tracker: OrderTracker = data
+        dbg_info(f"Order Pending: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
+                    f"Size={order_tracker.size}, Price={order_tracker.price}.")
+    elif event == Event.OrderCanceled:
+        if not isinstance(data, OrderTracker):
+            dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
+            return
+        order_tracker: OrderTracker = data
+        dbg_info(f"Order Canceled: Symbol={order_tracker.symbol}, Order ID={order_tracker.order_id}, "
+                    f"Reason={order_tracker.reason}.")
+    else:
+        dbg_info(f"Unhandled event received: {event}, data: {data}")
+
+
 class BrokerManager:
     """
     Manages different broker implementations, providing a unified interface.
     Acts as a wrapper around a specific broker instance.
     """
-    def __init__(self, broker_type: str = 'mock', **kwargs: Any):
-        """
-        Initializes the BrokerManager with a specific broker type.
+    # broker: BaseBroker = None
+    # order_svc: OrderService = None
+    broker = None
+    order_svc = None
+    transaction_log_path = ""
 
-        Args:
-            broker_type (str): The type of broker to instantiate ('mock', etc.). Defaults to 'mock'.
-            **kwargs: Arguments to pass to the underlying broker's constructor
-                      (e.g., initial_cash, commission_rate, broker_path).
+    def __init__(self):
+        """
+        Initializes the BrokerManager.
+        Note: The actual broker and order service initialization is handled by the `initialize` class method.
         """
         self.cm = AppConfigManager()
-        self.broker: BaseBroker # Type hint for the wrapped broker instance
-        self.broker_type = broker_type
-        self.__is_connected = False
 
-        self.transaction_log_path = kwargs.get('transaction_log_path', 
-            os.path.join(self.cm.get_path('broker'), f'{broker_type}/transactions.csv'))
-        self._ensure_transaction_log_dir()
+    def is_inited(self) -> bool:
+        """
+        Checks if the BrokerManager has been successfully initialized with a broker and order service.
 
+        Returns:
+            bool: True if initialized, False otherwise.
+        """
+        if self.broker is not None and self.order_svc is not None:
+            return True
+        else:
+            return False
+
+    @classmethod
+    def initialize(cls, broker_type: str = 'mock', **kwargs: Any):
+        """
+        Initializes the BrokerManager's class-level broker and order service instances.
+        This method should be called once before using any instance methods that rely on the broker.
+
+        Args:
+            broker_type (str): The type of broker to instantiate ('mock', 'Shioaji', etc.). Defaults to 'mock'.
+            **kwargs: Arguments to pass to the underlying broker's constructor.
+                      - For 'mock': `initial_cash` (float), `commission_rate` (float), `simulation` (bool),
+                                    `state_filepath` (str, for unit testing).
+                      - For 'Shioaji': `simulation` (bool).
+                      - `transaction_log_path` (str): Optional path for the transaction log CSV.
+        """
+        cfg_mgr = AppConfigManager()
+        # Predefine base on the broker type.
+        # Init trasaction.
+        cls.transaction_log_path = kwargs.get('transaction_log_path', 
+            os.path.join(cfg_mgr.get_path('broker'), f'{broker_type}/transactions.csv'))
+        os.makedirs(os.path.dirname(cls.transaction_log_path), exist_ok=True)
+
+        if cls.broker is not None:
+            cls.broker.disconnect()
+
+        # Init broker.
         if broker_type == 'mock':
             # Extract relevant kwargs for MockBroker, providing defaults if not present
             initial_cash = kwargs.get('initial_cash', 1000000.0)
             commission_rate = kwargs.get('commission_rate', 0.003)
             simulation = kwargs.get('simulation', False)
 
-            self.broker = MockBroker(
+            cls.broker = MockBroker(
                 initial_cash=initial_cash,
                 commission_rate=commission_rate,
-                broker_path = os.path.join(self.cm.get_path('broker'), f'{broker_type}'),
+                broker_path = os.path.join(cfg_mgr.get_path('broker'), f'{broker_type}'),
                 simulation = simulation
             )
             # Set the state file path after initialization, this is for unitest.
             state_filepath = kwargs.get('state_filepath', "")
             if state_filepath != "":
-                self.broker.set_state_filepath(state_filepath)
+                cls.broker.set_state_filepath(state_filepath)
             dbg_info(f"Initialized MockBroker via BrokerManager. Cash: ${initial_cash:,.2f}, Commission Rate: ${commission_rate:.2f}")
         elif broker_type == 'Shioaji':
             # Extract relevant kwargs for ShioajiBroker, providing defaults if not present
@@ -67,73 +157,44 @@ class BrokerManager:
             # simulation = kwargs.get('simulation', False)
             simulation = True
 
-            self.broker = ShioajiBroker(
-                broker_path = os.path.join(self.cm.get_path('broker'), f'{broker_type}'),
+            cls.broker = ShioajiBroker(
+                broker_path = os.path.join(cfg_mgr.get_path('broker'), f'{broker_type}'),
                 simulation = simulation
             )
             dbg_info(f"Initialized ShioajiBroker via BrokerManager.")
         # Add elif blocks here for other broker types in the future
         # elif broker_type == 'interactive_brokers':
-        #     self.broker = InteractiveBrokersBroker(**kwargs)
+        #     cls.broker = InteractiveBrokersBroker(**kwargs)
         else:
             dbg_error(f"Unsupported broker type: {broker_type}")
             raise ValueError(f"Unsupported broker type: {broker_type}")
 
         # Initialize OrderService with the broker instance for order tracking
-        self.order_svc = OrderService(self.broker, event_callback = self.event_callback)
+        if cls.order_svc is not None:
+            cls.order_svc.stop()
 
-    def is_connected(self):
-        return self.__is_connected
-    def event_callback(self, event: Event, data: Optional[Any] = None):
+        cls.order_svc = OrderService(cls.broker, event_callback = event_callback)
+
+        ## Post init
+        cls.broker.connect()
+        cls._log_transaction_init()
+        # get initial status if file not exist.
+        cls.order_svc.start()
+        dbg_info("inited.", cls.broker, cls.order_svc)
+
+    @classmethod
+    def finalize(cls):
         """
-        Callback function for handling events from the broker.
-        This method processes different types of events, primarily focusing on order-related events.
+        Cleans up and disconnects the managed broker and stops the order service.
+        This method should be called when the BrokerManager is no longer needed.
         """
-        if event == Event.OrderFilled:
-            if not isinstance(data, OrderTracker):
-                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
-                return
-
-            # Data is an OrderTracker object
-            order_tracker: OrderTracker = data
-
-            order_tracker.show_order()
-            # dbg_info(f"Order Filled: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
-            #          f"Size={order_tracker.size}, Price={order_tracker.price}, Commission={order_tracker.commission}.")
-
-            # Log the transaction using data from the OrderTracker
-            self._log_transaction(
-                symbol=order_tracker.symbol,
-                action=order_tracker.action.value, # Use the string value of the enum
-                size=order_tracker.size,
-                price=order_tracker.price,
-                commission=order_tracker.commission,
-                cash_balance=self.get_balance() # Get current balance after the transaction
-            )
-        elif event == Event.OrderFailed:
-            if not isinstance(data, OrderTracker):
-                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
-                return
-            order_tracker: OrderTracker = data
-            dbg_warning(f"Order Failed: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
-                        f"Size={order_tracker.size}, Reason={order_tracker.reason}.")
-            # Optionally log failed orders or take other actions
-        elif event == Event.OrderPending:
-            if not isinstance(data, OrderTracker):
-                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
-                return
-            order_tracker: OrderTracker = data
-            dbg_info(f"Order Pending: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
-                     f"Size={order_tracker.size}, Price={order_tracker.price}.")
-        elif event == Event.OrderCanceled:
-            if not isinstance(data, OrderTracker):
-                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
-                return
-            order_tracker: OrderTracker = data
-            dbg_info(f"Order Canceled: Symbol={order_tracker.symbol}, Order ID={order_tracker.order_id}, "
-                     f"Reason={order_tracker.reason}.")
-        else:
-            dbg_info(f"Unhandled event received: {event}")
+        dbg_info("brokermanager finialized.")
+        if cls.order_svc is not None:
+            cls.order_svc.stop()
+            cls.order_svc = None
+        if cls.broker is not None:
+            cls.broker.disconnect()
+            cls.broker = None
 
     def place_order(self, symbol: str, action: OrderAction, size: int, price: Optional[float] = None) -> Optional[Dict[str, Any]]:
         """
@@ -148,9 +209,12 @@ class BrokerManager:
                                      For a sell order, it executes only if the market price is greater than or equal to the limit price.
                                      Execution, if successful, always happens at the current market price. Defaults to None.
 
+        Returns:
+            Optional[bool]: True if the order was successfully placed and added to the order service, False otherwise.
+                            Returns None if the manager is not initialized.
         """
-        if self.is_connected() is False:
-            dbg_info('Please connect it first.')
+        if self.is_inited() is False:
+            dbg_info('Please inited it first.')
             raise ValueError
         # it's backward compatible.
         if action in ['sell', 'SELL']:
@@ -168,70 +232,101 @@ class BrokerManager:
         if order is not None:
             self.order_svc.add_order(order)
             return True
-        return False
+        else:
+            dbg_warning(f"Order not found.")
+            return False
 
     def get_balance(self) -> float:
-        """Returns the current available cash balance from the managed broker."""
-        if self.is_connected() is False:
-            dbg_info('Please connect it first.')
+        """
+        Returns the current available cash balance from the managed broker.
+
+        Returns:
+            float: The current cash balance.
+        """
+        if self.is_inited() is False:
+            dbg_info('Please init it first.')
             raise ValueError
         return self.broker.get_balance()
 
     def get_position_by_symbol(self, symbol: str) -> Position:
         """
         Returns the Position object for a given symbol from the managed broker.
-        If the symbol is not held, returns a Position object with size 0.
+
+        Args:
+            symbol (str): The stock symbol.
+
+        Returns:
+            Position: The Position object for the symbol. If the symbol is not held,
+                      returns a Position object with size 0 and default values.
         """
-        if self.is_connected() is False:
-            dbg_info('Please connect it first.')
+        if self.is_inited() is False:
+            dbg_info('Please init it first.')
             raise ValueError
         return self.broker.get_position_by_symbol(symbol)
 
     def get_all_positions(self) -> Dict[str, Position]:
-        """Returns a dictionary of all current positions from the managed broker."""
-        if self.is_connected() is False:
-            dbg_info('Please connect it first.')
+        """
+        Returns a dictionary of all current positions from the managed broker.
+
+        Returns:
+            Dict[str, Position]: A dictionary where keys are symbols and values are `Position` objects.
+        """
+        if self.is_inited() is False:
+            dbg_info('Please init it first.')
             raise ValueError
         return self.broker.get_all_positions()
 
     def get_last_price(self, symbol: str, price_type: OrderPrice) -> float:
         """
         Returns the last known market price for a symbol from the managed broker.
+
+        Args:
+            symbol (str): The stock symbol.
+            price_type (OrderPrice): The type of price to retrieve (e.g., LAST, BID, ASK).
+
+        Returns:
+            float: The last known market price for the symbol.
         """
-        if self.is_connected() is False:
-            dbg_info('Please connect it first.')
+        if self.is_inited() is False:
+            dbg_info('Please init it first.')
             raise ValueError
         # Note: This might need adjustment if different brokers handle price fetching differently.
         return self.broker.get_last_price(symbol, price_type)
 
     def get_portfolio_value(self) -> float:
         """
-        Calculates the total value of the portfolio using the managed broker.
+        Calculates the total value of the portfolio (cash + market value of positions)
+        using the managed broker.
+
+        Returns:
+            float: The total portfolio value.
         """
-        if self.is_connected() is False:
-            dbg_info('Please connect it first.')
+        if self.is_inited() is False:
+            dbg_info('Please init it first.')
             raise ValueError
         return self.broker.get_portfolio_value()
 
     def set_state_filepath(self, filepath: str):
         """
         Sets the default file path for saving/loading state in the managed broker.
+        This is primarily used for mock brokers or simulation environments.
 
         Args:
             filepath (str): The new default path for the state file.
         """
-        if self.is_connected() is False:
-            dbg_info('Please connect it first.')
+        if self.is_inited() is False:
+            dbg_info('Please init it first.')
             raise ValueError
         self.broker.set_state_filepath(filepath)
 
     def summarize_positions(self):
         """
-        Prints a summary table of all current positions held by the managed broker,
-        including market value and unrealized profit/loss.
+        Prints a summary table of all current positions held by the managed broker.
+        The summary includes details like size, average entry price, market value,
+        and unrealized profit/loss for each symbol, along with portfolio totals.
         """
-        if self.is_connected() is False:
-            dbg_info('Please connect it first.')
+        if self.is_inited() is False:
+            dbg_info('Please init it first.')
             raise ValueError
         cash = self.broker.get_balance()
         positions = self.broker.get_all_positions()
@@ -311,58 +406,22 @@ class BrokerManager:
             dbg_error(f"Error generating position summary table with tabulate: {e}")
             print("\nError: Could not generate position summary table.")
 
-
-    def connect(self):
+    @classmethod
+    def _log_transaction_init(cls):
         """
-        Connects the underlying managed broker.
-        For BaseBroker, this loads the state. For live brokers, this would establish a connection.
+        Initializes the transaction log file if it does not exist.
+        If the file is new, it writes the CSV header and logs any existing positions
+        as 'initial' state entries.
         """
-        # dbg_info(f"BrokerManager: Initiating connection for {self.broker_type} broker...")
-        try:
-            self.broker.connect()
-            self.__is_connected = True
-            # get initial status if file not exist.
-            self._log_transaction_init()
-            self.order_svc.start()
-            dbg_trace(f"BrokerManager: Connection process completed for {self.broker_type} broker.")
-        except Exception as e:
-            self.disconnect()
-            self.__is_connected = False
-            dbg_error(f"BrokerManager: Error during connection for {self.broker_type} broker: {e}")
-            # Optionally re-raise or handle specific connection errors
-            raise
-
-    def disconnect(self):
-        """
-        Disconnects the underlying managed broker.
-        For BaseBroker, this saves the state. For live brokers, this would close the connection.
-        """
-        # dbg_info(f"BrokerManager: Initiating disconnection for {self.broker_type} broker...")
-        try:
-            self.order_svc.stop() # Corrected typo: self.self -> self
-            self.broker.disconnect()
-            self.__is_connected = False
-            dbg_trace(f"BrokerManager: Disconnection process completed for {self.broker_type} broker.")
-        except Exception as e:
-            dbg_error(f"BrokerManager: Error during disconnection for {self.broker_type} broker: {e}")
-            self.__is_connected = False
-            # Optionally re-raise or handle specific disconnection errors
-            raise
-
-    def _ensure_transaction_log_dir(self):
-        """Ensures the directory for transaction logs exists."""
-        os.makedirs(os.path.dirname(self.transaction_log_path), exist_ok=True)
-
-    def _log_transaction_init(self):
-        log_exists = os.path.exists(self.transaction_log_path)
+        log_exists = os.path.exists(cls.transaction_log_path)
         now_iso = datetime.now().isoformat()
 
         # TODO, We didn't handle the transacion when the file arleady exist, but not done by this program.
         if not log_exists:
             # File doesn't exist, create it, log initial positions, then log the current transaction
-            initial_positions = self.get_all_positions()
-            cash_balance = self.get_balance()
-            with open(self.transaction_log_path, 'w', newline='') as f:
+            initial_positions = cls.broker.get_all_positions()
+            cash_balance = cls.broker.get_balance()
+            with open(cls.transaction_log_path, 'w', newline='') as f:
                 writer = csv.writer(f)
                 # Write header
                 header = ['timestamp', 'symbol', 'action', 'size', 'price', 'commission', 'cash_balance']
@@ -388,15 +447,15 @@ class BrokerManager:
     def _log_transaction(self, symbol: str, action: str, size: int, price: float, 
                         commission: float, cash_balance: float):
         """
-        Logs a transaction to the CSV file.
+        Logs a transaction to the CSV file. Ensures the log file is initialized first.
         
         Args:
-            symbol: Trading symbol
-            action: 'BUY' or 'SELL'
-            size: Number of shares
-            price: Execution price per share
-            commission: Commission paid
-            cash_balance: Cash balance after transaction
+            symbol (str): Trading symbol.
+            action (str): 'BUY' or 'SELL' (or 'initial' for initial position logging).
+            size (int): Number of shares.
+            price (float): Execution price per share.
+            commission (float): Commission paid for the transaction.
+            cash_balance (float): Cash balance after the transaction.
         """
         # log_exists = os.path.exists(self.transaction_log_path)
         now_iso = datetime.now().isoformat()
@@ -419,13 +478,15 @@ class BrokerManager:
 
     def get_transactions(self) -> List[Dict[str, Any]]:
         """
-        Returns all logged transactions as a list of dictionaries.
-        
+        Reads and returns all logged transactions from the CSV file.
+
         Returns:
-            List of transaction records with keys matching CSV headers
+            List[Dict[str, Any]]: A list of transaction records, where each record is a dictionary
+                                  with keys matching the CSV headers (e.g., 'timestamp', 'symbol', 'action').
+                                  Returns an empty list if the transaction log file does not exist.
         """
-        if self.is_connected() is False:
-            dbg_info('Please connect it first.')
+        if self.is_inited() is False:
+            dbg_info('Please init it first.')
             raise ValueError
         if not os.path.exists(self.transaction_log_path):
             return []
@@ -434,16 +495,19 @@ class BrokerManager:
             reader = csv.DictReader(f)
             return list(reader)
 
-    def summarize_transactions(self, duration: str = None):
+    def summarize_transactions(self, duration: Optional[str] = None):
         """
-        Prints a summary of transactions with additional stock status information.
+        Prints a comprehensive summary of transactions, optionally filtered by a time duration.
+        It includes overall transaction statistics and per-symbol details (buy/sell volume, P/L).
         If no transactions are found, it will display current positions as the initial state.
 
         Args:
-            duration (str): Optional filter for transactions ('month', 'year', 'week')
+            duration (Optional[str]): An optional filter for transactions.
+                                      Accepted values: 'month', 'year', 'week'.
+                                      If None, all historical transactions are summarized.
         """
-        if self.is_connected() is False:
-            dbg_info('Please connect it first.')
+        if self.is_inited() is False:
+            dbg_info('Please init it first.')
             raise ValueError
         transactions = self.get_transactions()
         current_positions = self.get_all_positions()
@@ -729,7 +793,19 @@ class BrokerManager:
             print("\nNo per-symbol transaction data to display for the period (after considering initial positions).")
 
     def _parse_transaction_numerics(self, t_data: Dict[str, str]) -> Optional[tuple[int, float, float]]:
-        """Helper to parse numeric fields from a transaction data dictionary."""
+        """
+        Helper method to safely parse numeric fields (size, price, commission)
+        from a raw transaction data dictionary read from CSV.
+
+        Args:
+            t_data (Dict[str, str]): A dictionary representing a single transaction record,
+                                     where values are typically strings.
+
+        Returns:
+            Optional[tuple[int, float, float]]: A tuple containing (size, price, commission)
+                                                as their respective numeric types if parsing is successful.
+                                                Returns None if any conversion fails or a key is missing.
+        """
         try:
             size = int(t_data['size'])
             price = float(t_data['price'])

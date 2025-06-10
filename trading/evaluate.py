@@ -15,7 +15,7 @@ from core.config import *
 class Evaluate:
     # threshold
     BUY_CANDIDATE_SCORE_THRESHOLD = 1
-    def __init__(self, development = False):
+    def __init__(self):
         # TODO, add multiple strategy support.
         self.stra_mgr = StrategyManager()
         self.market = Market()
@@ -25,17 +25,6 @@ class Evaluate:
 
         self.cm = AppConfigManager()
 
-        # debug mode
-        self.flag_development = development
-        if self.flag_development and self.cm.get('debug.development') is True:
-            dbg_warning('Enable debug mode.')
-            # Buy
-            self.test_buy_list = ['0050', '2330', '2454', '2028', '8404']
-            # Sell
-            self.test_sell_list = []
-            # self.test_sell_list.append({'symbol':'2330', 'open_date':date.today().isoformat(), 'size':5, 'initial_entry_price':2000, 'strategy': self.default_strategy.NAME})
-            # self.test_sell_list.append({'symbol':'2454', 'open_date':date.today().isoformat(), 'size':5, 'initial_entry_price':1500, 'strategy': self.default_strategy.NAME})
-
     def __buy_find_candidate(self):
 
         candidate_dict = dict()
@@ -44,9 +33,6 @@ class Evaluate:
         strategy_list=[self.default_strategy]
 
         product_list = self.market.get_data_list()
-        if self.flag_development:
-            # product_list = self.market.get_data_list()[:50]
-            product_list = self.test_buy_list
 
         last_trading_day = MarketTime.get_previous_market_update_time()
 
@@ -227,7 +213,6 @@ class Evaluate:
     def __get_realtime_data_list(self, symbol):
         # we append the last day to daily data for evaluation.
         trade_broker = BrokerManager()
-        trade_broker.connect()
 
         temp_df = self.market.get_data(symbol) # df with DatetimeIndex
         
@@ -309,15 +294,10 @@ class Evaluate:
             target_df = pd.concat([temp_df, new_row_df])
             target_df.sort_index(inplace=True)
         
-        trade_broker.disconnect()
         dbg_debug(f"Target data for {symbol} (tail after modification):\n{target_df.tail()}")
 
         return target_df
     def __sell_find_candidate(self, position_dict):
-        # faking data, example input data.
-        if self.flag_development and len(self.test_sell_list) > 0:
-            position_dict = self.test_sell_list
-
         selling_list = []
         # selling_list = [{'symbol':'2330', 'size':5, 'initial_entry_price':1000, 'date':date.today(), 'strategy': MovingAverageCrossoverStrategy.NAME}] 
 
@@ -326,7 +306,6 @@ class Evaluate:
             return []
 
         trade_broker = BrokerManager()
-        trade_broker.connect()
 
         selling_analyzer = Analyzer(self.market)
         selling_analyzer.clean_result()
@@ -423,7 +402,6 @@ class Evaluate:
                 traceback_output = traceback.format_exc()
                 dbg_warning(traceback_output)
         # selling_analyzer.show_result()
-        trade_broker.disconnect()
         return selling_list
     def selling_evaluation(self, position_dict):
         selling_list = self.__sell_find_candidate(position_dict)

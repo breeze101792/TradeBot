@@ -8,6 +8,10 @@ from trading.evaluate import Evaluate
 from broker.brokermanager import BrokerManager
 from broker.order.constant import OrderStatus, OrderAction, OrderPrice
 
+# Note.
+# BrokerManager.initialize() should be called externally before these methods.
+# trade_broker.connect()/disconnect() # Removed as connection is managed by BrokerManager.initialize()/finalize()
+
 class Trading:
     # def __init__(self):
     #     # this will break mock on test case, if you want this mock before init.
@@ -23,7 +27,6 @@ class Trading:
         if len(buy_list) >= 1:
             # TODO, Place order & save to data base for info/stop_loss price.
             trade_broker = BrokerManager()
-            trade_broker.connect()
             for each_symbol in buy_list:
                 try:
                     dbg_info(f'Buying product: {each_symbol}')
@@ -55,7 +58,6 @@ class Trading:
                     dbg_error(traceback_output)
 
             trade_broker.summarize_positions()
-            trade_broker.disconnect()
         else:
             dbg_info('ignore buying, len is 0.')
 
@@ -73,7 +75,6 @@ class Trading:
         if len(selling_list) >= 1:
             # TODO, Place order & save to data base for info/stop_loss price.
             trade_broker = BrokerManager()
-            trade_broker.connect()
             for each_symbol in selling_list:
                 try:
                     symbol = each_symbol['symbol']
@@ -116,7 +117,6 @@ class Trading:
                     dbg_error(traceback_output)
 
             trade_broker.summarize_positions()
-            trade_broker.disconnect()
         else:
             dbg_info('ignore selling, len is 0.')
 
@@ -133,13 +133,11 @@ class Trading:
         # TODO, get pos list from broker.
         # pos_list = [{'code':'2330', 'position':5}] 
         trade_broker = BrokerManager()
-        trade_broker.connect()
         pos_list = trade_broker.get_all_positions()
         dbg_debug(f"Position: {pos_list.keys()}")
 
         # Selling evaluation.
         sell_list = trade_eval.selling_evaluation(pos_list)
 
-        trade_broker.disconnect()
 
         return sell_list
