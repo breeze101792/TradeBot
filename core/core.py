@@ -544,41 +544,42 @@ class Core:
 
         finally:
             dbg_info('Safe exit threading.')
-
-            # disable all service flag
-            self.flag_core_running = False
-            self.flag_trade_service_running = False
-            self.flag_selling_service_running = False
-            self.flag_datasource_service_running = False
-            self.flag_heatbeat_running = False
-
-            # set event to stop sleep.
-            self.stop_event.set()
-
-            if self.trading_service_thread is not None:
-                self.trading_service_thread.join()
-                self.trading_service_thread = None
-
-            if self.selling_service_thread is not None:
-                self.selling_service_thread.join()
-                self.selling_service_thread = None
-
-            if self.datasource_service_thread is not None:
-                self.datasource_service_thread.join()
-                self.datasource_service_thread = None
-
-            if self.heatbeat_thread is not None:
-                self.heatbeat_thread.join()
-                self.heatbeat_thread = None
+            self.stop()
 
         dbg_info('Core End.')
 
-    def quit(self):
-        dbg_info('Core Quit.')
+    def stop(self):
+        # disable all service flag
+        self.flag_core_running = False
+        self.flag_trade_service_running = False
+        self.flag_selling_service_running = False
+        self.flag_datasource_service_running = False
+        self.flag_heatbeat_running = False
+
+        # set event to stop sleep.
+        self.stop_event.set()
+
+        if self.trading_service_thread is not None:
+            self.trading_service_thread.join()
+            self.trading_service_thread = None
+
+        if self.selling_service_thread is not None:
+            self.selling_service_thread.join()
+            self.selling_service_thread = None
+
+        if self.datasource_service_thread is not None:
+            self.datasource_service_thread.join()
+            self.datasource_service_thread = None
+
+        if self.heatbeat_thread is not None:
+            self.heatbeat_thread.join()
+            self.heatbeat_thread = None
+    def finalize(self):
         # TODO, do final check.
         # self.broker_mgr.finalize()
         BrokerManager.finalize()
 
         # if self.database is not None:
         #     self.database.close()
+        dbg_info('Core finalized.')
 

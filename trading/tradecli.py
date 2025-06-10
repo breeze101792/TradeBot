@@ -47,18 +47,15 @@ class TDCLI(CommandLineInterface):
 
     def cmd_positions(self, args):
         trade_broker = BrokerManager()
-        trade_broker.connect()
 
         if args['#'] == 1:
             if args['1'] == 'show':
                 trade_broker.summarize_positions()
         else:
             trade_broker.summarize_positions()
-        trade_broker.disconnect()
         return True
     def cmd_transactions(self, args):
         trade_broker = BrokerManager()
-        trade_broker.connect()
 
         if args['#'] == 1:
             if args['1'] == 'year':
@@ -70,6 +67,5 @@ class TDCLI(CommandLineInterface):
         else:
             trade_broker.summarize_transactions('year')
 
-        trade_broker.disconnect()
         return True
 

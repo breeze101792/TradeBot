@@ -109,7 +109,7 @@ def main():
         except:
             raise
         finally:
-            core.quit()
+            core.finalize()
     elif args.trading_mode == "backtest":
         btcli = BTCLI()
         btcli.run()

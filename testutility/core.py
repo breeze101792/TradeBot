@@ -59,7 +59,7 @@ def test_core_initialization(test_id: str) -> bool:
         return False
     finally:
         # No specific cleanup needed for just initialization
-        pass
+        core_instance.finalize()
 
 def test_core_start_and_stop_flow(test_id: str) -> bool:
     dbg_info(f"--- Running Test: {test_id} - Core Start/Stop Flow ---")
@@ -67,8 +67,8 @@ def test_core_start_and_stop_flow(test_id: str) -> bool:
     core_instance.initialize()
     
     # Mock sleep functions to prevent actual blocking
-    with patch('core.core.sleep_with_flag', side_effect=lambda *args, **kwargs: (time.sleep(1) or -1)) as mock_sleep_with_flag, \
-         patch('core.core.sleep_until_with_flag', side_effect=lambda *args, **kwargs: (time.sleep(1) or -1)) as mock_sleep_until_with_flag, \
+    with patch('core.core.sleep_with_flag', side_effect=lambda *args, **kwargs: (time.sleep(5) or -1)) as mock_sleep_with_flag, \
+         patch('core.core.sleep_until_with_flag', side_effect=lambda *args, **kwargs: (time.sleep(5) or -1)) as mock_sleep_until_with_flag, \
          patch.object(core_instance, '_Core__update_datasource', return_value=True) as mock_update_datasource, \
          patch.object(core_instance.trading, 'trading_eval', return_value=[]) as mock_trading_eval, \
          patch.object(core_instance.trading, 'buying_exec', return_value=True) as mock_buying_exec, \
@@ -108,9 +108,11 @@ def test_core_start_and_stop_flow(test_id: str) -> bool:
                 return False
 
             dbg_info("All service flags are True after start.")
+            # wait for start cli & heartbeat.
+            time.sleep(3)
 
             # Signal core to stop
-            core_instance.quit() # This sets flag_core_running to False and stop_event.set()
+            core_instance.stop() # This sets flag_core_running to False and stop_event.set()
             
             # Wait for the core thread to finish
             core_thread.join(timeout=5) # Give it some time to shut down
@@ -144,9 +146,10 @@ def test_core_start_and_stop_flow(test_id: str) -> bool:
         finally:
             # Ensure the thread is joined even if test fails early
             if 'core_thread' in locals() and core_thread.is_alive():
-                core_instance.quit() # Attempt to stop again
+                core_instance.stop() # Attempt to stop again
                 core_thread.join(timeout=1)
             # No specific file cleanup for this test
+            core_instance.finalize() # Attempt to stop again
 
 def test_core_sanity_check_method(test_id: str) -> bool:
     dbg_info(f"--- Running Test: {test_id} - Sanity Check Method ---")
@@ -272,10 +275,12 @@ def test_cmd_status_output(test_id: str) -> bool:
         core_instance.flag_trade_service_running = False
         core_instance.flag_selling_service_running = False
         core_instance.flag_datasource_service_running = False
+        core_instance.finalize()
 
 def test_datasource_service_loop_and_update(test_id: str) -> bool:
     dbg_info(f"--- Running Test: {test_id} - Datasource Service Loop ---")
     core_instance = Core()
+    core_instance.initialize()
     
     # Mock datetime.now() and MarketTime methods to control time progression
     mock_now = datetime(2024, 6, 8, 15, 0, 0) # After market update time
@@ -289,7 +294,6 @@ def test_datasource_service_loop_and_update(test_id: str) -> bool:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *args, **kw: datetime(*args, **kw) # Allow datetime.datetime() calls
 
-            core_instance.initialize()
             core_instance.flag_core_running = True # Manually set core running flag for service to run
 
             datasource_thread = threading.Thread(target=core_instance._Core__datasource_service)
@@ -330,6 +334,7 @@ def test_datasource_service_loop_and_update(test_id: str) -> bool:
         # Ensure flags are reset
         core_instance.flag_core_running = False
         core_instance.flag_datasource_service_running = False
+        core_instance.finalize()
 
 def test_trading_service_flow(test_id: str) -> bool:
     dbg_info(f"--- Running Test: {test_id} - Trading Service Flow ---")
@@ -406,6 +411,7 @@ def test_trading_service_flow(test_id: str) -> bool:
     finally:
         core_instance.flag_core_running = False
         core_instance.flag_trade_service_running = False
+        core_instance.finalize()
 
 def test_selling_service_flow(test_id: str) -> bool:
     dbg_info(f"--- Running Test: {test_id} - Selling Service Flow ---")
@@ -482,6 +488,7 @@ def test_selling_service_flow(test_id: str) -> bool:
     finally:
         core_instance.flag_core_running = False
         core_instance.flag_selling_service_running = False
+        core_instance.finalize()
 
 # --- Test Runner ---
 def run_core_tests(test_names: list[str]):
