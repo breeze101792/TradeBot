@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # system file
 import argparse
+import traceback
 
 import matplotlib
 from matplotlib import rcParams
+from git import Repo
 
 # Local file
 from utility.debug import *
@@ -47,6 +49,11 @@ def main():
         choices=['backtest', 'trade', 'test'],
         help="Trading mode")
 
+    parser.add_argument("--broker", action="store",
+        dest="broker_type", default="mock",
+        choices=['mock', 'shioaji'],
+        help="Select broker for trading, default use mock broker.")
+
     # Shortcut flag for backtest mode
     parser.add_argument("-b", "--backtest", action="store_const",
         dest="trading_mode", const="backtest", # Set trading_mode to 'backtest' if -b is used
@@ -84,25 +91,37 @@ def main():
         cm.set('path.broker', "broker_development")
         cm.set('debug.development', True)
     else:
-        ans = input("!!! It's a NOT in development mode, are you sure you want to proceed, or try with development mode.?(y/N, enter to goto development mode.):")
+        ans = input("!!! It's a NOT in development mode, are you sure you want to proceed? (yes/No):")
         if ans in ['y', 'Y', 'yes', 'YES']:
-            dbg_warning('!!! Real Trading mode !!!')
+            # Default we use broker type as the broker name.
+            broker_subname = args.broker_type
+            try:
+                repo = Repo('.')  # current directory must be a git repo
+                broker_subname = repo.active_branch.name
+            except Exception as e:
+                dbg_warning(f"Please use under git path. we use git for broker path. now we fallback to use {args.broker_type}, error: {e}")
+                traceback_output = traceback.format_exc()
+                dbg_warning(traceback_output)
+
+            dbg_warning('!!! Real Trading mode with broker: {args.broker_type}')
             cm.set('debug.development', False)
-            cm.set('path.broker', "broker")
+            cm.set('path.broker', f"broker_{broker_subname}")
         else:
-            dbg_warning('Enable development mode')
-            cm.set('path.broker', "broker_development")
-            cm.set('debug.development', True)
+            # we should use development flag for it.
+            exit(0)
 
     # env setup.
     setup_matplot()
 
     # Start core.
     if args.trading_mode == "trade":
-        dbg_info("Real Trade Not support yet.")
+        if args.broker_type != 'mcok':
+            dbg_info("Starting trading simulation with mock broker.")
+        else:
+            dbg_warning("Starting trading with {args.broker_type} broker. Use it at your own risk.")
         core = Core()
         try:
-            core.initialize()
+            core.initialize(broker_type = args.broker_type)
             core.start()
         except KeyboardInterrupt:
             dbg_error("Keyboard Interupt.")

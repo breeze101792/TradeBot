@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 
 # Local file
 from utility.debug import *
+from utility.utils import sleep_with_flag, sleep_until_with_flag
 from core.database import *
 from core.config import *
 from market.market import *
@@ -21,34 +22,6 @@ from trading.tradecli import TDCLI
 from trading.trading import Trading
 from trading.evaluate import Evaluate
 from broker.brokermanager import BrokerManager
-
-def sleep_with_flag(timeout: float, flag: threading.Event):
-    # print(f"Sleeping for up to {timeout} seconds...")
-    # This will block up to `timeout` seconds, or return early if flag is set
-    interrupted = flag.wait(timeout)
-    if interrupted:
-        dbg_info("Sleep interrupted by flag!")
-        return -1
-    # print("Sleep completed.")
-def sleep_until_with_flag(target_time: datetime, flag: threading.Event):
-    # print(f"Sleeping for up to {target_time} seconds...")
-    # This will block up to `target_time` seconds, or return early if flag is set
-    now = datetime.now()
-    delta = (target_time - now).total_seconds()
-    interrupted = flag.wait(delta)
-    if interrupted:
-        dbg_info("Sleep interrupted by flag!")
-        return -1
-    # print("Sleep completed.")
-
-def sleep_until(target_time: datetime):
-    now = datetime.now()
-    delta = (target_time - now).total_seconds()
-    if delta > 0:
-        dbg_trace(f"Sleeping for {delta:.2f} seconds...")
-        time.sleep(delta)
-    else:
-        dbg_trace("Target time already passed.")
 
 class TradingStatus:
     class Trading:
@@ -63,6 +36,9 @@ class TradingStatus:
     class Datasource:
         next_wakeup_time = None
 
+    class Broker:
+        next_wakeup_time = None
+
 class Core:
     def __init__(self):
         # Flags
@@ -70,6 +46,7 @@ class Core:
         self.flag_heatbeat_running = False
         self.flag_trade_service_running = False
         self.flag_selling_service_running = False
+        self.flag_broker_service_running = False
 
         # Vars
         self.var_threading_delay = 0.1
@@ -78,6 +55,7 @@ class Core:
         self.datasource_service_thread = None
         self.trading_service_thread = None
         self.selling_service_thread = None
+        self.broker_service_thread = None
         self.heatbeat_thread = None
 
         # FIXME, seperate event for each thread, or it'll be wake up by different thread.
@@ -91,6 +69,7 @@ class Core:
         self.market = None
         self.cm = None
         self.trading = None
+        self.broker_manager = None
 
     def __initcheck(self):
         # Check env setup is okay or not.
@@ -198,6 +177,9 @@ class Core:
                 sleep_result = sleep_until_with_flag(target, self.stop_event)
                 if MarketTime.is_trading_day() is False:
                     # goto sleep, since market closed.
+                    # FIXME, this will casue buy loop, for now we use 5 second to ignore that.
+                    dbg_info(f"Todyday is not trading day, sleep 5 secound.")
+                    time.sleep(5)
                     continue
 
                 self.trading_status.Trading.next_wakeup_time = None # Reset after wake-up or interruption
@@ -359,6 +341,106 @@ class Core:
         self.trading_status.Selling.next_wakeup_time = None # Ensure reset on exit
         self.flag_selling_service_running = False
         dbg_warning('Selling Service End.')
+    def __broker_service(self):
+
+        dbg_info('Broker Service Start.')
+        self.flag_broker_service_running = True
+
+        while True:
+            try:
+                # sleeping control
+                ###############################################################
+                # FIXME, handle in trading time.
+                # Sleep until next market open time (e.g., 8:50 AM)
+                # market_open_target = MarketTime.get_next_market_open_time().replace(hour=8, minute=50, second=0, microsecond=0)
+                # self.trading_status.Broker.next_wakeup_time = market_open_target # Store wake-up time
+                # dbg_info(f'Broker Service will wake up at {market_open_target}.')
+                # sleep_result = sleep_until_with_flag(market_open_target, self.stop_event)
+                # self.trading_status.Broker.next_wakeup_time = None # Reset after wake-up or interruption
+                # if sleep_result == -1:
+                #     dbg_info("Broker service interrupted before market open.")
+                #     break # Exit outer loop if interrupted before starting
+
+                target = None
+                current_time = datetime.now().time()
+
+                # 13:30, 0~9 => market open date
+                # 9~13:30 => 
+
+                if current_time > MarketTime.MARKET_CLOSE_TIME:
+                    # 13:30 ~ 24, after market
+                    target = MarketTime.get_next_market_open_time() - timedelta(minutes=10)
+                elif current_time < MarketTime.MARKET_OPEN_TIME :
+                    # 0 ~ 8, before market.
+                    target = MarketTime.get_next_market_open_time() - timedelta(minutes=10)
+                else:
+                    # 8 ~ 13:30
+                    # target = MarketTime.get_next_market_update_time() + timedelta(hours=1)
+                    target = None
+
+                self.trading_status.Broker.next_wakeup_time = target # Store wake-up time for eval
+
+                if target is not None:
+                    dbg_info(f'Broker Service will wake up at {target}.')
+                    sleep_result = sleep_until_with_flag(target, self.stop_event)
+                    if MarketTime.is_trading_day() is False:
+                        # goto sleep, since market closed.
+                        # FIXME, this will casue buy loop, for now we use 5 second to ignore that.
+                        dbg_info(f"Todyday is not trading day, sleep 5 secound.")
+                        time.sleep(5)
+                        continue
+
+                    self.trading_status.Broker.next_wakeup_time = None # Reset after wake-up or interruption
+                    if sleep_result == -1:
+                        break;
+
+                    dbg_info('Running Broker Service')
+                    # doing some broker sanit check, make sure before trading we have a good connection between local and broker host.
+                    # BrokerManager.reconnect()
+
+                    # print the position.
+                    self.broker_manager.summarize_positions()
+                    # check service and reconnect.
+                    BrokerManager.reconnect()
+                ###############################################################
+
+                # market close.
+                ###############################################################
+                # Sleep until next market open time (e.g., 8:50 AM)
+                market_close_target = MarketTime.get_next_market_close_time()
+                self.trading_status.Broker.next_wakeup_time = market_close_target # Store wake-up time
+                dbg_info(f'Broker Service will wake up at {market_close_target}.')
+                sleep_result = sleep_until_with_flag(market_close_target, self.stop_event)
+                self.trading_status.Broker.next_wakeup_time = None # Reset after wake-up or interruption
+                if sleep_result == -1:
+                    dbg_info("Broker service interrupted before market open.")
+                    break # Exit outer loop if interrupted before starting
+                ###############################################################
+
+                # print the position.
+                self.broker_manager.summarize_positions()
+
+            except KeyboardInterrupt:
+                dbg_warning("Keyboard Interupt.")
+                self.flag_broker_service_running = False
+            except Exception as e:
+                dbg_error(e)
+
+                traceback_output = traceback.format_exc()
+                dbg_error(traceback_output)
+
+            finally:
+                # Finalize service thread.
+                if self.flag_core_running is False or self.flag_broker_service_running is False:
+                    dbg_trace('Finalize service thread.')
+                    self.flag_core_running = False
+                    break
+
+                time.sleep(self.var_threading_delay)
+
+        self.trading_status.Broker.next_wakeup_time = None # Ensure reset on exit
+        self.flag_broker_service_running = False
+        dbg_warning('Broker Service End.')
     def __datasource_service(self):
         dbg_info('Data Srouce Start.')
         self.flag_datasource_service_running = True
@@ -412,12 +494,14 @@ class Core:
         ds_next_wakeup = self.trading_status.Datasource.next_wakeup_time
         tr_next_wakeup = self.trading_status.Trading.next_wakeup_time
         sl_next_wakeup = self.trading_status.Selling.next_wakeup_time
+        bm_next_wakeup = self.trading_status.Broker.next_wakeup_time
 
         print(f"Core Running               : {self.flag_core_running}")
         print(f"Heartbeat Service Running  : {self.flag_heatbeat_running}")
         print(f"Datasource Service Running : {self.flag_datasource_service_running}" + (f" (Next wake up-> {ds_next_wakeup})" if ds_next_wakeup else ""))
         print(f"Trading Service Running    : {self.flag_trade_service_running}" + (f" (Next wake up-> {tr_next_wakeup})" if tr_next_wakeup else ""))
         print(f"Selling Service Running    : {self.flag_selling_service_running}" + (f" (Next wake up-> {sl_next_wakeup})" if sl_next_wakeup else ""))
+        print(f"Broker Service Running     : {self.flag_broker_service_running}" + (f" (Next wake up-> {bm_next_wakeup})" if bm_next_wakeup else ""))
 
         sanity_result = self.__sanitycheck()
         print(f"Sanity Check: {sanity_result}")
@@ -452,11 +536,12 @@ class Core:
         print("-------------------")
         return True
 
-    def initialize(self):
+    def initialize(self, broker_type = "mock"):
         dbg_info('Core start initialize.')
         try:
             self.cm = AppConfigManager()
-            BrokerManager.initialize(broker_type = "mock")
+            BrokerManager.initialize(broker_type = broker_type)
+            self.broker_manager = BrokerManager()
 
             # Checking & init database
             # self.database = Database(self.cm.get_path('tarding_database'))
@@ -509,6 +594,11 @@ class Core:
             self.selling_service_thread.start()
             thread_list.append(self.selling_service_thread)
 
+            # broker Thread
+            self.broker_service_thread = threading.Thread(target=self.__broker_service)
+            self.broker_service_thread.start()
+            thread_list.append(self.broker_service_thread)
+
             # Monitor Thread
             # Checking thread healthy regularly.
             self.heatbeat_thread = threading.Thread(target=self.__heatbeat_service, daemon=True)
@@ -516,7 +606,7 @@ class Core:
             thread_list.append(self.heatbeat_thread)
 
             # wait for service start.
-            while self.flag_selling_service_running is False or self.flag_trade_service_running is False or self.flag_datasource_service_running is False:
+            while self.flag_broker_service_running is False  or self.flag_selling_service_running is False or self.flag_trade_service_running is False or self.flag_datasource_service_running is False:
                 dbg_debug('Wait for threadings start.')
                 time.sleep(0.5)
 
@@ -553,6 +643,7 @@ class Core:
         self.flag_core_running = False
         self.flag_trade_service_running = False
         self.flag_selling_service_running = False
+        self.flag_broker_service_running = False
         self.flag_datasource_service_running = False
         self.flag_heatbeat_running = False
 
@@ -567,6 +658,10 @@ class Core:
             self.selling_service_thread.join()
             self.selling_service_thread = None
 
+        if self.broker_service_thread is not None:
+            self.broker_service_thread.join()
+            self.broker_service_thread = None
+
         if self.datasource_service_thread is not None:
             self.datasource_service_thread.join()
             self.datasource_service_thread = None
@@ -574,6 +669,7 @@ class Core:
         if self.heatbeat_thread is not None:
             self.heatbeat_thread.join()
             self.heatbeat_thread = None
+
     def finalize(self):
         # TODO, do final check.
         # self.broker_mgr.finalize()

@@ -89,6 +89,7 @@ class BrokerManager:
     broker = None
     order_svc = None
     transaction_log_path = ""
+    _broker_connected = False
 
     def __init__(self):
         """
@@ -97,18 +98,46 @@ class BrokerManager:
         """
         self.cm = AppConfigManager()
 
-    def is_inited(self) -> bool:
+    def is_connected(self) -> bool:
         """
         Checks if the BrokerManager has been successfully initialized with a broker and order service.
 
         Returns:
             bool: True if initialized, False otherwise.
         """
-        if self.broker is not None and self.order_svc is not None:
+        if self.broker is not None and self.order_svc is not None and self._broker_connected is True:
             return True
         else:
             return False
 
+    @classmethod
+    def reconnect(cls):
+        max_retries = 5
+        for attempt in range(1, max_retries + 1):
+            dbg_info(f"Attempting to reconnect broker (Attempt {attempt}/{max_retries})...")
+            try:
+                if cls.broker is None: # Ensure broker exists before attempting disconnect
+                    dbg_error(f"broker not found on {cls}.")
+                    return False
+                cls._broker_connected = False
+                cls.broker.disconnect()
+                time.sleep(5) # Wait before attempting to connect
+                cls.broker.connect()
+                cls._broker_connected = True
+                dbg_info(f"Broker reconnected successfully on attempt {attempt}.")
+                return True# Exit if successful
+            except Exception as e:
+                dbg_error(f"Reconnection attempt {attempt} failed: {e}")
+                # Optionally log traceback for debugging
+                # traceback_output = traceback.format_exc()
+                # dbg_error(traceback_output)
+                if attempt < max_retries:
+                    dbg_info(f"Retrying in 5 seconds...")
+                    time.sleep(5) # Wait before next retry
+                else:
+                    dbg_error(f"Failed to reconnect broker after {max_retries} attempts.")
+                    # Re-raise the last exception if all attempts fail, or handle it as appropriate
+                    return False# Exit if successful
     @classmethod
     def initialize(cls, broker_type: str = 'mock', **kwargs: Any):
         """
@@ -116,11 +145,11 @@ class BrokerManager:
         This method should be called once before using any instance methods that rely on the broker.
 
         Args:
-            broker_type (str): The type of broker to instantiate ('mock', 'Shioaji', etc.). Defaults to 'mock'.
+            broker_type (str): The type of broker to instantiate ('mock', 'shioaji', etc.). Defaults to 'mock'.
             **kwargs: Arguments to pass to the underlying broker's constructor.
                       - For 'mock': `initial_cash` (float), `commission_rate` (float), `simulation` (bool),
                                     `state_filepath` (str, for unit testing).
-                      - For 'Shioaji': `simulation` (bool).
+                      - For 'shioaji': `simulation` (bool).
                       - `transaction_log_path` (str): Optional path for the transaction log CSV.
         """
         cfg_mgr = AppConfigManager()
@@ -151,7 +180,7 @@ class BrokerManager:
             if state_filepath != "":
                 cls.broker.set_state_filepath(state_filepath)
             dbg_info(f"Initialized MockBroker via BrokerManager. Cash: ${initial_cash:,.2f}, Commission Rate: ${commission_rate:.2f}")
-        elif broker_type == 'Shioaji':
+        elif broker_type == 'shioaji':
             # Extract relevant kwargs for ShioajiBroker, providing defaults if not present
             # Current we only enable simulation use.
             # simulation = kwargs.get('simulation', False)
@@ -177,6 +206,7 @@ class BrokerManager:
 
         ## Post init
         cls.broker.connect()
+        cls._broker_connected = True
         cls._log_transaction_init()
         # get initial status if file not exist.
         cls.order_svc.start()
@@ -189,6 +219,7 @@ class BrokerManager:
         This method should be called when the BrokerManager is no longer needed.
         """
         dbg_info("brokermanager finialized.")
+        cls._broker_connected = False
         if cls.order_svc is not None:
             cls.order_svc.stop()
             cls.order_svc = None
@@ -213,7 +244,7 @@ class BrokerManager:
             Optional[bool]: True if the order was successfully placed and added to the order service, False otherwise.
                             Returns None if the manager is not initialized.
         """
-        if self.is_inited() is False:
+        if self.is_connected() is False:
             dbg_info('Please inited it first.')
             raise ValueError
         # it's backward compatible.
@@ -243,7 +274,7 @@ class BrokerManager:
         Returns:
             float: The current cash balance.
         """
-        if self.is_inited() is False:
+        if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
         return self.broker.get_balance()
@@ -259,7 +290,7 @@ class BrokerManager:
             Position: The Position object for the symbol. If the symbol is not held,
                       returns a Position object with size 0 and default values.
         """
-        if self.is_inited() is False:
+        if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
         return self.broker.get_position_by_symbol(symbol)
@@ -271,7 +302,7 @@ class BrokerManager:
         Returns:
             Dict[str, Position]: A dictionary where keys are symbols and values are `Position` objects.
         """
-        if self.is_inited() is False:
+        if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
         return self.broker.get_all_positions()
@@ -287,7 +318,7 @@ class BrokerManager:
         Returns:
             float: The last known market price for the symbol.
         """
-        if self.is_inited() is False:
+        if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
         # Note: This might need adjustment if different brokers handle price fetching differently.
@@ -301,7 +332,7 @@ class BrokerManager:
         Returns:
             float: The total portfolio value.
         """
-        if self.is_inited() is False:
+        if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
         return self.broker.get_portfolio_value()
@@ -314,7 +345,7 @@ class BrokerManager:
         Args:
             filepath (str): The new default path for the state file.
         """
-        if self.is_inited() is False:
+        if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
         self.broker.set_state_filepath(filepath)
@@ -325,7 +356,7 @@ class BrokerManager:
         The summary includes details like size, average entry price, market value,
         and unrealized profit/loss for each symbol, along with portfolio totals.
         """
-        if self.is_inited() is False:
+        if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
         cash = self.broker.get_balance()
@@ -487,7 +518,7 @@ class BrokerManager:
                                   with keys matching the CSV headers (e.g., 'timestamp', 'symbol', 'action').
                                   Returns an empty list if the transaction log file does not exist.
         """
-        if self.is_inited() is False:
+        if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
         if not os.path.exists(self.transaction_log_path):
@@ -508,7 +539,7 @@ class BrokerManager:
                                       Accepted values: 'month', 'year', 'week'.
                                       If None, all historical transactions are summarized.
         """
-        if self.is_inited() is False:
+        if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
         transactions = self.get_transactions()

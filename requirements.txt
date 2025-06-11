@@ -13,4 +13,5 @@ tornado
 dotenv
 # shioaji
 shioaji[speed]
+gitpython
 # python-dotenv
