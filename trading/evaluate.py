@@ -251,7 +251,7 @@ class Evaluate:
         current_day_data['Low'] = price
         current_day_data['Close'] = price
 
-        dbg_info(f"{symbol} tail data to daily list, current price: {price}")
+        dbg_trace(f"{symbol} tail data to daily list, current price: {price}")
         
         # Fake other critical data if necessary.
         # For 'Change', if it represents (Close - Open), it would be 0.
@@ -298,6 +298,7 @@ class Evaluate:
 
         return target_df
     def __sell_find_candidate(self, position_dict):
+        selling_eval_result_list = []
         selling_list = []
         # selling_list = [{'symbol':'2330', 'size':5, 'initial_entry_price':1000, 'date':date.today(), 'strategy': MovingAverageCrossoverStrategy.NAME}] 
 
@@ -311,7 +312,7 @@ class Evaluate:
         selling_analyzer.clean_result()
 
         last_trading_day = MarketTime.get_previous_market_update_time()
-        dbg_info(f"Last Trad date {last_trading_day}")
+        dbg_info(f"Evaluating {len(position_dict)} products with last Trad date {last_trading_day}")
 
         # Iterate through positions provided by the broker (dict: {symbol: Position_object})
         for symbol, position_obj in position_dict.items():
@@ -333,7 +334,7 @@ class Evaluate:
                     dbg_warning(f"Skipping evaluation for {symbol}: Missing or invalid position data (Date: {purchase_date}, Price: {purchase_price}, Size: {position_size})")
                     continue
 
-                dbg_info(f"Evaluating for {symbol}, opened on {purchase_date.isoformat()} at initial price {purchase_price:.2f}, current size {position_size}, using strategy {strategy_name}")
+                dbg_info(f"Evaluating for {symbol} using strategy {strategy_name}")
 
                 selling_analyzer.setup() # Setup Cerebro instance
 
@@ -350,7 +351,7 @@ class Evaluate:
                     modified_last_trading_day = datetime.now()
                     selling_analyzer.add_data_frame([{'symbol':symbol, 'data':target_df}])
                 else:
-                    dbg_info(f'Can not get lastest price of {symbol}. Use previous date instead.')
+                    dbg_warning(f'Can not get lastest price of {symbol}. Use previous date instead.')
                     selling_analyzer.add_symbol([symbol])
 
                 # --- Convert current position info to order_history format ---
@@ -375,8 +376,21 @@ class Evaluate:
                 selling_analyzer.add_strategy([target_strategy], last_trading_day = modified_last_trading_day.date())
                 selling_analyzer.eval()
 
+                last_price = target_df['Close'].iloc[-1] if target_df is not None and not target_df.empty else 0.0
                 # Print detailed last trade information
                 trade_info = target_strategy.last_trade
+                selling_eval_result_list.append({
+                    'symbol': symbol,
+                    'open': purchase_date.isoformat(),
+                    'action': trade_info.get('action', 'None'), # Sell the position size strategy decided.
+                    'entry_price':purchase_price,
+                    'last_price': last_price, 
+                    'realtime_pl': (last_price/purchase_price - 1) * 100 , 
+                    'hoding_size': position_size, # current holding position size
+                    'selling_price': trade_info.get('price', 0.0), # Target sell price from strategy (might be indicative)
+                    'selling_size': trade_info.get('size', 0), # Sell the position size strategy decided.
+                    'strategy': target_strategy # Keep strategy object if needed later
+                })
 
                 # Check if the strategy generated a sell signal for the last trading day
                 if trade_info and trade_info.get('action') == 'sell' and trade_info.get('symbol') == symbol:
@@ -401,6 +415,30 @@ class Evaluate:
             
                 traceback_output = traceback.format_exc()
                 dbg_warning(traceback_output)
+        
+        # Prepare data for tabulation of selling evaluation results
+        if len(selling_eval_result_list) != 0:
+            headers = ["Symbol", "Open Date", "Action", "Holding Size", "Entry Price", "Current Price", "Realtime P/L (%)", "Selling Price", "Selling Size", "Strategy"]
+            table_data = []
+            for result in selling_eval_result_list:
+                table_data.append([
+                    result.get('symbol', 'N/A'),
+                    result.get('open', 'N/A'),
+                    result.get('action', 'N/A'),
+                    f"{result.get('hoding_size', 0):.2f}",
+                    f"{result.get('entry_price', 0.0):.2f}",
+                    f"{result.get('last_price', 0.0):.2f}", # Use 'last_price' which is the current price
+                    f"{result.get('realtime_pl', 0.0):.2f}",
+                    f"{result.get('selling_price', 0.0):.2f}",
+                    f"{result.get('selling_size', 0):.2f}",
+                    result.get('strategy').NAME if result.get('strategy') else 'N/A'
+                ])
+            dbg_info("\n--- Selling Evaluation Results ---")
+            dbg_info("\n" + tabulate(table_data, headers=headers, tablefmt="grid"))
+            dbg_info("----------------------------------")
+        else:
+            dbg_info("No selling evaluation results to display.")
+
         # selling_analyzer.show_result()
         return selling_list
     def selling_evaluation(self, position_dict):

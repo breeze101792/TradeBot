@@ -45,6 +45,54 @@ class TWSE(DataProvider):
             try:
                 # dbg_info(f'get_current_price : {symbol}')
                 result = twstock.realtime.get(symbol)
+                # Example of a value error result:
+                # {
+                #     "timestamp": 1749605675.0,
+                #     "info": {
+                #         "code": "4164",
+                #         "channel": "4164.tw",
+                #         "name": "承業醫",
+                #         "fullname": "承業生醫投資控股股份有限公司",
+                #         "time": "2025-06-11 09:34:35"
+                #     },
+                #     "realtime": {
+                #         "latest_trade_price": "-",
+                #         "trade_volume": "-",
+                #         "accumulate_trade_volume": "1298",
+                #         "best_bid_price": [
+                #             "45.1500",
+                #             "45.1000",
+                #             "45.0000",
+                #             "44.9500",
+                #             "44.9000"
+                #         ],
+                #         "best_bid_volume": [
+                #             "3",
+                #             "7",
+                #             "4",
+                #             "5",
+                #             "6"
+                #         ],
+                #         "best_ask_price": [
+                #             "45.2500",
+                #             "45.3000",
+                #             "45.4000",
+                #             "45.5000",
+                #             "45.5500"
+                #         ],
+                #         "best_ask_volume": [
+                #             "1",
+                #             "10",
+                #             "1",
+                #             "3",
+                #             "1"
+                #         ],
+                #         "open": "46.0000",
+                #         "high": "46.0000",
+                #         "low": "44.0000"
+                #     }
+                # }
+
                 # dbg_info('Realtime info:', result)
                 trade = result.get('realtime').get('latest_trade_price')
                 bid = result.get('realtime').get('best_bid_price')[0]
@@ -54,11 +102,19 @@ class TWSE(DataProvider):
                 elif price_type == OrderPrice.ASK:
                     return float(ask)
                 elif price_type == OrderPrice.LAST:
-                    return float(trade)
+                    if trade.isdigit() is True:
+                        return float(trade)
+                    else:
+                        # NOTE. it's fail to get trade from TWSE, so we use ask for it.
+                        # normal we got postion to check, so in that time, we use bid.
+                        return float(bid)
                 else:
                     return 0
-            except ValueError:
+            except ValueError as e:
                 dbg_debug(f'[{symbol}] value error: {result}. Attempt {attempt + 1}/{max_retries}')
+                dbg_error(e)
+                traceback_output = traceback.format_exc()
+                dbg_error(traceback_output)
                 time.sleep(1) # Wait a bit before retrying
             except Exception as e:
                 dbg_error(f'Error found on {symbol}. Attempt {attempt + 1}/{max_retries}')

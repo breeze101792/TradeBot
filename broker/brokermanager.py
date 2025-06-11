@@ -394,7 +394,9 @@ class BrokerManager:
             # Print Totals in a table
             print("\n--- Portfolio Totals ---")
             total_headers = ["Metric", "Value"]
+            total_asset = cash + total_market_value
             total_data = [
+                ["Total Asset", f"${total_asset:,.2f}"], # New row for Total Asset
                 ["Total Cash Value", f"${cash:,.2f}"],
                 ["Total Market Value", f"${total_market_value:,.2f}"],
                 ["Total Cost Basis", f"${total_cost_basis:,.2f}"],
