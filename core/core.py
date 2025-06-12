@@ -365,7 +365,7 @@ class Core:
                 current_time = datetime.now().time()
 
                 # 13:30, 0~9 => market open date
-                # 9~13:30 => 
+                # 9~13:30 =>  in trad.
 
                 if current_time > MarketTime.MARKET_CLOSE_TIME:
                     # 13:30 ~ 24, after market
@@ -400,6 +400,7 @@ class Core:
 
                     # print the position.
                     self.broker_manager.summarize_positions()
+                    # TODO, maybe we could add error detect, when disconnect from server, reconnect it.
                     # check service and reconnect.
                     BrokerManager.reconnect()
                 ###############################################################

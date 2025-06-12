@@ -20,6 +20,7 @@ pip install yfinance backtrader
 12. on buy/sell, check the price, make sure we can get the real price and if not do the error handle of it.
 13. On buy, we check the transaction of this stock. we want to buy the easy sell stock.
 14. Seperate svc from brokermanager, so we only need to to one connect/disconnect once.
+15. reconnect if broker offline/disconnected.
 
 # TODO
 1. on strategy, do profit check on real time.

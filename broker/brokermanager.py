@@ -650,11 +650,11 @@ class BrokerManager:
                 current_pos_state = initial_positions_at_cutoff[symbol]
                 # TODO, remove initial after check no one use it.
                 # buy/BUY/sell/SELL is for compatiable.
-                if action in [OrderAction.BUY.value, 'buy', 'BUY', 'initial', 'INITIAL']:
+                if action in [OrderAction.BUY.value, 'initial']:
                     cost_of_this_buy = (price * size) + commission
                     current_pos_state['total_cost_basis'] += cost_of_this_buy
                     current_pos_state['size'] += size
-                elif action in [OrderAction.SELL.value, 'sell', 'SELL']:
+                elif action in [OrderAction.SELL.value]:
                     if current_pos_state['size'] > 0:
                         avg_cost_per_share = current_pos_state['total_cost_basis'] / current_pos_state['size']
                         cost_basis_of_sold_shares = avg_cost_per_share * min(size, current_pos_state['size'])
