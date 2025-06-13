@@ -194,12 +194,8 @@ class BTCLI(CommandLineInterface):
                     self.market.update_data()
             elif args['1'] == 'force':
                 self.market.update_data(product_list = self.product_list, force_update = True)
-                # for each_product in self.product_list:
-                #     self.print(f"Force update product {each_product}")
-                #     self.market.get_data(product_id = each_product, force_update = True)
             else:
                 self.print(f"Update product {args['1']}")
-                # self.market.get_data(product_id = args['1'])
                 self.market.update_data(product_list = [args['1']])
             return True
         elif args['#'] == 2:
@@ -211,13 +207,9 @@ class BTCLI(CommandLineInterface):
                         self.market.update_data(force_update = True)
                 else:
                     self.print(f"Force update product {args['2']}")
-                    # self.market.get_data(product_id = args['2'], force_update = True)
                     self.market.update_data(product_list = [args['2']], force_update = True)
         else:
             self.market.update_data(product_list = self.product_list)
-            # for each_product in self.product_list:
-            #     self.print(f"Update product {each_product}")
-            #     self.market.get_data(product_id = each_product)
         return True
 
     def cmd_info(self, args = None):

@@ -75,7 +75,7 @@ class DataProvider:
     ###########################################################################
     def get_quota(self):
         # it's a fake api, if provider have quota limit, rewrite this api.
-        return 10
+        return 999
     def download_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None, period: str = None):
         dbg_error("Function not impl.")
         raise
@@ -127,6 +127,7 @@ class DataProvider:
 
         if needs_update:
             dbg_trace(f"Downloading new data list for market={market}, country={country}")
+            self.wait_quota(5)
             new_df = self.download_data_list(market=market, country=country)
             if new_df is not None and not new_df.empty:
                 # Set 'code' as index if it's a column
@@ -147,11 +148,10 @@ class DataProvider:
 
         return df
 
-    def get_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None, force_update: bool = False):
+    def get_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None, incremental_update = False, force_update: bool = False):
         # Get today's date and last trading day
         today = datetime.now().date()
         last_trading_day = self.get_last_trading_update_date()
-        within_day_check_update = False
 
         data_cache_folder = ""
         if self.SUPPORTED_ADJUSTED_DATA is True:
@@ -173,6 +173,7 @@ class DataProvider:
         df = self.load_from_csv(ticker_local_file, 'Date', folder=ticker_local_path)
 
         # Determine if a download is required
+        # do not set it false after this line, otherwisse will break the force_update
         download_required = force_update
 
         # Determine download range
@@ -184,7 +185,17 @@ class DataProvider:
             download_required = True
             download_start_date = start_date if start_date else datetime(1900, 1, 1).date() # Default to very old date
             download_end_date = end_date if end_date else today
-        elif within_day_check_update is True:
+        elif incremental_update is False:
+            cached_min_date = df.index.min().date()
+            cached_max_date = df.index.max().date()
+
+            # only print message of it to warn user perform update.
+            if end_date and cached_max_date < end_date:
+                dbg_warning(f"Cached data for {product_id} ends before requested end_date. Download required up to {end_date}.")
+            elif end_date is None and cached_max_date < last_trading_day:
+                dbg_warning(f"Cached data for {product_id} is not up to last trading day. Download required.")
+
+        elif incremental_update is True:
             # to avoid double check on market close date, we disale this feature.
             # when data file is not exist, we will donwload all data. so it would be ok for us to disable it.
             # and this woruld be more robust for upper layer.
@@ -217,13 +228,13 @@ class DataProvider:
                 download_start_date = cached_max_date + timedelta(days=1)
                 download_end_date = end_date if end_date else last_trading_day
 
-            # Ensure download_start_date is not after download_end_date
+            # Force update notify.
             if download_required and download_start_date and download_end_date and download_start_date > download_end_date:
-                dbg_debug(f"Calculated download_start_date {download_start_date} is after download_end_date {download_end_date}. No download needed for this range.")
-                download_required = False
+                dbg_debug(f"Calculated download_start_date {download_start_date} is after download_end_date {download_end_date}. do force update.")
 
         if download_required:
             dbg_trace(f'Downloading data for {product_id} from {download_start_date} to {download_end_date}')
+            self.wait_quota(5)
             new_df = self.download_data(product_id, start_date=download_start_date, end_date=download_end_date)
 
             if new_df is not None and not new_df.empty:
@@ -261,7 +272,7 @@ class DataProvider:
                 # record we wait.
                 flag_wait = True
                 # sleep 10m
-                dbg_info(f"[datetime.now()] Wiat for another 10 Minutes.", prefix='\r', end=' ' * 10)
+                dbg_info(f"[{datetime.now()}] Wiat for another 10 Minutes got get require quota(require_quota/{self.get_quota()}).", prefix='\r', end=' ' * 10)
                 sleep(10*60)
             except Exception as e:
                 raise e
@@ -332,7 +343,7 @@ class DataProvider:
                 try:
                     # When updating all data, we don't specify start_date/end_date,
                     # so it will update from last cached date to last trading day.
-                    tmp_data = self.get_data(product_id = each_product, force_update = force_update)
+                    tmp_data = self.get_data(product_id = each_product, incremental_update = True,force_update = force_update)
                     
                     # Check if data was updated successfully up to the last trading day
                     if not tmp_data.empty and tmp_data.index.max().date() >= current_last_trading_day:

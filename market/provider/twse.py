@@ -4,6 +4,7 @@ import os
 
 import time
 from datetime import datetime
+from filelock import FileLock
 
 from utility.debug import *
 from market.dataprovider import *
@@ -35,6 +36,15 @@ class TWSE(DataProvider):
     MARKET_UPDATE_TIME = dt_time(18, 00, 0) # Time when daily data is usually finalized
     def __init__(self):
         super().__init__()
+        self.lock_file_path = os.path.join(self.cache_data_root_path, self.cache_data_name, 'lock.db')
+        self.file_lock = FileLock(self.lock_file_path)
+
+    # an api lock for preventing hitting rate limit that been blocked.
+    # TODO, we need to find a robust way to check if we will hit the rate limit
+    def lock(self):
+        self.file_lock.acquire()
+    def unlock(self):
+        self.file_lock.release()
 
     def get_current_price(self, symbol, price_type:OrderPrice = OrderPrice.BID) -> float:
         # price_type => bid/ask/trade
@@ -43,55 +53,9 @@ class TWSE(DataProvider):
         max_retries = 5
         for attempt in range(max_retries):
             try:
+                self.lock()
                 # dbg_info(f'get_current_price : {symbol}')
                 result = twstock.realtime.get(symbol)
-                # Example of a value error result:
-                # {
-                #     "timestamp": 1749605675.0,
-                #     "info": {
-                #         "code": "4164",
-                #         "channel": "4164.tw",
-                #         "name": "承業醫",
-                #         "fullname": "承業生醫投資控股股份有限公司",
-                #         "time": "2025-06-11 09:34:35"
-                #     },
-                #     "realtime": {
-                #         "latest_trade_price": "-",
-                #         "trade_volume": "-",
-                #         "accumulate_trade_volume": "1298",
-                #         "best_bid_price": [
-                #             "45.1500",
-                #             "45.1000",
-                #             "45.0000",
-                #             "44.9500",
-                #             "44.9000"
-                #         ],
-                #         "best_bid_volume": [
-                #             "3",
-                #             "7",
-                #             "4",
-                #             "5",
-                #             "6"
-                #         ],
-                #         "best_ask_price": [
-                #             "45.2500",
-                #             "45.3000",
-                #             "45.4000",
-                #             "45.5000",
-                #             "45.5500"
-                #         ],
-                #         "best_ask_volume": [
-                #             "1",
-                #             "10",
-                #             "1",
-                #             "3",
-                #             "1"
-                #         ],
-                #         "open": "46.0000",
-                #         "high": "46.0000",
-                #         "low": "44.0000"
-                #     }
-                # }
 
                 # dbg_info('Realtime info:', result)
                 trade = result.get('realtime').get('latest_trade_price')
@@ -109,7 +73,7 @@ class TWSE(DataProvider):
                         # normal we got postion to check, so in that time, we use bid.
                         return float(bid)
                 else:
-                    return 0
+                    return 0.0
             except ValueError as e:
                 dbg_debug(f'[{symbol}] value error: {result}. Attempt {attempt + 1}/{max_retries}')
                 dbg_error(e)
@@ -122,6 +86,8 @@ class TWSE(DataProvider):
                 traceback_output = traceback.format_exc()
                 dbg_error(traceback_output)
                 time.sleep(1) # Wait a bit before retrying
+            finally:
+                self.unlock()
         dbg_error(f'Failed to get current price for {symbol} after {max_retries} attempts.')
         return 0.0
 
@@ -129,8 +95,9 @@ class TWSE(DataProvider):
         product_list = []
 
         for each_id in twstock.codes.keys():
-            each_stock = twstock.codes[each_id]
             try:
+                self.lock()
+                each_stock = twstock.codes[each_id]
                 if each_stock.type != '股票':
                     continue
                 if each_stock.market != '上市':
@@ -152,6 +119,8 @@ class TWSE(DataProvider):
                 dbg_error(f"Error processing stock: {each_stock}")
                 dbg_error(e)
                 continue
+            finally:
+                self.unlock()
 
         # 轉換成 Pandas DataFrame
         df = pd.DataFrame(product_list)
@@ -218,38 +187,47 @@ class TWSE(DataProvider):
         stock = Stock(product_id)
         data_list = []
 
-        # 取得歷史資料
-        for d in stock.fetch_from(fetch_start_year, fetch_start_month):
-            # 確保日期是 datetime 格式
-            date = pd.to_datetime(str(d.date))  # 轉換成 datetime
+        try:
+            self.lock()
+            # 取得歷史資料
+            for d in stock.fetch_from(fetch_start_year, fetch_start_month):
+                # 確保日期是 datetime 格式
+                date = pd.to_datetime(str(d.date))  # 轉換成 datetime
 
-            # 驗證數據是否完整
-            if None in [date, d.open, d.high, d.low, d.close, d.capacity, d.turnover, d.transaction]:
-                dbg_warning(f"⚠️ Ignore invalid data: {d}")
-                continue
+                # 驗證數據是否完整
+                if None in [date, d.open, d.high, d.low, d.close, d.capacity, d.turnover, d.transaction]:
+                    dbg_warning(f"⚠️ Ignore invalid data: {d}")
+                    continue
 
-            # 驗證價格數據
-            if d.open <= 0 or d.high <= 0 or d.low <= 0 or d.close <= 0:
-                dbg_warning(f"⚠️ Skip invalid price: {d}")
-                continue
+                # 驗證價格數據
+                if d.open <= 0 or d.high <= 0 or d.low <= 0 or d.close <= 0:
+                    dbg_warning(f"⚠️ Skip invalid price: {d}")
+                    continue
 
-            # 驗證成交量數據
-            if d.capacity < 0 or d.turnover < 0 or d.transaction < 0:
-                dbg_warning(f"⚠️ Invalid trading data: {d}")
-                continue
+                # 驗證成交量數據
+                if d.capacity < 0 or d.turnover < 0 or d.transaction < 0:
+                    dbg_warning(f"⚠️ Invalid trading data: {d}")
+                    continue
 
-            # 加入清理後的數據
-            data_list.append([
-                date,        # 日期 (修正日期格式)
-                d.open,      # 開盤價
-                d.high,      # 最高價
-                d.low,       # 最低價
-                d.close,     # 收盤價
-                d.capacity,  # 成交股數 (對應 Yahoo volume)
-                d.turnover,  # 成交金額
-                d.change,    # 漲跌
-                d.transaction, # 成交筆數
-            ])
+                # 加入清理後的數據
+                data_list.append([
+                    date,        # 日期 (修正日期格式)
+                    d.open,      # 開盤價
+                    d.high,      # 最高價
+                    d.low,       # 最低價
+                    d.close,     # 收盤價
+                    d.capacity,  # 成交股數 (對應 Yahoo volume)
+                    d.turnover,  # 成交金額
+                    d.change,    # 漲跌
+                    d.transaction, # 成交筆數
+                ])
+        except Exception as e:
+            dbg_error(e)
+
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+        finally:
+            self.unlock()
 
         # 轉換成 DataFrame
         df = pd.DataFrame(data_list, columns=["Date", "Open", "High", "Low", "Close", "Volume", "Turnover", "Change", "Transaction"])
