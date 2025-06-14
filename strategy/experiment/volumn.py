@@ -85,30 +85,6 @@ class ADLineStrategy(ExitStrategy):
                 dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
 
-class VWAPStrategy(ExitStrategy):
-    NAME="VWAPS"
-    params = (
-        ('vwap_period', 20),  # VWAP 計算週期
-    )
-
-    def __init__(self):
-        super().__init__()
-        # 初始化 VWAP 指標
-        self.vwap = VWAP(self.data)
-    
-    def next(self):
-        if self.data.close[0] > self.vwap[0]:
-            if not self.position:
-                # 當價格高於 VWAP 時，買入
-                size = self.broker.get_cash() * 0.1 / self.data.close[0]
-                self.buy(self.data, size=size)
-                dbg_log(f"Buy signal at {self.data.close[0]:.2f}")
-
-        elif self.data.close[0] < self.vwap[0]:
-            if self.position:
-                # 當價格低於 VWAP 時，賣出
-                self.sell(self.data, size=self.position.size)
-                dbg_log(f"Sell signal at {self.data.close[0]:.2f}")
 
 class PriceVolumeBreakoutStrategy(ExitStrategy):
     NAME="PVBS"

@@ -77,7 +77,7 @@ class BTCLI(CommandLineInterface):
         self.total_test_cmd_list = ['strategy', 'shioajifake']
         self.regist_cmd("test", self.cmd_test, description=f"Set test commands. cmd:{self.total_test_cmd_list}", arg_list = self.total_test_cmd_list, group='setting')
 
-        self.total_tune_cmd_list = ['set','del', 'clean']
+        self.total_tune_cmd_list = ['set','del', 'clean', 'list']
         self.regist_cmd("tune", self.cmd_tune, description=f"Add tuning params for strategy. Only one strategy at a time(work on opt mode.). cmd:{self.total_tune_cmd_list}", arg_list = self.total_tune_cmd_list, group='setting')
 
         self.total_attr_cmd_list = ['cash']
@@ -365,7 +365,11 @@ class BTCLI(CommandLineInterface):
             self.print(f"Unknow options, supported operation: {total_tune_list}")
             return False
         
-        if first_arg == 'set':
+        if first_arg == 'list':
+            self.print(f"Current Paramte:{self.strategy_tune_param_grid}")
+            strategy_ins.dump_params(strategy_ins)
+            return True
+        elif first_arg == 'set':
             # dbg_info(args['@'])
             if args['#'] < 3:
                 self.print("Usage: strategy set [param name] [value]")
@@ -543,6 +547,9 @@ class BTCLI(CommandLineInterface):
                 results_display.show_analysis()
             elif args['1'] == 'annual':
                 results_display.show_annual_return()
+            elif args['1'] == 'average':
+                results_display.show_analysis(mode = 'average')
+                results_display.show_annual_return(mode = 'average')
             elif args['1'] == 'draw':
                 self.backtest.show_drawing()
             elif args['1'] == 'save':

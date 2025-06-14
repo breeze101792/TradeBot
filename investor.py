@@ -103,7 +103,7 @@ def main():
                 traceback_output = traceback.format_exc()
                 dbg_warning(traceback_output)
 
-            dbg_warning('!!! Real Trading mode with broker: {args.broker_type}')
+            dbg_warning(f"!!! Real Trading mode with broker: {args.broker_type}")
             cm.set('debug.development', False)
             cm.set('path.broker', f"broker_{broker_subname}")
         else:

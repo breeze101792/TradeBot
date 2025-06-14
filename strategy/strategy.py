@@ -14,6 +14,7 @@ from strategy.experiment.experiment import *
 from strategy.experiment.volumn import *
 from strategy.experiment.bollinger import BollingerRebound
 from strategy.experiment.test import *
+from strategy.experiment.vwap import *
 
 class StrategyManager:
     def __init__(self, test = 0):
@@ -25,6 +26,10 @@ class StrategyManager:
         self.register_strategy(RelativeStrengthIndexStrategy)
         self.register_strategy(BollingerMeanReversionStrategy)
 
+        # new added.
+        self.register_strategy(VolumeWeightedAveragePriceStrategy)
+
+        # signal watcher
         self.register_strategy(MultiSignalStrategy)
 
         if False:
