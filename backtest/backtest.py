@@ -236,7 +236,7 @@ class Backtest:
         score = 0.4*vwr + 0.3*(profit - drawdown)/100 + 0.2*sharpe + 0.1*sqn
 
         return score
-    def __analyze(self, strategy_list, cerebro = None):
+    def __analyze(self, strategy_list, show_params = False, cerebro = None):
         """
         Extracts and stores analysis results from the executed strategies.
 
@@ -261,7 +261,11 @@ class Backtest:
             result_item = {}
             result_item['data'] = self.data_list
             # result_item['strategy'] = [each_stra.get_name() for each_stra in self.strategy_list]
-            result_item['strategy'] = [each_strategy.get_name()]
+            if show_params is True:
+                result_item['strategy'] = [each_strategy.get_name()]
+            else:
+                result_item['strategy'] = [each_strategy.NAME]
+
             # Use internal attribute for reporting initial cash
             result_item['init_cash'] = self._init_cash
             result_item['cash'] = cerebro.broker.getvalue()
@@ -614,7 +618,7 @@ class Backtest:
             fig.savefig(filename)
         dbg_info(f"Image Saved in {report_path}")
 
-    def eval(self, cerebro = None):
+    def eval(self, cerebro = None, show_params = False):
         """
         Runs the backtest evaluation using the Cerebro engine.
 
@@ -642,7 +646,7 @@ class Backtest:
             if cerebro is None:
                 cerebro = self.cerebro
                 stra_list = cerebro.run()
-                self.__analyze(stra_list)
+                self.__analyze(stra_list, show_params = show_params)
 
                 # update result data.
                 self.result_timestatmp = datetime.now()

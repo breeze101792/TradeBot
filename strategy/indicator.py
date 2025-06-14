@@ -1,5 +1,14 @@
 import backtrader as bt
 
+class PriceLine(bt.Indicator):
+    lines = ('price',)
+
+    def __init__(self):
+        pass
+        # self.lines.close = data.close
+    def next(self):
+        self.lines.price[0] = self.data.close[0]
+
 class OnBalanceVolume(bt.Indicator):
     lines = ('obv',)
 
@@ -81,6 +90,7 @@ class VWAP(bt.Indicator):
     a fair price, or by short-term traders to identify entry and exit points.
     """
     lines = ('vwap',)
+    plotinfo = dict(subplot=False)
 
     def __init__(self, period=20):
         """
@@ -104,15 +114,12 @@ class VWAP(bt.Indicator):
         if len(self) < self.period:
             self.lines.vwap[0] = 0
         else:
-            # Calculate the sum of (price * volume) for the specified period.
-            # self.data.close[i] refers to the closing price 'i' periods ago (0 is current, -1 is previous, etc.)
-            # self.data.volume[i] refers to the volume 'i' periods ago.
-            cumulative_volume_price = sum([self.data.close[i] * self.data.volume[i] for i in range(-self.period, 0)])
+            cumulative_volume_price = sum([self.data.turnover[i] for i in range(-self.period, 0)])
             
             # Calculate the total volume for the specified period.
             cumulative_volume = sum([self.data.volume[i] for i in range(-self.period, 0)])
             
-            # Calculate VWAP: (Sum of Price * Volume) / (Sum of Volume)
+            # Calculate VWAP: (Sum of Turnover) / (Sum of Volume)
             # Ensure cumulative_volume is not zero to avoid division by zero error.
             if cumulative_volume != 0:
                 self.lines.vwap[0] = cumulative_volume_price / cumulative_volume
@@ -120,4 +127,22 @@ class VWAP(bt.Indicator):
                 # If there's no volume in the period, VWAP cannot be calculated, set to 0 or previous value.
                 # Here, we set it to 0, but depending on strategy, one might prefer self.lines.vwap[-1]
                 self.lines.vwap[0] = 0
+
+        # else:
+        #     # Calculate the sum of (price * volume) for the specified period.
+        #     # self.data.close[i] refers to the closing price 'i' periods ago (0 is current, -1 is previous, etc.)
+        #     # self.data.volume[i] refers to the volume 'i' periods ago.
+        #     cumulative_volume_price = sum([self.data.close[i] * self.data.volume[i] for i in range(-self.period, 0)])
+        #     
+        #     # Calculate the total volume for the specified period.
+        #     cumulative_volume = sum([self.data.volume[i] for i in range(-self.period, 0)])
+        #     
+        #     # Calculate VWAP: (Sum of Price * Volume) / (Sum of Volume)
+        #     # Ensure cumulative_volume is not zero to avoid division by zero error.
+        #     if cumulative_volume != 0:
+        #         self.lines.vwap[0] = cumulative_volume_price / cumulative_volume
+        #     else:
+        #         # If there's no volume in the period, VWAP cannot be calculated, set to 0 or previous value.
+        #         # Here, we set it to 0, but depending on strategy, one might prefer self.lines.vwap[-1]
+        #         self.lines.vwap[0] = 0
 

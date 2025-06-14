@@ -669,7 +669,7 @@ class BTCLI(CommandLineInterface):
                         self.backtest.add_symbol([each_product])
                         # self.backtest.add_strategy([target_strategy])
                         self.backtest.add_optstrategy(target_strategy, **self.strategy_tune_param_grid)
-                        self.backtest.eval()
+                        self.backtest.eval(show_params = True)
                     dbg_info(f'[{target_strategy.NAME}] all {len(self.product_list)} products done', prefix='\n')
                 self.backtest.show_result()
 

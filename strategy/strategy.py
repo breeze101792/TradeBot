@@ -28,6 +28,7 @@ class StrategyManager:
 
         # new added.
         self.register_strategy(VolumeWeightedAveragePriceStrategy)
+        self.register_strategy(VolumeWeightedAveragePriceCrossStrategy)
 
         # signal watcher
         self.register_strategy(MultiSignalStrategy)
