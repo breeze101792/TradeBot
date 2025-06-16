@@ -34,17 +34,27 @@ class TWSE(DataProvider):
     MARKET_OPEN_TIME = dt_time(9, 0, 0)
     MARKET_CLOSE_TIME = dt_time(13, 30, 0)
     MARKET_UPDATE_TIME = dt_time(18, 00, 0) # Time when daily data is usually finalized
+    API_CALL_INTERVAL_SECONDS = 2.0 # Minimum interval between API calls to prevent rate limiting
+
     def __init__(self):
         super().__init__()
         self.lock_file_path = os.path.join(self.cache_data_root_path, self.cache_data_name, 'lock.db')
         self.file_lock = FileLock(self.lock_file_path)
+        self._lock_time = None # To store the time when the lock was acquired
 
     # an api lock for preventing hitting rate limit that been blocked.
     # TODO, we need to find a robust way to check if we will hit the rate limit
     def lock(self):
         self.file_lock.acquire()
+        self._lock_time = time.time() # Record lock acquisition time
+
     def unlock(self):
+        if self._lock_time:
+            elapsed_time = time.time() - self._lock_time
+            if elapsed_time < self.API_CALL_INTERVAL_SECONDS:
+                time.sleep(self.API_CALL_INTERVAL_SECONDS - elapsed_time) # Sleep for the remaining time to ensure minimum gap
         self.file_lock.release()
+        self._lock_time = None # Reset lock time
 
     def get_current_price(self, symbol, price_type:OrderPrice = OrderPrice.BID) -> float:
         # price_type => bid/ask/trade

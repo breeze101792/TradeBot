@@ -454,7 +454,7 @@ def test_eval_basic(backtester: Backtest) -> bool:
         with patch.object(backtester.cerebro, 'run', return_value=[mock_strategy_instance]) as mock_run, \
              patch.object(backtester.cerebro.broker, 'getvalue', return_value=backtester.init_cash + 10000): # Mock final cash
             
-            backtester.eval()
+            backtester.eval(show_params = True)
             
             if not mock_run.called:
                 dbg_error("cerebro.run() was not called.")
@@ -614,7 +614,7 @@ def test_show_result(backtester: Backtest) -> bool:
              patch('sys.stdout', new_callable=io.StringIO) as mock_stdout:
             dbg_info('after with')
             
-            backtester.eval() # Generate results
+            backtester.eval(show_params=True) # Generate results
             backtester.show_result()
             
             output = mock_stdout.getvalue()
