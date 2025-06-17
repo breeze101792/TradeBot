@@ -113,23 +113,41 @@ class BrokerManager:
             return True
         else:
             return False
-    def lock(self):
-        """Acquires the class-level lock."""
-        BrokerManager._lock.acquire()
+    def lock(self, timeout: float = 10.0) -> bool:
+        """
+        Acquires the class-level lock with a timeout.
+        Also checks broker quota after acquiring the lock.
+
+        Args:
+            timeout (float): The maximum time in seconds to wait for the lock.
+
+        Returns:
+            bool: True if the lock was acquired and quota check passed, False otherwise.
+        """
         caller_frame = inspect.stack()[2]
         caller_filename = os.path.splitext(os.path.basename(caller_frame.filename))[0]
         caller_function = caller_frame.function
         caller_line_no = caller_frame.lineno
 
-        dbg_trace(f'[{caller_filename}:{caller_function}@{caller_line_no}] try Lock')
+        dbg_trace(f'[{caller_filename}:{caller_function}@{caller_line_no}] Attempting to acquire lock with timeout {timeout}s...')
 
-        if self.broker.check_quota() is False:
-            BrokerManager._lock.release()
-            dbg_error(f'[{caller_filename}:{caller_function}@{caller_line_no}] Lock fail.')
+        if not BrokerManager._lock.acquire(timeout=timeout):
+            dbg_error(f'[{caller_filename}:{caller_function}@{caller_line_no}] Failed to acquire lock within {timeout}s.')
             return False
-        else:
-            dbg_error(f'[{caller_filename}:{caller_function}@{caller_line_no}] Lock success.')
-            return True
+
+        # Lock acquired, now check quota
+        try:
+            if self.broker.check_quota() is False:
+                dbg_error(f'[{caller_filename}:{caller_function}@{caller_line_no}] Quota check failed after acquiring lock.')
+                BrokerManager._lock.release() # Release the lock if quota check fails
+                return False
+            else:
+                dbg_trace(f'[{caller_filename}:{caller_function}@{caller_line_no}] Lock acquired and quota check passed.')
+                return True
+        except Exception as e:
+            dbg_error(f'[{caller_filename}:{caller_function}@{caller_line_no}] Error during quota check: {e}')
+            BrokerManager._lock.release() # Release the lock if an error occurs during quota check
+            return False
 
     def unlock(self):
         """Releases the class-level lock."""

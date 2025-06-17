@@ -148,15 +148,10 @@ class ShioajiBroker(BaseBroker):
         finally:
             self.__show_usage()
 
-            if check:
-                usage_data = self.shioaji_api.usage()
-                # Limit 500MB, so warn on 450
-                if usage_data.remaining_bytes < 1024*1024 * 20:
-                    dbg_error(f"!!! Block login.!!! Remaining bytes smaller then 20MB. {format_bytes(usage_data.remaining_bytes)}")
-                    self.shioaji_api.logout()
-                    return False
-                elif usage_data.remaining_bytes < 1024*1024 * 50:
-                    dbg_warning(f"Remaining bytes smaller then 50MB. {format_bytes(usage_data.remaining_bytes)}")
+            if check and self.check_quota() is False:
+                dbg_error(f"!!! Hit quota limit, block login.!!!")
+                self.shioaji_api.logout()
+                return False
         dbg_debug("login and activate ca success")
         return True
 

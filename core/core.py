@@ -508,8 +508,8 @@ class Core:
         print(f"Sanity Check: {sanity_result}")
 
         print("\n--- Trading Status ---")
-        print(f"buying  :" + "enable" if Trading.BUYING_IGNORE is False else 'disable')
-        print(f"selling :" + "enable" if Trading.SELLING_IGNORE is False else 'disable')
+        print(f"buying  :", "enable" if Trading.BUYING_IGNORE is False else 'disable')
+        print(f"selling :", "enable" if Trading.SELLING_IGNORE is False else 'disable')
         if self.trading_status.Trading.target_buying_list:
             print("Target Buying List:")
             headers = ["Code", "Name", "Type", "Market", "Category", "Start Date", "Country"]
