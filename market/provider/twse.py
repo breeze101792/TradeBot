@@ -8,6 +8,7 @@ from filelock import FileLock
 
 from utility.debug import *
 from market.dataprovider import *
+from market.product.constant import ProductType
 
 import twstock
 from twstock import Stock
@@ -60,7 +61,7 @@ class TWSE(DataProvider):
         # price_type => bid/ask/trade
         result = None
         # this is for mock broker, don't use it on real code.
-        max_retries = 5
+        max_retries = 3
         for attempt in range(max_retries):
             try:
                 self.lock()
@@ -101,8 +102,10 @@ class TWSE(DataProvider):
         dbg_error(f'Failed to get current price for {symbol} after {max_retries} attempts.')
         return 0.0
 
-    def download_data_list(self, market: str = None, country: str = None):
+    def download_data_list(self, market: str = None, country: str = None, product_type: ProductType = ProductType.STOCK):
         product_list = []
+        if product_type != ProductType.STOCK and product_type != ProductType.ALL:
+            return pd.DataFrame([])
 
         for each_id in twstock.codes.keys():
             try:

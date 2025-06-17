@@ -1,4 +1,5 @@
 
+import traceback
 from typing import Type, Dict, Any, Optional, List
 import os
 import csv
@@ -6,6 +7,8 @@ from datetime import datetime, timedelta
 from collections import defaultdict # Import defaultdict
 from tabulate import tabulate # Import tabulate for creating tables
 import time # Import time for delays
+import threading # Import threading for locks
+import inspect
 
 # Local file
 from utility.debug import * # Replace standard logging with custom debug system
@@ -90,6 +93,7 @@ class BrokerManager:
     order_svc = None
     transaction_log_path = ""
     _broker_connected = False
+    _lock = threading.Lock() # Class-level lock for thread safety
 
     def __init__(self):
         """
@@ -109,12 +113,41 @@ class BrokerManager:
             return True
         else:
             return False
+    def lock(self):
+        """Acquires the class-level lock."""
+        BrokerManager._lock.acquire()
+        caller_frame = inspect.stack()[2]
+        caller_filename = os.path.splitext(os.path.basename(caller_frame.filename))[0]
+        caller_function = caller_frame.function
+        caller_line_no = caller_frame.lineno
+
+        dbg_trace(f'[{caller_filename}:{caller_function}@{caller_line_no}] try Lock')
+
+        if self.broker.check_quota() is False:
+            BrokerManager._lock.release()
+            dbg_error(f'[{caller_filename}:{caller_function}@{caller_line_no}] Lock fail.')
+            return False
+        else:
+            dbg_error(f'[{caller_filename}:{caller_function}@{caller_line_no}] Lock success.')
+            return True
+
+    def unlock(self):
+        """Releases the class-level lock."""
+        BrokerManager._lock.release()
+        caller_frame = inspect.stack()[2]
+        caller_filename = os.path.splitext(os.path.basename(caller_frame.filename))[0]
+        caller_function = caller_frame.function
+        caller_line_no = caller_frame.lineno
+
+        dbg_trace(f'[{caller_filename}:{caller_function}@{caller_line_no}] Unlock')
 
     @classmethod
     def reconnect(cls):
+        sleep_delay = 60 * 10
         max_retries = 5
         for attempt in range(1, max_retries + 1):
             dbg_info(f"Attempting to reconnect broker (Attempt {attempt}/{max_retries})...")
+            cls._lock.acquire()
             try:
                 if cls.broker is None: # Ensure broker exists before attempting disconnect
                     dbg_error(f"broker not found on {cls}.")
@@ -132,12 +165,14 @@ class BrokerManager:
                 # traceback_output = traceback.format_exc()
                 # dbg_error(traceback_output)
                 if attempt < max_retries:
-                    dbg_info(f"Retrying in 5 seconds...")
-                    time.sleep(5) # Wait before next retry
+                    dbg_info(f"Retrying in {sleep_delay} seconds...")
+                    time.sleep(sleep_delay) # Wait before next retry
                 else:
                     dbg_error(f"Failed to reconnect broker after {max_retries} attempts.")
                     # Re-raise the last exception if all attempts fail, or handle it as appropriate
                     return False# Exit if successful
+            finally:
+                cls._lock.release()
     @classmethod
     def initialize(cls, broker_type: str = 'mock', **kwargs: Any):
         """
@@ -219,13 +254,22 @@ class BrokerManager:
         This method should be called when the BrokerManager is no longer needed.
         """
         dbg_info("brokermanager finialized.")
-        cls._broker_connected = False
-        if cls.order_svc is not None:
-            cls.order_svc.stop()
-            cls.order_svc = None
-        if cls.broker is not None:
-            cls.broker.disconnect()
-            cls.broker = None
+        cls._lock.acquire()
+        try:
+            cls._broker_connected = False
+            if cls.order_svc is not None:
+                cls.order_svc.stop()
+                cls.order_svc = None
+            if cls.broker is not None:
+                cls.broker.disconnect()
+                cls.broker = None
+        except Exception as e:
+            dbg_error(e)
+        
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+        finally:
+            cls._lock.release()
 
     def place_order(self, symbol: str, action: OrderAction, size: int, price: Optional[float] = None) -> Optional[Dict[str, Any]]:
         """
@@ -247,6 +291,7 @@ class BrokerManager:
         if self.is_connected() is False:
             dbg_info('Please inited it first.')
             raise ValueError
+
         # it's backward compatible.
         if action in ['sell', 'SELL']:
             dbg_warning(f'Deprecated action({action}) detected, change it to use OrderAction.SELL')
@@ -258,8 +303,20 @@ class BrokerManager:
             reason = f"Invalid action '{action}'. Must be 'buy' or 'sell'."
             dbg_error(f"Order rejected for {symbol}: {reason}")
             raise ValueError
+        if self.lock() is False:
+            dbg_error(f"Lock acquire fail.")
+            return
+        try:
+            order = self.broker.place_order(symbol, action, size, price)
+        except Exception as e:
+            dbg_error(e)
+        
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+            return False
+        finally:
+            self.unlock()
 
-        order = self.broker.place_order(symbol, action, size, price)
         if order is not None:
             self.order_svc.add_order(order)
             return True
@@ -277,7 +334,19 @@ class BrokerManager:
         if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
-        return self.broker.get_balance()
+        if self.lock() is False:
+            dbg_error(f"Lock acquire fail.")
+            return 0
+        try:
+            return self.broker.get_balance()
+        except Exception as e:
+            dbg_error(e)
+        
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+        finally:
+            self.unlock()
+        return 0
 
     def get_position_by_symbol(self, symbol: str) -> Position:
         """
@@ -293,7 +362,19 @@ class BrokerManager:
         if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
-        return self.broker.get_position_by_symbol(symbol)
+        if self.lock() is False:
+            dbg_error(f"Lock acquire fail.")
+            return None
+
+        try:
+            return self.broker.get_position_by_symbol(symbol)
+        except Exception as e:
+            dbg_error(e)
+        
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+        finally:
+            self.unlock()
 
     def get_all_positions(self) -> Dict[str, Position]:
         """
@@ -305,7 +386,18 @@ class BrokerManager:
         if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
-        return self.broker.get_all_positions()
+        if self.lock() is False:
+            dbg_error(f"Lock acquire fail.")
+            return []
+        try:
+            return self.broker.get_all_positions()
+        except Exception as e:
+            dbg_error(e)
+        
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+        finally:
+            self.unlock()
 
     def get_last_price(self, symbol: str, price_type: OrderPrice) -> float:
         """
@@ -321,8 +413,19 @@ class BrokerManager:
         if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
-        # Note: This might need adjustment if different brokers handle price fetching differently.
-        return self.broker.get_last_price(symbol, price_type)
+        if self.lock() is False:
+            dbg_error(f"Lock acquire fail.")
+            return
+        try:
+            # Note: This might need adjustment if different brokers handle price fetching differently.
+            return self.broker.get_last_price(symbol, price_type)
+        except Exception as e:
+            dbg_error(e)
+        
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+        finally:
+            self.unlock()
 
     def get_portfolio_value(self) -> float:
         """
@@ -335,7 +438,18 @@ class BrokerManager:
         if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
-        return self.broker.get_portfolio_value()
+        if self.lock() is False:
+            dbg_error(f"Lock acquire fail.")
+            return
+        try:
+            return self.broker.get_portfolio_value()
+        except Exception as e:
+            dbg_error(e)
+        
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+        finally:
+            self.unlock()
 
     def set_state_filepath(self, filepath: str):
         """
@@ -359,10 +473,20 @@ class BrokerManager:
         if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
-        cash = self.broker.get_balance()
-        positions = self.broker.get_all_positions()
+        cash = self.get_balance()
+        positions = self.get_all_positions()
         if not positions:
+            print("\n--- Current Positions Summary ---")
             print("No positions currently held.")
+            
+            # Match the way we print in Portfolio Totals
+            print("\n--- Portfolio Totals ---")
+            total_headers = ["Metric", "Value"]
+            total_data = [
+                ["Total Asset", f"${cash:,.2f}"], # If no positions, total asset is just cash
+                ["Total Cash Value", f"${cash:,.2f}"]
+            ]
+            print(tabulate(total_data, headers=total_headers, tablefmt="grid", stralign="right"))
             return
 
         headers = [
@@ -377,7 +501,7 @@ class BrokerManager:
         # dbg_info("Summarizing positions...")
         for symbol, pos in positions.items():
             try:
-                current_price = self.broker.get_last_price(symbol, OrderPrice.LAST)
+                current_price = self.get_last_price(symbol, OrderPrice.LAST)
                 if current_price <= 0:
                     dbg_warning(f"Could not get valid market price for {symbol}, using 0.0 for calculations.")
                     current_price = 0.0 # Handle case where price might be invalid
@@ -452,8 +576,19 @@ class BrokerManager:
         # TODO, We didn't handle the transacion when the file arleady exist, but not done by this program.
         if not log_exists:
             # File doesn't exist, create it, log initial positions, then log the current transaction
-            initial_positions = cls.broker.get_all_positions()
-            cash_balance = cls.broker.get_balance()
+            # only use it for init
+            # FIXME, use lock to lock it up.
+            cls._lock.acquire()
+            try:
+                initial_positions = cls.broker.get_all_positions()
+                cash_balance = cls.broker.get_balance()
+            except Exception as e:
+                dbg_error(e)
+            
+                traceback_output = traceback.format_exc()
+                dbg_error(traceback_output)
+            finally:
+                cls._lock.release()
             with open(cls.transaction_log_path, 'w', newline='') as f:
                 writer = csv.writer(f)
                 # Write header
@@ -492,8 +627,6 @@ class BrokerManager:
         """
         # log_exists = os.path.exists(self.transaction_log_path)
         now_iso = datetime.now().isoformat()
-
-        self._log_transaction_init()
 
         # File exists, append the current transaction
         with open(self.transaction_log_path, 'a', newline='') as f:

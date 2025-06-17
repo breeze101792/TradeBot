@@ -51,6 +51,8 @@ class BaseBroker:
         For real-time brokers, this would involve closing API connections.
         """
         raise NotImplementedError
+    def check_quota(self) -> bool:
+        raise NotImplementedError
 
     def get_balance(self) -> float:
         """

@@ -13,6 +13,7 @@ from utility.debug import *
 from core.database import *
 from core.config import *
 from market.dataprovider import *
+from market.product.constant import ProductType
 
 from market.provider.yahoo import *
 from market.provider.twse import *
@@ -301,7 +302,7 @@ class Market:
             product_list.append(each_key)
         return product_list
 
-    def get_data_list(self, market: str = None, country: str = None) -> list[str]:
+    def get_data_list(self, market: str = None, country: str = None, product_type: ProductType = ProductType.STOCK) -> list[str]:
         """
         Retrieves a comprehensive list of product IDs (stock codes) available from the
         currently active market data provider.
@@ -321,7 +322,7 @@ class Market:
         # NOTE, it's more easy to get data form TWSE. all we want is listed data.
         # twse_ins = TWSE()
         # product_frame_list = twse_ins.get_data_list(market = market, country = country)
-        product_frame_list = self.instance.get_data_list(market = market, country = country)
+        product_frame_list = self.instance.get_data_list(market = market, country = country, product_type = product_type)
 
         self.cached_stock_info_frame = product_frame_list
         product_list = []

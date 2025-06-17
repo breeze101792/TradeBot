@@ -61,7 +61,8 @@ class VolumeWeightedAveragePriceStrategy(MovingProfitStrategy):
 class VolumeWeightedAveragePriceCrossStrategy(MovingProfitStrategy):
     NAME="VolumeWeightedAveragePriceCross"
     params = (
-        ("short_period", 1),  # Short period for moving average (5 days)
+        ("short_period", 10),  # Short period for moving average (5 days)
+        # ("short_period", 1),  # Short period for moving average (5 days)
         ("long_period", 20),  # Long period for moving average (20 days)
 
         ("risk_per_trade", MovingProfitStrategy.params.risk_per_trade),

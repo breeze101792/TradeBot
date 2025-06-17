@@ -508,6 +508,8 @@ class Core:
         print(f"Sanity Check: {sanity_result}")
 
         print("\n--- Trading Status ---")
+        print(f"buying  :" + "enable" if Trading.BUYING_IGNORE is False else 'disable')
+        print(f"selling :" + "enable" if Trading.SELLING_IGNORE is False else 'disable')
         if self.trading_status.Trading.target_buying_list:
             print("Target Buying List:")
             headers = ["Code", "Name", "Type", "Market", "Category", "Start Date", "Country"]
@@ -557,7 +559,7 @@ class Core:
 
             self.tdcli.regist_cmd("sanity", self.__sanitycheck, description="Run internal health checks for the core system.", group='tools')
             self.tdcli.regist_cmd("update", self.__update_datasource, description="Manually trigger an update of market data from configured sources.", group='tools')
-            self.tdcli.regist_cmd("trade", self.trading.trading_eval, description="Do Trading/buy analysis and buy stock.", group='tools')
+            self.tdcli.regist_cmd("buy", self.trading.trading_eval, description="Do Trading/buy analysis and buy stock.", group='tools')
             self.tdcli.regist_cmd("sell", self.trading.selling_eval, description="Do Selling analysis and sell stock.", group='tools')
             self.tdcli.regist_cmd("status", self.cmd_status, description="Get trading status.", group='tools')
         except Exception as e:

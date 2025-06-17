@@ -16,6 +16,7 @@ from market.market import *
 from backtest.commands import *
 from backtest.btcli import *
 from broker.brokermanager import BrokerManager
+from trading.trading import Trading
 
 class TDCLI(CommandLineInterface):
     def __init__(self):
@@ -30,9 +31,37 @@ class TDCLI(CommandLineInterface):
         ## cmds
         ########################################################################
         register_commands(self)
+        self.regist_cmd("trade", self.cmd_trade, description="Setting trading actions", arg_list = ['buy', 'sell', 'enable', 'disable'], group='admin')
         self.regist_cmd("positons", self.cmd_positions, description=f"show positions.", arg_list = ['show'], group='trade')
         self.regist_cmd("transactions", self.cmd_transactions, description="show transaction.", group='tools')
         self.regist_cmd("backtest", self.cmd_backtest, description="Enter backtest cli.", group='tools')
+
+    def cmd_trade(self, args):
+        trading = Trading()
+
+        if args['#'] == 1:
+            if args['1'] == 'status':
+                print(f"buying " + "enable" if Trading.BUYING_IGNORE is False else 'disable')
+                print(f"selling " + "enable" if Trading.SELLING_IGNORE is False else 'disable')
+        elif args['#'] == 2:
+            if args['1'] == 'buy':
+                if args['1'] == 'enable':
+                    Trading.BUYING_IGNORE = False
+                elif args['1'] == 'disable':
+                    Trading.BUYING_IGNORE = True
+                else:
+                    print(f"buying " + "enable" if Trading.BUYING_IGNORE is False else 'disable')
+            elif args['1'] == 'sell':
+                if args['1'] == 'enable':
+                    Trading.SELLING_IGNORE = False
+                elif args['1'] == 'disable':
+                    Trading.SELLING_IGNORE = True
+                else:
+                    print(f"selling " + "enable" if Trading.SELLING_IGNORE is False else 'disable')
+        else:
+            print(f"buying  :" + "enable" if Trading.BUYING_IGNORE is False else 'disable')
+            print(f"selling :" + "enable" if Trading.SELLING_IGNORE is False else 'disable')
+        return True
     def cmd_backtest(self, args):
         try:
             btcli = BTCLI()

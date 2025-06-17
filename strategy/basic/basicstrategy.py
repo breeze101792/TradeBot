@@ -241,7 +241,7 @@ class BasicStrategy(bt.Strategy):
 
                     # Check if position is fully closed (handle potential float inaccuracies)
                     if pos['remaining_size'] == 0: # Consider position closed if remaining size is negligible
-                        dbg_trace(f"Closed Active Trade {code} fully.")
+                        dbg_trace(f"Closed Active Trade {code} fully with profit {pnl / entry_cost_portion:.2%}.")
                         # Assume -5% to stop lose, so -5% + (10%) will be max.
                         # the backtrader will sell the stock after you make the decidsion. so it may loos 10% more.
                         if pnl / entry_cost_portion < -0.15:

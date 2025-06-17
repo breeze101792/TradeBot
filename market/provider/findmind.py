@@ -8,6 +8,7 @@ from datetime import datetime
 
 from utility.debug import *
 from market.dataprovider import *
+from market.product.constant import ProductType
 
 from FinMind.data import DataLoader
 from FinMind.data import FinMindApi
@@ -68,7 +69,7 @@ class FindMind(DataProvider):
             dbg_error(f"An unexpected error occurred while loading FinMind token: {e}")
             self.token = None
 
-    def download_data_list(self, market: str = None, country: str = None):
+    def download_data_list(self, market: str = None, country: str = None, product_type: ProductType = ProductType.STOCK):
         """
         Downloads a list of stocks from FinMind, mimicking twse.py structure.
         Filters by market, defaulting to 'listed' if no market is specified.
@@ -116,9 +117,19 @@ class FindMind(DataProvider):
                 # dbg_warning(f"Unrecognized FinMind stock type: {fm_type} for {stock_id}")
                 continue # Skip unrecognized types
 
-            if industry_category == 'ETF' or industry_category == 'Index' or industry_category == '大盤' or industry_category == '存託憑證' or industry_category == '所有證券' or industry_category == 'ETN' or  industry_category == 'tpex'  :
+            if industry_category == 'Index' or industry_category == '大盤' or industry_category == '存託憑證' or industry_category == '所有證券' or industry_category == 'ETN' or  industry_category == 'tpex'  :
                 # NOTE. For now, ignore it.
                 continue
+
+            if product_type == ProductType.STOCK:
+                if industry_category == 'ETF':
+                    continue
+            elif product_type == ProductType.ETF:
+                if industry_category != 'ETF':
+                    continue
+            elif product_type == ProductType.ALL:
+                pass
+
             if stock_id.isdigit() is False:
                 # print(f"{stock_id} {row}")
                 continue

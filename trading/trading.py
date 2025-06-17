@@ -13,11 +13,17 @@ from broker.order.constant import OrderStatus, OrderAction, OrderPrice
 # trade_broker.connect()/disconnect() # Removed as connection is managed by BrokerManager.initialize()/finalize()
 
 class Trading:
+    BUYING_IGNORE = False
+    SELLING_IGNORE = False
+
     # def __init__(self):
     #     # this will break mock on test case, if you want this mock before init.
     #     self.cm = AppConfigManager()
 
     def buying_exec(self, buy_list):
+        if self.BUYING_IGNORE is True:
+            dbg_warning('Buying is on hold.')
+            return True
         cfgmgr = AppConfigManager()
         LOT_UNIT = cfgmgr.get('stock.lot_unit')
         CASH_MAX_PER_TRADE = cfgmgr.get('stock.cash_max_per_trade')
@@ -62,6 +68,9 @@ class Trading:
             dbg_info('ignore buying, len is 0.')
 
     def selling_exec(self, selling_list):
+        if self.SELLING_IGNORE is True:
+            dbg_warning('Selling is on hold.')
+            return True
         # selling_list.append({
         #     'symbol': trade_info['symbol'],
         #     'size': trade_info['size'], # Sell the position size strategy decided.

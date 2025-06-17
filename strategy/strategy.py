@@ -27,7 +27,8 @@ class StrategyManager:
         self.register_strategy(BollingerMeanReversionStrategy)
 
         # new added.
-        self.register_strategy(VolumeWeightedAveragePriceStrategy)
+        # need to use the original price for it.
+        # self.register_strategy(VolumeWeightedAveragePriceStrategy)
         self.register_strategy(VolumeWeightedAveragePriceCrossStrategy)
 
         # signal watcher

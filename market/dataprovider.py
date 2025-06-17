@@ -5,6 +5,7 @@ from time import sleep
 from datetime import time as dt_time # Alias to avoid conflict with time module
 from datetime import datetime, timedelta
 
+from market.product.constant import ProductType
 from utility.debug import *
 
 class DataProvider:
@@ -80,7 +81,7 @@ class DataProvider:
         dbg_error("Function not impl.")
         raise
 
-    def download_data_list(self, market: str = None, country: str = None):
+    def download_data_list(self, market: str = None, country: str = None, product_type: ProductType = ProductType.STOCK):
         dbg_error("Function not impl.")
         raise
     ###########################################################################
@@ -99,11 +100,11 @@ class DataProvider:
             last_trading_day -= timedelta(days=1)
         return last_trading_day
 
-    def get_data_list(self, market: str = None, country: str = None, force_update: bool = False):
+    def get_data_list(self, market: str = None, country: str = None, force_update: bool = False, product_type: ProductType = ProductType.STOCK):
         data_list_cache_folder = os.path.join(self.cache_data_root_path, self.cache_data_name, 'lists')
         filename_prefix = "data_list"
         today_str = self.get_last_trading_update_date().strftime('%Y%m%d')
-        current_day_filename = f"{filename_prefix}_{today_str}.csv"
+        current_day_filename = f"{filename_prefix}_{market}_{country}_{product_type.value}_{today_str}.csv"
         file_path = os.path.join(data_list_cache_folder, current_day_filename)
 
         df = None
@@ -128,7 +129,7 @@ class DataProvider:
         if needs_update:
             dbg_trace(f"Downloading new data list for market={market}, country={country}")
             self.wait_quota(5)
-            new_df = self.download_data_list(market=market, country=country)
+            new_df = self.download_data_list(market=market, country=country, product_type=product_type)
             if new_df is not None and not new_df.empty:
                 # Set 'code' as index if it's a column
                 if 'code' in new_df.columns:

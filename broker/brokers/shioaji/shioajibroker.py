@@ -85,6 +85,24 @@ class ShioajiBroker(BaseBroker):
     def is_lot_trade(self):
         return self._is_lot_trade
 
+    def check_quota(self):
+        try:
+            usage_data = self.shioaji_api.usage()
+            # Limit 500MB, so warn on 450
+            if usage_data.remaining_bytes < 1024*1024 * 20:
+                dbg_error(f"!!! Block login.!!! Remaining bytes smaller then 20MB. {format_bytes(usage_data.remaining_bytes)}")
+                return False
+            elif usage_data.remaining_bytes < 1024*1024 * 50:
+                dbg_warning(f"Remaining bytes smaller then 50MB. {format_bytes(usage_data.remaining_bytes)}")
+                return True
+        except Exception as e:
+            dbg_error(e)
+        
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+            return False
+        return True
+
     def connect(self):
         """
         Logs into the Shioaji API using credentials from environment variables,

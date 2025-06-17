@@ -649,12 +649,13 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
             # Manually call the BrokerManager's event_callback.
             # This is what MockBroker would do internally upon a successful fill.
             # This call will then trigger BrokerManager's _log_transaction.
-            original_event_callback(Event.OrderFilled, order_tracker)
+            # we don't need to cal this, it'll can automatically.
+            # original_event_callback(Event.OrderFilled, order_tracker)
 
             # MockBroker.place_order (and thus BrokerManager.place_order) does not return anything for successful fills.
             # For failed orders, MockBroker.place_order returns None and triggers OrderFailed event.
             # For this test, we only simulate successful fills.
-            return None # Explicitly return None as BrokerManager.place_order does not return anything.
+            return order_tracker # Explicitly return None as BrokerManager.place_order does not return anything.
 
         with patch('broker.brokermanager.datetime', wraps=datetime) as mock_dt, \
                 patch.object(broker_manager.broker, 'get_last_price', side_effect=lambda s, price_type: mock_market_prices.get(s, 0.0)), \

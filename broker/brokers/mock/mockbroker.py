@@ -75,6 +75,8 @@ class MockBroker(BaseBroker):
         else:
             dbg_trace(f"Market is closed: Current time {current_time.strftime('%H:%M:%S')} is outside trading hours ({market_open_time.strftime('%H:%M:%S')} - {market_close_time.strftime('%H:%M:%S')}).")
             return False
+    def check_quota(self) -> bool:
+        return True
 
     def _create_order_tracker(self, order: MockOrder) -> OrderTracker:
         """
