@@ -21,26 +21,88 @@ from strategy.strategy import StrategyManager
 from backtest.commands import *
 import numpy as np
 
+class BacktestInfo:
+    def __init__(self):
+        """Initializes BacktestInfo with default values."""
+        self._strategy_list = []
+        self._product_list = []
+        self._mode = ''
+        # from_date, to_date
+
+    @property
+    def strategy_list(self):
+        return self._py_prop
+    @strategy_list.setter
+    def strategy_list(self,val):
+        self._strategy_list = val
+
+    @property
+    def product_list(self):
+        """Returns the list of products."""
+        return self._product_list
+
+    @product_list.setter
+    def product_list(self, val):
+        """Sets the list of products."""
+        self._product_list = val
+
+    @property
+    def mode(self):
+        """Returns the current mode."""
+        return self._mode
+
+    @mode.setter
+    def mode(self, val):
+        """Sets the current mode."""
+        self._mode = val
+
+    @property
+    def from_date(self):
+        """Returns the from_date."""
+        return self._from_date
+
+    @from_date.setter
+    def from_date(self, val):
+        """Sets the from_date."""
+        self._from_date = val
+
+    @property
+    def to_date(self):
+        """Returns the to_date."""
+        return self._to_date
+
+    @to_date.setter
+    def to_date(self, val):
+        """Sets the to_date."""
+        self._to_date = val
+
+
 class BTCLI(CommandLineInterface):
     def __init__(self):
         super().__init__(promote='backtest')
+
 
         ## Vars
         self.cm = AppConfigManager()
         self.market = Market()
         self.strategyMgr = StrategyManager()
-
-        self.product_list = self.market.get_top_product_list(1)
-        # self.strategy_list = [MovingAverageCrossover]
-        self.strategy_list=[self.strategyMgr.get_strategy_list()[0].NAME]
-        self.mode = 'default'
-        self.broker = None
         self.backtest = Backtest(self.market)
 
-        self.history_path = self.cm.get_path('bt_cmd_history')
+        self.broker = None
 
         # fot opt mode.
         self.strategy_tune_param_grid = {}
+
+        self.bt_info = BacktestInfo()
+        self.bt_info.product_list = self.market.get_top_product_list(1)
+        self.bt_info.strategy_list = [self.strategyMgr.get_strategy_list()[0].NAME]
+        self.bt_info.mode = 'default'
+        # Initialize bt_info dates with backtest's default dates
+        self.bt_info.from_date = self.backtest.from_date
+        self.bt_info.to_date = self.backtest.to_date
+
+        ## post set
+        self.history_path = self.cm.get_path('bt_cmd_history')
 
         ## cmds
         ########################################################################
@@ -114,8 +176,9 @@ class BTCLI(CommandLineInterface):
         if args['#'] == 1:
             if args['1'] == 'info' or args['1'] == 'data':
                 operation = args['1']
-                if self.product_list: # Use the first product in the list if no specific ID is given
-                    product_id = self.product_list[0]
+                current_product_list = self.bt_info.product_list
+                if current_product_list: # Use the first product in the list if no specific ID is given
+                    product_id = current_product_list[0]
                 else:
                     self.print("No product selected. Please set a product first or specify one.")
                     return False
@@ -130,7 +193,7 @@ class BTCLI(CommandLineInterface):
             return False
 
         if operation == 'info':
-            stock_info = self.market.get_data_info(product_id)
+            stock_info = self.bt_info.market.get_data_info(product_id)
             if stock_info:
                 self.print(f"\n## Stock Info for {product_id}")
                 table_data = []
@@ -142,15 +205,15 @@ class BTCLI(CommandLineInterface):
                 self.print(f"Could not retrieve info for product ID: {product_id}")
         elif operation == 'data':
             # Ensure from_date and to_date are set for data retrieval
-            from_date = self.backtest.from_date
-            to_date = self.backtest.to_date
+            from_date = self.bt_info.from_date
+            to_date = self.bt_info.to_date
 
             if not from_date or not to_date:
                 self.print("Please set 'from' and 'to' dates using the 'date' command before requesting data.")
                 return False
 
             self.print(f"Fetching data for {product_id} from {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}")
-            stock_data_df = self.market.get_data(product_id=product_id, start_date=from_date.date(), end_date=to_date.date())
+            stock_data_df = self.bt_info.market.get_data(product_id=product_id, start_date=from_date.date(), end_date=to_date.date())
 
             if stock_data_df is not None and not stock_data_df.empty:
                 self.print(f"\n## Historical Data for {product_id} (Head)")
@@ -187,17 +250,20 @@ class BTCLI(CommandLineInterface):
         return False
     def cmd_update_database(self, args):
         self.print("Update local database.")
+        current_product_list = self.bt_info.product_list
+        current_market = self.bt_info.market
+
         if args['#'] == 1:
             if args['1'] == 'all':
                 self.print("!!! Are you really sure about updating local database.(YES/No, Defaul No. Please enter full word.) !!!")
                 ans = input()
                 if ans == 'YES':
-                    self.market.update_data()
+                    current_market.update_data()
             elif args['1'] == 'force':
-                self.market.update_data(product_list = self.product_list, force_update = True)
+                current_market.update_data(product_list = current_product_list, force_update = True)
             else:
                 self.print(f"Update product {args['1']}")
-                self.market.update_data(product_list = [args['1']])
+                current_market.update_data(product_list = [args['1']])
             return True
         elif args['#'] == 2:
             if args['1'] == 'force':
@@ -205,12 +271,12 @@ class BTCLI(CommandLineInterface):
                     self.print("!!! Are you really sure about FORCE updating local database.(YES/No, Defaul No. Please enter full word.) !!!")
                     ans = input()
                     if ans == 'YES':
-                        self.market.update_data(force_update = True)
+                        current_market.update_data(force_update = True)
                 else:
                     self.print(f"Force update product {args['2']}")
-                    self.market.update_data(product_list = [args['2']], force_update = True)
+                    current_market.update_data(product_list = [args['2']], force_update = True)
         else:
-            self.market.update_data(product_list = self.product_list)
+            current_market.update_data(product_list = current_product_list)
         return True
 
     def cmd_info(self, args = None):
@@ -218,15 +284,20 @@ class BTCLI(CommandLineInterface):
 
         table_data.append(["market", self.market.get_provider()])
 
-        # Handle product_list display
-        if len(self.product_list) > 20:
-            product_string = f"{self.product_list[:20]} ... (Total: {len(self.product_list)})"
+        current_mode = self.bt_info.mode
+        current_strategy_list = self.bt_info.strategy_list
+        current_product_list = self.bt_info.product_list
+
+        current_product_list = self.bt_info.product_list
+        # Handle current_product_list display
+        if len(current_product_list) > 20:
+            product_string = f"{current_product_list[:20]} ... (Total: {len(current_product_list)})"
         else:
-            product_string = f"{self.product_list} (Total: {len(self.product_list)})"
+            product_string = f"{current_product_list} (Total: {len(current_product_list)})"
         table_data.append(["product_list", product_string])
 
-        table_data.append(["strategy_list", self.strategy_list])
-        table_data.append(["mode", self.mode])
+        table_data.append(["strategy_list", current_strategy_list])
+        table_data.append(["mode", current_mode])
         table_data.append(["init cash", self.backtest.init_cash])
         table_data.append(["fromdate", self.backtest.from_date])
         table_data.append(["todate", self.backtest.to_date])
@@ -237,7 +308,7 @@ class BTCLI(CommandLineInterface):
         self.print(tabulate(table_data, headers=headers, tablefmt="pretty", numalign="left", stralign="left"))
 
         # Print tune params separately if in opt mode
-        if self.mode == 'opt':
+        if current_mode == 'opt':
             self.print("\n## Tune Parameters") # Add a header for tune params
             # Use json.dumps for pretty printing the dictionary
             self.print(self.strategy_tune_param_grid)
@@ -247,100 +318,108 @@ class BTCLI(CommandLineInterface):
     def cmd_data(self, args):
         # total_data_list = self.total_data_list
         operation_list = self.total_data_op_list
+        product_list = self.bt_info.product_list
         if args['#'] == 1:
             if args['1'] == 't5':
-                self.product_list = self.market.get_top_product_list(5)
+                product_list = self.market.get_top_product_list(5)
             elif args['1'] == 't10':
-                self.product_list = self.market.get_top_product_list(10)
+                product_list = self.market.get_top_product_list(10)
             elif args['1'] == 't20':
-                self.product_list = self.market.get_top_product_list(20)
+                product_list = self.market.get_top_product_list(20)
             elif args['1'] == 't50':
-                self.product_list = self.market.get_top_product_list(50)
+                product_list = self.market.get_top_product_list(50)
             elif args['1'] == 'y20':
-                self.product_list = self.market.get_product_list_by_date(start_date = "2020-01-01")
+                product_list = self.market.get_product_list_by_date(start_date = "2020-01-01")
             elif args['1'] == 'y10':
-                self.product_list = self.market.get_product_list_by_date(start_date = "2010-01-01")
+                product_list = self.market.get_product_list_by_date(start_date = "2010-01-01")
             elif args['1'] == 'y05':
-                self.product_list = self.market.get_product_list_by_date(start_date = "2005-01-01")
+                product_list = self.market.get_product_list_by_date(start_date = "2005-01-01")
             elif args['1'] == 'y00':
-                self.product_list = self.market.get_product_list_by_date(start_date = "2000-01-01")
+                product_list = self.market.get_product_list_by_date(start_date = "2000-01-01")
             elif args['1'] == 'all':
-                self.product_list = self.market.get_data_list()
+                product_list = self.market.get_data_list()
             elif args['1'] == 'etf':
-                self.product_list = self.market.get_data_list(product_type = ProductType.ETF)
+                product_list = self.market.get_data_list(product_type = ProductType.ETF)
             else:
-                self.product_list = [args['1']]
-            self.print(f"product_list({len(self.product_list)}) : {self.product_list}")
+                product_list = [args['1']]
+            self.print(f"product_list({len(product_list)}) : {product_list}")
+            self.bt_info.product_list = product_list
             return True
         elif args['#'] >= 2 and args['1'] in operation_list:
             if args['1'] == 'set' or args['1'] == 'add':
                 if args['1'] == 'set':
-                    self.product_list = []
+                    product_list = []
                 for each_arg in range(2, args['#'] + 1):
                     product_code = args[each_arg.__str__()]
-                    if product_code not in self.product_list:
-                        self.product_list.append(product_code)
-                self.print(f"product_list({len(self.product_list)}) : {self.product_list}")
+                    if product_code not in product_list:
+                        product_list.append(product_code)
+                self.print(f"product_list({len(product_list)}) : {product_list}")
+                self.bt_info.product_list = product_list
                 return True
             elif args['1'] == 'del':
                 for each_arg in range(2, args['#'] + 1):
                     product_code = args[each_arg.__str__()]
-                    if product_code in self.product_list:
-                        self.product_list.remove(product_code)
-                self.print(f"product_list({len(self.product_list)}) : {self.product_list}")
+                    if product_code in product_list:
+                        product_list.remove(product_code)
+                self.print(f"product_list({len(product_list)}) : {product_list}")
+                self.bt_info.product_list = product_list
                 return True
             elif args['1'] == 'list':
-                self.print(f"product_list({len(self.product_list)}) : {self.product_list}")
+                self.print(f"product_list({len(product_list)}) : {product_list}")
                 return True
             elif args['1'] == 'number':
                 self.product_list = self.market.get_data_list()[:int(args['2'])]
-                self.print(f"product_list({len(self.product_list)}) : {self.product_list}")
+                self.print(f"product_list({len(product_list)}) : {product_list}")
+                self.bt_info.product_list = product_list
                 return True
 
-        self.print(f"product_list({len(self.product_list)}) : {self.product_list}")
+        self.print(f"product_list({len(product_list)}) : {product_list}")
         return False
 
     def cmd_strategy(self, args):
         total_strategy_list = self.total_strategy_list
         operation_list = self.total_strategy_op_list
+        current_strategy_list = self.bt_info.strategy_list
         if args['#'] == 1 and args['1'] in total_strategy_list:
             # this is dfault action to set strategy
             if args['#'] == 1 and args['1'] in total_strategy_list:
-                self.strategy_list=[args['1']]
-                self.print(f"strategy_list : {self.strategy_list}")
+                self.bt_info.strategy_list = [args['1']]
+                self.print(f"strategy_list : {self.bt_info.strategy_list}")
                 return True
             else:
                 self.print(f"strategy not found. {args['1']}")
                 return True
         elif args['#'] == 1 and args['1'] in operation_list:
             if args['1'] == 'all':
-                self.strategy_list = total_strategy_list
-                self.print(f"strategy_list : {self.strategy_list}")
+                self.bt_info.strategy_list = total_strategy_list
+                self.print(f"strategy_list : {self.bt_info.strategy_list}")
                 return True
         elif args['#'] >= 2 and args['1'] in operation_list:
             if args['1'] == 'set' or args['1'] == 'add':
                 if args['1'] == 'set':
-                    self.strategy_list = []
+                    current_strategy_list = []
                 for each_arg in range(2, args['#'] + 1):
                     each_strategy = args[each_arg.__str__()]
-                    if each_strategy not in self.strategy_list and each_strategy in total_strategy_list:
-                        self.strategy_list.append(each_strategy)
+                    if each_strategy not in current_strategy_list and each_strategy in total_strategy_list:
+                        current_strategy_list.append(each_strategy)
                     else:
                         self.print(f"Setting fail, Ignore : {each_strategy}")
-                self.print(f"strategy_list : {self.strategy_list}")
+                self.bt_info.strategy_list = current_strategy_list
+                self.print(f"strategy_list : {self.bt_info.strategy_list}")
                 return True
             elif args['1'] == 'del':
                 for each_arg in range(2, args['#'] + 1):
                     each_strategy = args[each_arg.__str__()]
-                    if each_strategy in self.strategy_list and each_strategy in total_strategy_list:
-                        self.strategy_list.remove(each_strategy)
+                    if each_strategy in current_strategy_list and each_strategy in total_strategy_list:
+                        current_strategy_list.remove(each_strategy)
                     else:
                         self.print(f"Del fail, Ignore : {each_strategy}")
-                self.print(f"strategy_list : {self.strategy_list}")
+                self.bt_info.strategy_list = current_strategy_list
+                self.print(f"strategy_list : {self.bt_info.strategy_list}")
                 return True
             elif args['1'] == 'list':
                 self.print(f"Supported strategy : {total_strategy_list}")
-                self.print(f"Current strategy : {self.strategy_list}")
+                self.print(f"Current strategy : {self.bt_info.strategy_list}")
                 return True
             elif args['1'] == 'modify':
                 self.print(f"Function impling.")
@@ -352,10 +431,11 @@ class BTCLI(CommandLineInterface):
     def cmd_tune(self, args):
         total_tune_list = self.total_tune_cmd_list
         
-        if len(self.strategy_list) == 0:
+        current_strategy_list = self.bt_info.strategy_list
+        if len(current_strategy_list) == 0:
             dbg_warning('No strategy found on list.')
             return False
-        strategy_ins = self.strategyMgr.get_strategy_by_name(self.strategy_list[0])
+        strategy_ins = self.strategyMgr.get_strategy_by_name(current_strategy_list[0])
         if args['#'] == 0:
             self.print(f"Current Paramte:{self.strategy_tune_param_grid}")
             # self.print(f"Support Paramte:")
@@ -436,69 +516,14 @@ class BTCLI(CommandLineInterface):
 
             self.strategy_tune_param_grid = {}
             return True
-
-        # elif first_arg == 'list':
-        #     self.print(f"Available strategies: {total_strategy_list}")
-        #     self.print(f"Current strategies: {self.strategy_list}")
-        #     return True
-        #
-        # elif first_arg == 'all':
-        #     self.strategy_list = total_strategy_list.copy()
-        #     self.print(f"All strategies loaded: {self.strategy_list}")
-        #     return True
-        #
-        # elif first_arg == 'tune':
-        #     if args['#'] < 2 or args['2'] not in total_strategy_list:
-        #         self.print("Usage: strategy tune <strategy_name> [params]=[value]")
-        #         return False
-        #
-        #     strategy_name = args['2']
-        #     strategy_ins = self.strategyMgr.get_strategy_by_name(strategy_name)
-        #
-        #     if args['#'] == 2:
-        #         strategy_ins.dump_params()
-        #     elif args['#'] >= 3:
-        #         # params_set_list = [ args[str(each_idx)] for each_idx in range(3, args['#'] + 1)]
-        #         # print(params_set_list)
-        #         for each_idx in range(3, args['#'] + 1):
-        #             param_name, param_value = args[str(each_idx)].split('=')
-        #
-        #             try:
-        #                 self.print(strategy_ins.params)
-        #                 # strategy_ins.set_param(strategy_ins, param_name, param_value)
-        #                 # for each_parm in strategy_ins.params:
-        #                 #     if each_parm[0] == param_name:
-        #                 #         each_parm[1] = param_value
-        #
-        #
-        #                 strategy_ins.params[param_name] = param_value
-        #
-        #                 # setattr(strategy_ins.params, param_name, int(param_value))
-        #                 self.print(f"[{strategy_ins.NAME}] set int {param_name} to {param_value}")
-        #                 self.print(f"{getattr(strategy_ins.params, param_name)}")
-        #
-        #             except ValueError:
-        #                 dbg_error(e)
-        #
-        #                 traceback_output = traceback.format_exc()
-        #                 dbg_error(traceback_output)
-        #
-        #
-        #         strategy_ins.dump_params()
-        #         # for each_param, each_value in strategy_ins.params._getitems():
-        #         #     print(f"{each_param:32s}:{each_value}") 
-        #
-        #     return True
-        #
-        # self.print(f"Unknown operation: {first_arg}")
         return False
 
     def cmd_mode(self, args):
         setting_list = self.total_mode_list
         if args['#'] == 1:
             if args['1'] in setting_list:
-                self.mode=args['1']
-                self.print(f"mode          : {self.mode}")
+                self.bt_info.mode = args['1']
+                self.print(f"mode          : {self.bt_info.mode}")
                 return True
         return False
     def cmd_date(self, args):
@@ -506,35 +531,35 @@ class BTCLI(CommandLineInterface):
         try:
             if args['#'] == 1:
                 if args['1'].isdigit() and int(args['1']) < 100:
-                    self.backtest.to_date = datetime.today()
-                    self.backtest.from_date = datetime.today() - relativedelta(years=int(args['1']))
+                    self.bt_info.to_date = datetime.today()
+                    self.bt_info.from_date = datetime.today() - relativedelta(years=int(args['1']))
                 elif args['1'] == 'd1':
-                    self.backtest.from_date = datetime.strptime('20000101', "%Y%m%d")
-                    self.backtest.to_date = self.backtest.from_date + relativedelta(years=5) 
+                    self.bt_info.from_date = datetime.strptime('20000101', "%Y%m%d")
+                    self.bt_info.to_date = self.bt_info.from_date + relativedelta(years=5) 
                 elif args['1'] == 'd2':
-                    self.backtest.from_date = datetime.strptime('20050101', "%Y%m%d")
-                    self.backtest.to_date = self.backtest.from_date + relativedelta(years=5) 
+                    self.bt_info.from_date = datetime.strptime('20050101', "%Y%m%d")
+                    self.bt_info.to_date = self.bt_info.from_date + relativedelta(years=5) 
                 elif args['1'] == 'd3':
-                    self.backtest.from_date = datetime.strptime('20100101', "%Y%m%d")
-                    self.backtest.to_date = self.backtest.from_date + relativedelta(years=5) 
+                    self.bt_info.from_date = datetime.strptime('20100101', "%Y%m%d")
+                    self.bt_info.to_date = self.bt_info.from_date + relativedelta(years=5) 
                 elif args['1'] == 'd4':
-                    self.backtest.from_date = datetime.strptime('20150101', "%Y%m%d")
-                    self.backtest.to_date = self.backtest.from_date + relativedelta(years=5) 
+                    self.bt_info.from_date = datetime.strptime('20150101', "%Y%m%d")
+                    self.bt_info.to_date = self.bt_info.from_date + relativedelta(years=5) 
                 elif args['1'] == 'd5':
-                    self.backtest.from_date = datetime.strptime('20200101', "%Y%m%d")
-                    self.backtest.to_date = self.backtest.from_date + relativedelta(years=5) 
+                    self.bt_info.from_date = datetime.strptime('20200101', "%Y%m%d")
+                    self.bt_info.to_date = self.bt_info.from_date + relativedelta(years=5) 
             elif args['#'] == 2:
                 if args['1'] == 'from':
                     if args['2'].isdigit() and int(args['2']) < 100:
-                        self.backtest.from_date = datetime.today() - relativedelta(years=int(args['2']))
+                        self.bt_info.from_date = datetime.today() - relativedelta(years=int(args['2']))
                     else:
-                        self.backtest.from_date = datetime.strptime(args['2'], "%Y%m%d")
+                        self.bt_info.from_date = datetime.strptime(args['2'], "%Y%m%d")
                 elif args['1'] == 'to':
                     if args['2'].isdigit() and int(args['2']) < 100:
-                        self.backtest.to_date = datetime.today() - relativedelta(years=int(args['2']))
+                        self.bt_info.to_date = datetime.today() - relativedelta(years=int(args['2']))
                     else:
-                        self.backtest.to_date = datetime.strptime(args['2'], "%Y%m%d")
-            self.print(f"Set from date {self.backtest.from_date}, to date {self.backtest.to_date}.")
+                        self.bt_info.to_date = datetime.strptime(args['2'], "%Y%m%d")
+            self.print(f"Set from date {self.bt_info.from_date}, to date {self.bt_info.to_date}.")
         except Exception as e:
             dbg_error(e)
             dbg_error("date should be like 20200101.")
@@ -590,31 +615,35 @@ class BTCLI(CommandLineInterface):
         self.cmd_info()
         try:
             self.backtest.clean_result()
-            if self.mode == 'default':
+            current_mode = self.bt_info.mode
+            current_strategy_list = self.bt_info.strategy_list
+            current_product_list = self.bt_info.product_list
+
+            if current_mode == 'default':
                 dbg_debug(f'Start evaluation.')
-                for each_strategy in self.strategy_list:
+                for each_strategy in current_strategy_list:
                     target_strategy = self.strategyMgr.get_strategy_by_name(each_strategy)
-                    for idx, each_product in enumerate(self.product_list):
-                        dbg_info(f'[{target_strategy.NAME}][{idx + 1}/{len(self.product_list)}] Symbol: {each_product}', prefix='\r', end=' ' * 10)
+                    for idx, each_product in enumerate(current_product_list):
+                        dbg_info(f'[{target_strategy.NAME}][{idx + 1}/{len(current_product_list)}] Symbol: {each_product}', prefix='\r', end=' ' * 10)
                         self.backtest.setup(broker=self.broker)
                         self.backtest.add_symbol([each_product])
                         self.backtest.add_strategy([target_strategy])
                         self.backtest.eval()
-                    dbg_info(f'[{target_strategy.NAME}] all {len(self.product_list)} products done', prefix='\n')
+                    dbg_info(f'[{target_strategy.NAME}] all {len(current_product_list)} products done', prefix='\n')
                 self.backtest.show_result()
-            elif self.mode == 'year':
+            elif current_mode == 'year':
                 dbg_debug(f'Start yearly evaluation.')
 
-                overall_from_date = self.backtest.from_date
-                overall_to_date = self.backtest.to_date
+                overall_from_date = self.bt_info.from_date
+                overall_to_date = self.bt_info.to_date
 
                 if not overall_from_date or not overall_to_date:
                     dbg_error("Please set 'from' and 'to' dates using the 'date' command before running yearly evaluation.")
                     return False
 
                 # Store original dates to restore them after the yearly loop
-                original_backtest_from_date = self.backtest.from_date
-                original_backtest_to_date = self.backtest.to_date
+                original_backtest_from_date = self.bt_info.from_date
+                original_backtest_to_date = self.bt_info.to_date
 
                 # New logic for monthly shifted yearly evaluation
                 current_segment_start = overall_from_date
@@ -637,43 +666,43 @@ class BTCLI(CommandLineInterface):
                     self.backtest.from_date = current_segment_start - relativedelta(months=6)
                     self.backtest.to_date = segment_end_date
 
-                    for each_strategy in self.strategy_list:
+                    for each_strategy in current_strategy_list:
                         target_strategy = self.strategyMgr.get_strategy_by_name(each_strategy)
-                        for idx, each_product in enumerate(self.product_list):
-                            dbg_info(f'[{target_strategy.NAME}][{idx + 1}/{len(self.product_list)}] Symbol: {each_product}', prefix='\r', end=' ' * 10)
+                        for idx, each_product in enumerate(current_product_list):
+                            dbg_info(f'[{target_strategy.NAME}][{idx + 1}/{len(current_product_list)}] Symbol: {each_product}', prefix='\r', end=' ' * 10)
                             self.backtest.setup(broker=self.broker) # Setup for each product/strategy combination
                             self.backtest.add_symbol([each_product])
                             self.backtest.add_strategy([target_strategy])
                             self.backtest.eval()
-                        dbg_info(f'[{target_strategy.NAME}] all {len(self.product_list)} products done for {current_segment_start.strftime("%Y-%m-%d")} to {segment_end_date.strftime("%Y-%m-%d")}', prefix='\n')
+                        dbg_info(f'[{target_strategy.NAME}] all {len(current_product_list)} products done for {current_segment_start.strftime("%Y-%m-%d")} to {segment_end_date.strftime("%Y-%m-%d")}', prefix='\n')
                     
                     # Move to the next segment (shift by one month)
                     current_segment_start += relativedelta(months=1)
                 
                 # Restore original dates after all yearly evaluations are complete
-                self.backtest.from_date = original_backtest_from_date
-                self.backtest.to_date = original_backtest_to_date
+                self.bt_info.from_date = original_backtest_from_date
+                self.bt_info.to_date = original_backtest_to_date
 
                 self.backtest.show_result() # Show overall result after all yearly evaluations
-            elif self.mode == 'opt':
+            elif current_mode == 'opt':
                 dbg_debug(f'Start opt evaluation.')
                 # will be global
                 if len(self.strategy_tune_param_grid) == 0:
                     dbg_warning('No tuning params found.')
                     return False
-                if len(self.strategy_list) > 1:
+                if len(current_strategy_list) > 1:
                     dbg_warning('Please keep only one strategy at a test time.')
                     return False
-                for each_strategy in self.strategy_list:
+                for each_strategy in current_strategy_list:
                     target_strategy = self.strategyMgr.get_strategy_by_name(each_strategy)
-                    for idx, each_product in enumerate(self.product_list):
-                        dbg_info(f'[{target_strategy.NAME}][{idx + 1}/{len(self.product_list)}] Symbol: {each_product}', prefix='\r', end=' ' * 10)
+                    for idx, each_product in enumerate(current_product_list):
+                        dbg_info(f'[{target_strategy.NAME}][{idx + 1}/{len(current_product_list)}] Symbol: {each_product}', prefix='\r', end=' ' * 10)
                         self.backtest.setup(broker=self.broker)
                         self.backtest.add_symbol([each_product])
                         # self.backtest.add_strategy([target_strategy])
                         self.backtest.add_optstrategy(target_strategy, **self.strategy_tune_param_grid)
                         self.backtest.eval(show_params = True)
-                    dbg_info(f'[{target_strategy.NAME}] all {len(self.product_list)} products done', prefix='\n')
+                    dbg_info(f'[{target_strategy.NAME}] all {len(current_product_list)} products done', prefix='\n')
                 self.backtest.show_result()
 
             # elif self.mode == 'single':
@@ -694,7 +723,7 @@ class BTCLI(CommandLineInterface):
             #
             #     self.backtest.show_result()
             else:
-                dbg_error(f'Unknown test mode.{self.mode}')
+                dbg_error(f'Unknown test mode.{current_mode}')
                 return False
         except Exception as e:
             dbg_error(e)

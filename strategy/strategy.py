@@ -3,7 +3,7 @@ import pandas as pd
 from utility.debug import *
 
 # Offical
-from strategy.candidate.mac import MovingAverageCrossoverStrategy
+from strategy.candidate.mac import MovingAverageCrossoverStrategy, MACDCrossoverStrategy, EMACrossoverStrategy
 from strategy.candidate.bm import BreakoutMomentumStrategy
 from strategy.candidate.rsi import RelativeStrengthIndexStrategy
 from strategy.candidate.bmr import BollingerMeanReversionStrategy
@@ -25,6 +25,10 @@ class StrategyManager:
         self.register_strategy(BreakoutMomentumStrategy)
         self.register_strategy(RelativeStrengthIndexStrategy)
         self.register_strategy(BollingerMeanReversionStrategy)
+
+        # Moving average.
+        self.register_strategy(MACDCrossoverStrategy)
+        self.register_strategy(EMACrossoverStrategy)
 
         # new added.
         # need to use the original price for it.
