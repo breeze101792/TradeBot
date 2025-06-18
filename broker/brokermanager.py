@@ -308,7 +308,7 @@ class BrokerManager:
         """
         if self.is_connected() is False:
             dbg_info('Please inited it first.')
-            raise ValueError
+            return False
 
         # it's backward compatible.
         if action in ['sell', 'SELL']:
@@ -323,7 +323,7 @@ class BrokerManager:
             raise ValueError
         if self.lock() is False:
             dbg_error(f"Lock acquire fail.")
-            return
+            return False
         try:
             order = self.broker.place_order(symbol, action, size, price)
         except Exception as e:
@@ -351,7 +351,7 @@ class BrokerManager:
         """
         if self.is_connected() is False:
             dbg_info('Please init it first.')
-            raise ValueError
+            return 0
         if self.lock() is False:
             dbg_error(f"Lock acquire fail.")
             return 0
@@ -379,7 +379,7 @@ class BrokerManager:
         """
         if self.is_connected() is False:
             dbg_info('Please init it first.')
-            raise ValueError
+            return None
         if self.lock() is False:
             dbg_error(f"Lock acquire fail.")
             return None
@@ -403,10 +403,10 @@ class BrokerManager:
         """
         if self.is_connected() is False:
             dbg_info('Please init it first.')
-            raise ValueError
+            return {}
         if self.lock() is False:
             dbg_error(f"Lock acquire fail.")
-            return []
+            return {}
         try:
             return self.broker.get_all_positions()
         except Exception as e:
@@ -430,10 +430,10 @@ class BrokerManager:
         """
         if self.is_connected() is False:
             dbg_info('Please init it first.')
-            raise ValueError
+            return 0
         if self.lock() is False:
             dbg_error(f"Lock acquire fail.")
-            return
+            return 0
         try:
             # Note: This might need adjustment if different brokers handle price fetching differently.
             return self.broker.get_last_price(symbol, price_type)
@@ -444,6 +444,7 @@ class BrokerManager:
             dbg_error(traceback_output)
         finally:
             self.unlock()
+        return 0
 
     def get_portfolio_value(self) -> float:
         """
@@ -455,10 +456,10 @@ class BrokerManager:
         """
         if self.is_connected() is False:
             dbg_info('Please init it first.')
-            raise ValueError
+            return 0
         if self.lock() is False:
             dbg_error(f"Lock acquire fail.")
-            return
+            return 0
         try:
             return self.broker.get_portfolio_value()
         except Exception as e:
@@ -469,6 +470,7 @@ class BrokerManager:
         finally:
             self.unlock()
 
+        return 0
     def set_state_filepath(self, filepath: str):
         """
         Sets the default file path for saving/loading state in the managed broker.
