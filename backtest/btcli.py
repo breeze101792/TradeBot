@@ -37,8 +37,8 @@ class BacktestInfo:
             'strategy_list': self._strategy_list,
             'product_list': self._product_list,
             'mode': self._mode,
-            'from_date': self._from_date.strftime('%Y%m%d') if self._from_date else None,
-            'to_date': self._to_date.strftime('%Y%m%d') if self._to_date else None,
+            'from_date': self._from_date.strftime('%Y-%m-%d %H:%M:%S.%f') if self._from_date else None,
+            'to_date': self._to_date.strftime('%Y-%m-%d %H:%M:%S.%f') if self._to_date else None,
             'strategy_tune_param_grid': {k: list(v) if isinstance(v, (np.ndarray, range)) else v for k, v in self._strategy_tune_param_grid.items()},
         }
         return data
@@ -52,8 +52,8 @@ class BacktestInfo:
         info.mode = data.get('mode', '')
         from_date_str = data.get('from_date')
         to_date_str = data.get('to_date')
-        info.from_date = datetime.strptime(from_date_str, '%Y%m%d') if from_date_str else None
-        info.to_date = datetime.strptime(to_date_str, '%Y%m%d') if to_date_str else None
+        info.from_date = datetime.strptime(from_date_str, '%Y-%m-%d %H:%M:%S.%f') if from_date_str else None
+        info.to_date = datetime.strptime(to_date_str, '%Y-%m-%d %H:%M:%S.%f') if to_date_str else None
         info.strategy_tune_param_grid = data.get('strategy_tune_param_grid', {})
         return info
 
@@ -231,7 +231,7 @@ class BTCLI(CommandLineInterface):
             return False
 
         if operation == 'info':
-            stock_info = self.bt_info.market.get_data_info(product_id)
+            stock_info = self.market.get_data_info(product_id)
             if stock_info:
                 self.print(f"\n## Stock Info for {product_id}")
                 table_data = []
@@ -251,7 +251,7 @@ class BTCLI(CommandLineInterface):
                 return False
 
             self.print(f"Fetching data for {product_id} from {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}")
-            stock_data_df = self.bt_info.market.get_data(product_id=product_id, start_date=from_date.date(), end_date=to_date.date())
+            stock_data_df = self.market.get_data(product_id=product_id, start_date=from_date.date(), end_date=to_date.date())
 
             if stock_data_df is not None and not stock_data_df.empty:
                 self.print(f"\n## Historical Data for {product_id} (Head)")
@@ -289,7 +289,7 @@ class BTCLI(CommandLineInterface):
     def cmd_update_database(self, args):
         self.print("Update local database.")
         current_product_list = self.bt_info.product_list
-        current_market = self.bt_info.market
+        current_market = self.market
 
         if args['#'] == 1:
             if args['1'] == 'all':
@@ -326,7 +326,6 @@ class BTCLI(CommandLineInterface):
         current_strategy_list = self.bt_info.strategy_list
         current_product_list = self.bt_info.product_list
 
-        current_product_list = self.bt_info.product_list
         # Handle current_product_list display
         if len(current_product_list) > 20:
             product_string = f"{current_product_list[:20]} ... (Total: {len(current_product_list)})"
@@ -337,8 +336,8 @@ class BTCLI(CommandLineInterface):
         table_data.append(["strategy_list", current_strategy_list])
         table_data.append(["mode", current_mode])
         table_data.append(["init cash", self.backtest.init_cash])
-        table_data.append(["fromdate", self.backtest.from_date])
-        table_data.append(["todate", self.backtest.to_date])
+        table_data.append(["fromdate", self.bt_info.from_date])
+        table_data.append(["todate", self.bt_info.to_date])
 
         headers = ["Info Item", "Value"]
 
@@ -658,6 +657,11 @@ class BTCLI(CommandLineInterface):
             current_mode = self.bt_info.mode
             current_strategy_list = self.bt_info.strategy_list
             current_product_list = self.bt_info.product_list
+
+            # preset 
+            self.backtest.from_date = self.bt_info.from_date
+            self.backtest.to_date = self.bt_info.to_date
+            self.print(f"Date: {self.backtest.from_date} to {self.backtest.to_date}, {type(self.backtest.to_date)}")
 
             if current_mode == 'default':
                 dbg_debug(f'Start evaluation.')

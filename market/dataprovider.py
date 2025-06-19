@@ -69,7 +69,7 @@ class DataProvider:
             df.sort_index(inplace=True)
 
 
-        # print(f"DataFrame loaded from {file_path}")
+        dbg_trace(f"CSV file loaded from {file_path}")
         return df
 
     # Impl API.
@@ -175,16 +175,18 @@ class DataProvider:
 
         # Determine if a download is required
         # do not set it false after this line, otherwisse will break the force_update
-        download_required = force_update
+        download_required = False
 
         # Determine download range
         download_start_date = None
         download_end_date = None
 
-        if df is None or df.empty:
+        if df is None or df.empty or force_update is True:
             dbg_debug(f"No cached data for {product_id} or cache is empty. Full download required.")
             download_required = True
-            download_start_date = start_date if start_date else datetime(1900, 1, 1).date() # Default to very old date
+            # download_start_date = start_date if start_date else datetime(1900, 1, 1).date() # Default to very old date
+            # if empty we do full download it.
+            download_start_date = datetime(1900, 1, 1).date() # Default to very old date
             download_end_date = end_date if end_date else today
         elif incremental_update is False:
             cached_min_date = df.index.min().date()
