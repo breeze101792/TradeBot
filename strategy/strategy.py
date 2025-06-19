@@ -5,7 +5,7 @@ from utility.debug import *
 # Offical
 from strategy.candidate.mac import MovingAverageCrossoverStrategy, MACDCrossoverStrategy, EMACrossoverStrategy
 from strategy.candidate.bm import BreakoutMomentumStrategy
-from strategy.candidate.rsi import RelativeStrengthIndexStrategy
+from strategy.candidate.rsi import RelativeStrengthIndexStrategy, RSI_SMA
 from strategy.candidate.bmr import BollingerMeanReversionStrategy
 from strategy.candidate.multisignal import MultiSignalStrategy
 
@@ -29,6 +29,9 @@ class StrategyManager:
         # Moving average.
         self.register_strategy(MACDCrossoverStrategy)
         self.register_strategy(EMACrossoverStrategy)
+
+        # RSI .
+        # self.register_strategy(RSI_SMA)
 
         # new added.
         # need to use the original price for it.
