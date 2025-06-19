@@ -72,9 +72,12 @@ class EMACrossoverStrategy(MovingProfitStrategy):
 class MACDCrossoverStrategy(MovingProfitStrategy):
     NAME="MACDCrossover"
     params = (
-        ("macd_fast", 12),  # Short period for moving average (5 days)
-        ("macd_slow", 26),  # Long period for moving average (20 days)
-        ("macd_signal", 9),  # Long period for moving average (20 days)
+        # ("macd_fast", 12),  # Short period for moving average (5 days)
+        # ("macd_slow", 26),  # Long period for moving average (20 days)
+        # ("macd_signal", 9),  # Long period for moving average (20 days)
+        ("macd_fast", 10),  # Short period for moving average (10 days)
+        ("macd_slow", 20),  # Long period for moving average (20 days)
+        ("macd_signal", 10),  # Long period for moving average (10 days)
 
         ("risk_per_trade", MovingProfitStrategy.params.risk_per_trade),
         ("trailing_stop_pct", MovingProfitStrategy.params.trailing_stop_pct),

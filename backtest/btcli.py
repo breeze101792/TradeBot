@@ -27,7 +27,35 @@ class BacktestInfo:
         self._strategy_list = []
         self._product_list = []
         self._mode = ''
-        # from_date, to_date
+        self._from_date = None
+        self._to_date = None
+        self._strategy_tune_param_grid = {}
+
+    def to_dict(self):
+        """Converts the BacktestInfo object to a dictionary for serialization."""
+        data = {
+            'strategy_list': self._strategy_list,
+            'product_list': self._product_list,
+            'mode': self._mode,
+            'from_date': self._from_date.strftime('%Y%m%d') if self._from_date else None,
+            'to_date': self._to_date.strftime('%Y%m%d') if self._to_date else None,
+            'strategy_tune_param_grid': {k: list(v) if isinstance(v, (np.ndarray, range)) else v for k, v in self._strategy_tune_param_grid.items()},
+        }
+        return data
+
+    @classmethod
+    def from_dict(cls, data):
+        """Creates a BacktestInfo object from a dictionary."""
+        info = cls()
+        info.strategy_list = data.get('strategy_list', [])
+        info.product_list = data.get('product_list', [])
+        info.mode = data.get('mode', '')
+        from_date_str = data.get('from_date')
+        to_date_str = data.get('to_date')
+        info.from_date = datetime.strptime(from_date_str, '%Y%m%d') if from_date_str else None
+        info.to_date = datetime.strptime(to_date_str, '%Y%m%d') if to_date_str else None
+        info.strategy_tune_param_grid = data.get('strategy_tune_param_grid', {})
+        return info
 
     @property
     def strategy_list(self):
@@ -76,23 +104,30 @@ class BacktestInfo:
         """Sets the to_date."""
         self._to_date = val
 
+    @property
+    def strategy_tune_param_grid(self):
+        """Returns the strategy tune parameter grid."""
+        return self._strategy_tune_param_grid
+
+    @strategy_tune_param_grid.setter
+    def strategy_tune_param_grid(self, val):
+        """Sets the strategy tune parameter grid."""
+        self._strategy_tune_param_grid = val
+
 
 class BTCLI(CommandLineInterface):
     def __init__(self):
         super().__init__(promote='backtest')
 
-
         ## Vars
+        self.def_autoinfo = 'autosave.test'
         self.cm = AppConfigManager()
         self.market = Market()
         self.strategyMgr = StrategyManager()
         self.backtest = Backtest(self.market)
 
         self.broker = None
-
-        # fot opt mode.
-        self.strategy_tune_param_grid = {}
-
+        
         self.bt_info = BacktestInfo()
         self.bt_info.product_list = self.market.get_top_product_list(1)
         self.bt_info.strategy_list = [self.strategyMgr.get_strategy_list()[0].NAME]
@@ -145,6 +180,9 @@ class BTCLI(CommandLineInterface):
 
         self.total_attr_cmd_list = ['cash']
         self.regist_cmd("attr", self.cmd_attr, description=f"Set attr of backtest commands. cmd:{self.total_attr_cmd_list}", arg_list = self.total_attr_cmd_list, group='setting')
+
+        self.regist_cmd("save_info", self.cmd_save_info, description="Save current backtest info to a JSON file.", group='tools')
+        self.regist_cmd("load_info", self.cmd_load_info, description="Load backtest info from a JSON file.", group='tools')
 
         ## utility
         register_commands(self)
@@ -311,7 +349,7 @@ class BTCLI(CommandLineInterface):
         if current_mode == 'opt':
             self.print("\n## Tune Parameters") # Add a header for tune params
             # Use json.dumps for pretty printing the dictionary
-            self.print(self.strategy_tune_param_grid)
+            self.print(self.bt_info.strategy_tune_param_grid)
 
         return True
 
@@ -437,7 +475,7 @@ class BTCLI(CommandLineInterface):
             return False
         strategy_ins = self.strategyMgr.get_strategy_by_name(current_strategy_list[0])
         if args['#'] == 0:
-            self.print(f"Current Paramte:{self.strategy_tune_param_grid}")
+            self.print(f"Current Paramte:{self.bt_info.strategy_tune_param_grid}")
             # self.print(f"Support Paramte:")
             strategy_ins.dump_params(strategy_ins)
             return True
@@ -449,7 +487,7 @@ class BTCLI(CommandLineInterface):
             return False
         
         if first_arg == 'list':
-            self.print(f"Current Paramte:{self.strategy_tune_param_grid}")
+            self.print(f"Current Paramte:{self.bt_info.strategy_tune_param_grid}")
             strategy_ins.dump_params(strategy_ins)
             return True
         elif first_arg == 'set':
@@ -468,37 +506,37 @@ class BTCLI(CommandLineInterface):
 
             if args['#'] == 3:
                 if '.' in args['3']:
-                    self.strategy_tune_param_grid[param_name] = [float(args['3'])]
+                    self.bt_info.strategy_tune_param_grid[param_name] = [float(args['3'])]
                 else:
-                    self.strategy_tune_param_grid[param_name] = [int(args['3'])]
+                    self.bt_info.strategy_tune_param_grid[param_name] = [int(args['3'])]
             elif args['#'] == 4:
                 if '.' in args['3']:
                     range_start = float(args['3'])
                     range_end = float(args['4'])
                     # default set to 0.5
                     range_step = float(0.5)
-                    self.strategy_tune_param_grid[param_name] = np.arange(range_start, range_end, range_step)
+                    self.bt_info.strategy_tune_param_grid[param_name] = np.arange(range_start, range_end, range_step)
                 else:
                     # get range.
                     range_start = int(args['3'])
                     range_end = int(args['4'])
                     # default set to 5
                     range_step = int(5)
-                    self.strategy_tune_param_grid[param_name] = range(range_start, range_end, range_step)
+                    self.bt_info.strategy_tune_param_grid[param_name] = range(range_start, range_end, range_step)
             elif args['#'] == 5:
                 if '.' in args['3']:
                     range_start = float(args['3'])
                     range_end = float(args['4'])
                     range_step = float(args['5'])
-                    self.strategy_tune_param_grid[param_name] = np.arange(range_start, range_end, range_step)
+                    self.bt_info.strategy_tune_param_grid[param_name] = np.arange(range_start, range_end, range_step)
                 else:
                     # get range.
                     range_start = int(args['3'])
                     range_end = int(args['4'])
                     range_step = int(args['5'])
-                    self.strategy_tune_param_grid[param_name] = range(range_start, range_end, range_step)
+                    self.bt_info.strategy_tune_param_grid[param_name] = range(range_start, range_end, range_step)
 
-            self.print(f"Current Paramte:{self.strategy_tune_param_grid}")
+            self.print(f"Current Paramte:{self.bt_info.strategy_tune_param_grid}")
             return True
         
         elif first_arg == 'del':
@@ -507,14 +545,14 @@ class BTCLI(CommandLineInterface):
                 return False
 
             param_name = args['2']
-            if param_name in self.strategy_tune_param_grid.keys():
-                self.strategy_tune_param_grid.pop(param_name)
-            self.print(f"Current Paramte:{self.strategy_tune_param_grid}")
+            if param_name in self.bt_info.strategy_tune_param_grid.keys():
+                self.bt_info.strategy_tune_param_grid.pop(param_name)
+            self.print(f"Current Paramte:{self.bt_info.strategy_tune_param_grid}")
             return True
 
         elif first_arg == 'clean':
 
-            self.strategy_tune_param_grid = {}
+            self.bt_info.strategy_tune_param_grid = {}
             return True
         return False
 
@@ -613,6 +651,8 @@ class BTCLI(CommandLineInterface):
 
     def cmd_evaluate(self, args):
         self.cmd_info()
+        self.cmd_save_info({'#': 'eval_save', '1': self.def_autoinfo})
+
         try:
             self.backtest.clean_result()
             current_mode = self.bt_info.mode
@@ -687,7 +727,7 @@ class BTCLI(CommandLineInterface):
             elif current_mode == 'opt':
                 dbg_debug(f'Start opt evaluation.')
                 # will be global
-                if len(self.strategy_tune_param_grid) == 0:
+                if len(self.bt_info.strategy_tune_param_grid) == 0:
                     dbg_warning('No tuning params found.')
                     return False
                 if len(current_strategy_list) > 1:
@@ -700,7 +740,7 @@ class BTCLI(CommandLineInterface):
                         self.backtest.setup(broker=self.broker)
                         self.backtest.add_symbol([each_product])
                         # self.backtest.add_strategy([target_strategy])
-                        self.backtest.add_optstrategy(target_strategy, **self.strategy_tune_param_grid)
+                        self.backtest.add_optstrategy(target_strategy, **self.bt_info.strategy_tune_param_grid)
                         self.backtest.eval(show_params = True)
                     dbg_info(f'[{target_strategy.NAME}] all {len(current_product_list)} products done', prefix='\n')
                 self.backtest.show_result()
@@ -732,3 +772,52 @@ class BTCLI(CommandLineInterface):
             dbg_error(traceback_output)
             return False
         return True
+
+    def cmd_save_info(self, args):
+        file_path = ""
+        if args['#'] != 1:
+            self.print(f"Use default file.{self.def_autoinfo}")
+            file_path = self.def_autoinfo
+        else:
+            # self.print("Usage: save_info [file_path]")
+            # return False
+            file_path = args['1']
+        
+        try:
+            info_dict = self.bt_info.to_dict()
+            dbg_trace(f"Save info: {info_dict}")
+            with open(file_path, 'w') as f:
+                json.dump(info_dict, f, indent=4)
+            self.print(f"Backtest info saved to {file_path}")
+            return True
+        except Exception as e:
+            dbg_error(f"Failed to save backtest info: {e}")
+            return False
+
+    def cmd_load_info(self, args):
+        file_path = ""
+        if args['#'] != 1:
+            self.print(f"Use default file.{self.def_autoinfo}")
+            file_path = self.def_autoinfo
+        else:
+            file_path = args['1']
+
+        try:
+            with open(file_path, 'r') as f:
+                info_dict = json.load(f)
+            self.bt_info = BacktestInfo.from_dict(info_dict)
+            # Update backtest dates as well, since bt_info is now new
+            self.backtest.from_date = self.bt_info.from_date
+            self.backtest.to_date = self.bt_info.to_date
+            self.print(f"Backtest info loaded from {file_path}")
+            self.cmd_info() # Show updated info
+            return True
+        except FileNotFoundError:
+            dbg_error(f"File not found: {file_path}")
+            return False
+        except json.JSONDecodeError:
+            dbg_error(f"Invalid JSON file: {file_path}")
+            return False
+        except Exception as e:
+            dbg_error(f"Failed to load backtest info: {e}")
+            return False
