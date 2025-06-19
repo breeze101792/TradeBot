@@ -31,7 +31,7 @@ class BacktestInfo:
 
     @property
     def strategy_list(self):
-        return self._py_prop
+        return self._strategy_list
     @strategy_list.setter
     def strategy_list(self,val):
         self._strategy_list = val
