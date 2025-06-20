@@ -394,7 +394,7 @@ def test_trading_trading_eval_flow() -> bool:
             mock_analyzer_instance = MagicMock()
             mock_analyzer_class.return_value = mock_analyzer_instance
             # Mock get_analysis to return a profitable result for the single ticker
-            mock_analyzer_instance.get_analysis.return_value = [{'profit': 10, 'sharpe': 1, 'vwr': 1, 'drawdown': {'max':{'drawdown': 0}}, 'sqn': {'sqn': 1}, 'score': 5}]
+            mock_analyzer_instance.get_analysis.return_value = [{'profit': 10, 'sharpe': 1, 'vwr': 1, 'drawdown': {'max':{'drawdown': 0}}, 'sqn': {'sqn': 2}, 'score': 5}]
 
             mock_strategy_instance = MagicMock()
             mock_strategy_manager_class.return_value = mock_strategy_instance

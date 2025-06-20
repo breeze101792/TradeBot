@@ -120,7 +120,7 @@ class BTCLI(CommandLineInterface):
         super().__init__(promote='backtest')
 
         ## Vars
-        self.def_autoinfo = 'autosave.test'
+        self.def_autoinfo = 'autosave'
         self.cm = AppConfigManager()
         self.market = Market()
         self.strategyMgr = StrategyManager()
@@ -163,7 +163,7 @@ class BTCLI(CommandLineInterface):
         self.total_strategy_op_list = ['set', 'add', 'modify', 'list', 'del', 'all', 'tune']
         # self.regist_cmd("add_strategy", self.cmd_add_strategy, description=f"Add strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list, group='setting')
         self.regist_cmd("strategy", self.cmd_strategy, description=f"Set strategy. Ops: {self.total_strategy_op_list}, Stra:{self.total_strategy_list}", arg_list = self.total_strategy_list + self.total_strategy_op_list, group='setting')
-        self.set_date_list = ['to', 'from', 'd1', 'd2', 'd3', 'd4', 'd5']
+        self.set_date_list = ['to', 'from', 'd1', 'd2', 'd3', 'd4', 'd5', 'year']
         self.regist_cmd("date", self.cmd_date, description=f"Set date. ex. 20200101, or 5 Years test d1(from 2000), d2(from 2005), d3(from 2010), d4(from 2015), d5(from 2020).", arg_list = self.set_date_list, group='setting')
         # Forcus on only one mode, to reduce system complexity.
         self.total_mode_list = ['default', 'opt', 'year']
@@ -405,7 +405,7 @@ class BTCLI(CommandLineInterface):
                 self.print(f"product_list({len(product_list)}) : {product_list}")
                 return True
             elif args['1'] == 'number':
-                self.product_list = self.market.get_data_list()[:int(args['2'])]
+                product_list = self.market.get_data_list()[:int(args['2'])]
                 self.print(f"product_list({len(product_list)}) : {product_list}")
                 self.bt_info.product_list = product_list
                 return True
@@ -584,7 +584,7 @@ class BTCLI(CommandLineInterface):
                     self.bt_info.to_date = self.bt_info.from_date + relativedelta(years=5) 
                 elif args['1'] == 'd5':
                     self.bt_info.from_date = datetime.strptime('20200101', "%Y%m%d")
-                    self.bt_info.to_date = self.bt_info.from_date + relativedelta(years=5) 
+                    self.bt_info.to_date = self.bt_info.from_date + relativedelta(years=5)
             elif args['#'] == 2:
                 if args['1'] == 'from':
                     if args['2'].isdigit() and int(args['2']) < 100:
@@ -596,6 +596,10 @@ class BTCLI(CommandLineInterface):
                         self.bt_info.to_date = datetime.today() - relativedelta(years=int(args['2']))
                     else:
                         self.bt_info.to_date = datetime.strptime(args['2'], "%Y%m%d")
+                elif args['1'].startswith('y') and args['2'].isdigit():
+                    year = int(args['2'])
+                    self.bt_info.from_date = datetime(year, 1, 1)
+                    self.bt_info.to_date = datetime(year, 12, 31)
             self.print(f"Set from date {self.bt_info.from_date}, to date {self.bt_info.to_date}.")
         except Exception as e:
             dbg_error(e)
@@ -787,6 +791,7 @@ class BTCLI(CommandLineInterface):
             # return False
             file_path = args['1']
         
+        file_path = file_path + '.test'
         try:
             info_dict = self.bt_info.to_dict()
             dbg_trace(f"Save info: {info_dict}")
@@ -806,6 +811,7 @@ class BTCLI(CommandLineInterface):
         else:
             file_path = args['1']
 
+        file_path = file_path + '.test'
         try:
             with open(file_path, 'r') as f:
                 info_dict = json.load(f)

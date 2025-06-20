@@ -23,7 +23,7 @@ RESET = "\033[0m"
 
 # Define a default ticker and other constants for tests
 DEFAULT_BROKER_TEST_TICKER = '2330' # TSMC
-DEFAULT_BROKER_TEST_QTY = 10
+DEFAULT_BROKER_TEST_QTY = 5
 DEFAULT_BROKER_TYPE = 'mock'
 TEST_STATE_DIR = "data/test_broker_states" # Directory for temporary state files
 TEST_TRANSACTION_DIR = "data/test_broker_transactions"

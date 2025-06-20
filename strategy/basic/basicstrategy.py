@@ -290,6 +290,11 @@ class BasicStrategy(bt.Strategy):
         data_price_idx = 2
         data_name_idx = 3
 
+        if self.trading_date is not None:
+            if self.trading_date != self.datas[0].datetime.date(0):
+                dbg_error(f"Trading date mismatch. Expected: {self.trading_date}, Got: {self.datas[0].datetime.date(0)}")
+                raise ValueError("Trading date mismatch during strategy start.")
+
         if self.initial_order_history is None or len(self.initial_order_history) == 0:
             dbg_debug('No order history found.')
             return
@@ -343,12 +348,26 @@ class BasicStrategy(bt.Strategy):
             dbg_trace(f"Losing Trades: {losing_trades}")
             dbg_trace(f"Win Rate: {win_rate:.2f}%")
             dbg_trace(f"Total PNL: {total_pnl:.2f}")
-            dbg_trace(f"------------------------\n")
+            dbg_trace(f"------------------------")
         else:
             dbg_trace(f"--- Strategy Summary ---")
             dbg_trace(f"Strategy Name: {self.NAME}")
             dbg_trace("No trades were executed.")
-            dbg_trace(f"------------------------\n")
+            dbg_trace(f"------------------------")
+
+        if self.last_trade and self.last_trade['date'] is not None:
+            dbg_trace(f"Last Trade Info: {self.last_trade}")
+
+        # List out any open trades if they exist
+        if self.active_trades:
+            dbg_trace(f"--- Open Trades at Stop ---")
+            for data, pos in self.active_trades.items():
+                dbg_trace(f"  Code: {data._name}, Entry Date: {pos['entry_date']}, Avg Entry Price: {pos['avg_entry_price']:.2f}, Remaining Size: {pos['remaining_size']}")
+            dbg_trace(f"---------------------------")
+        else:
+            dbg_trace(f"--- Open Trades at Stop ---")
+            dbg_trace("No open trades at the end of backtest.")
+            dbg_trace(f"---------------------------")
 
         # You can also print the full trading history if needed
         # print("Trading History:")

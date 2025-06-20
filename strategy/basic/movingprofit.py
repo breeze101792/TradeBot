@@ -14,7 +14,8 @@ class MovingProfitStrategy(BasicExitStrategy):
         # ("trailing_takeprofit_pct", 0.05),  # Trailing take profit percentage (5%)
         ("risk_per_trade", 0.8),  # Max risk per trade (20%)
         ("trailing_stop_pct", 0.06),  # Trailing stop percentage (5%)
-        ("trailing_takeprofit_pct", 0.16),  # Trailing take profit percentage (15%)
+        # ("trailing_takeprofit_pct", 0.16),  # Trailing take profit percentage (15%)
+        ("trailing_takeprofit_pct", 0.08),  # Trailing take profit percentage (15%)
     )
 
     def __init__(self):
@@ -41,22 +42,39 @@ class MovingProfitStrategy(BasicExitStrategy):
             # Turn over, maybe add it latter.
             # self.LIQUIDITY_TOV_THRESHOLD = 50 * 10 * 1000 # 1M
             # self.sma_tov = bt.indicators.SimpleMovingAverage(self.data.turnover, period=20)
+        if self.p.trailing_takeprofit_pct <= self.p.trailing_stop_pct:
+            dbg_error(f'trailing_takeprofit_pct({self.p.trailing_takeprofit_pct}) should bigger then trailing_stop_pct({self.p.trailing_stop_pct}).')
+            raise
 
     def next(self):
-        # dbg_info(f"[{self.datas[0].datetime.date(0)}] {self.is_trading_date(self.datas[0].datetime.date(0))}")
         if not self.is_trading_date(self.datas[0].datetime.date(0)):
             return
+        # dbg_error(f"Daily: [{self.datas[0].datetime.date(0)}] {self.is_trading_date(self.datas[0].datetime.date(0))}")
         # normal we add only one data at a time, so the len will be 1.
         for data in self.datas:
             pos = self.getposition(data)
             price = data.close[0]
-            # dbg_info(f"[{self.data.datetime.date(0)}]{data._name} Price:{price:.2f}, pos:{pos.size}")
+
+            # Debug info
+            log_message = f"[{self.data.datetime.date(0)}]{data._name} @ {price:.2f}, pos:{pos.size}"
+            if data in self.stop_loss:
+                log_message += f", Stop Loss: {self.stop_loss[data]:.2f}"
+            if data in self.take_profit:
+                log_message += f", Take Profit: {self.take_profit[data]:.2f}"
+            if data in self.trailing_stop:
+                log_message += f", Trailing Stop: {self.trailing_stop[data]:.2f}"
+            if data in self.trailing_takeprofit:
+                log_message += f", Trailing Take Profit: {self.trailing_takeprofit[data]:.2f}"
+            dbg_trace(log_message)
+            # dbg_info(log_message)
 
             # Exit: Short MA crosses below Long MA or hit stop loss/take profit
             if pos.size > 0:
                 # Update trailing stop and take profit when the price moves in your favor
-                if price > self.trailing_stop[data]:
+                if price > self.trailing_stop[data] and self.trailing_stop[data] != self.stop_loss[data]:
+                    ori_trailing_stop = self.trailing_stop[data]
                     self.trailing_stop[data] = max(self.trailing_stop[data], price * (1 - self.params.trailing_stop_pct))  # Adjust trailing stop loss
+                    dbg_trace(f"[{self.data.datetime.date(0)}]{data._name} Update trailing stop from {ori_trailing_stop:.2f} to {self.trailing_stop[data]:.2f}")
 
                 # Exit conditions
                 if price < self.stop_loss[data]:
@@ -110,10 +128,18 @@ class MovingProfitStrategy(BasicExitStrategy):
                         self.trailing_takeprofit[data] = price * (1 + self.params.trailing_takeprofit_pct)  # Adjust trailing take profit
 
                     # since we hit the take_profi, ensure the profit.
-                    self.stop_loss[data] = max(self.stop_loss[data], price * (1 - self.params.trailing_stop_pct))  # Adjust trailing stop loss
+                    # ori_stop_loss = self.stop_loss[data]
+                    # self.stop_loss[data] = max(self.stop_loss[data], price * (1 - self.params.trailing_stop_pct))  # Adjust trailing stop loss
+                    # dbg_error(f"update stop lose from {ori_stop_loss} to {self.stop_loss[data]}")
+
+                    # use last profit point as stop_loss point.
+                    ori_stop_loss = self.stop_loss[data]
+                    self.stop_loss[data] = max(self.stop_loss[data], price * (1 - self.p.trailing_takeprofit_pct))  # Adjust trailing stop loss
+                    dbg_trace(f"[{self.data.datetime.date(0)}]{data._name} Update stop loss from {ori_stop_loss:.2f} to {self.stop_loss[data]:.2f}")
 
                     # update trailing stop, devide 2 so we could make a difference between stop_loss and trailing_stop
-                    self.trailing_stop[data] = price * (1 - self.params.trailing_stop_pct / 2)  # Set initial trailing stop loss (5% down)
+                    # self.trailing_stop[data] = price * (1 - self.params.trailing_stop_pct / 2)  # Set initial trailing stop loss (5% down)
+                    self.trailing_stop[data] = max(self.trailing_stop[data], price * (1 - self.params.trailing_stop_pct))  # Adjust trailing stop loss
 
                     dbg_trace(f"🏆 [{self.data.datetime.date(0)}]{data._name} Trailing Take Profit hit @ {price:.2f}")
 
@@ -139,7 +165,7 @@ class MovingProfitStrategy(BasicExitStrategy):
                 self.trailing_stop[data] = price * (1 - self.params.trailing_stop_pct)  # Set initial trailing stop loss (5% down)
                 self.trailing_takeprofit[data] = price * (1 + self.params.trailing_takeprofit_pct)  # Set initial trailing take profit (20% up)
 
-                dbg_trace(f"📈 [{self.data.datetime.date(0)}]{data._name} Bought @ {price:.2f}, pos:{pos.size}, Stop Loss: {self.stop_loss[data]:.2f}, Take Profit: {self.take_profit[data]:.2f}")
+                dbg_trace(f"📈 [{self.data.datetime.date(0)}]{data._name} Bought @ {price:.2f}, pos:{pos.size}, Stop Loss: {self.stop_loss[data]:.2f}, Take Profit: {self.take_profit[data]:.2f}, Trailing Stop: {self.trailing_stop[data]:.2f}, Trailing Take Profit: {self.trailing_takeprofit[data]:.2f}")
 
             else:
                 # No position held

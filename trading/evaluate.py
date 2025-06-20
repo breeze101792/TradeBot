@@ -15,6 +15,7 @@ from core.config import *
 class Evaluate:
     # threshold
     BUY_CANDIDATE_SCORE_THRESHOLD = 1
+    BUY_CANDIDATE_SQN_THRESHOLD = 1.5
     def __init__(self):
         # TODO, add multiple strategy support.
         self.stra_mgr = StrategyManager()
@@ -155,7 +156,10 @@ class Evaluate:
 
         # Add positive products to buying_dict
         for i, (product, data) in enumerate(sorted_candidates):
-            if data['score'] > self.BUY_CANDIDATE_SCORE_THRESHOLD: # Take top 3
+            ###############################
+            ## Check evaluation
+            ###############################
+            if data['score'] > self.BUY_CANDIDATE_SCORE_THRESHOLD and data['sqn'] > self.BUY_CANDIDATE_SQN_THRESHOLD: # Take top 3
                 buying_dict[product] = data
             else:
                 break
@@ -230,7 +234,7 @@ class Evaluate:
         # current_trading_day is a datetime.date object, defined earlier in the method
 
         # Convert current_trading_day to pandas Timestamp for DataFrame indexing
-        current_trading_day = datetime.now()
+        current_trading_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         last_trading_day_ts = pd.Timestamp(current_trading_day)
 
         # Prepare data for the current_trading_day
@@ -343,16 +347,18 @@ class Evaluate:
                 selling_analyzer.to_date = last_trading_day
                 selling_analyzer.from_date = selling_analyzer.to_date - relativedelta(years=1)
 
-
                 # Add the combined/updated data feed to the analyzer
                 target_df = self.__get_realtime_data_list(symbol)
                 modified_last_trading_day = last_trading_day
                 if target_df is not None:
-                    modified_last_trading_day = datetime.now()
+                    modified_last_trading_day = target_df.index.max()
+                    selling_analyzer.to_date = modified_last_trading_day
                     selling_analyzer.add_data_frame([{'symbol':symbol, 'data':target_df}])
+                    # print(target_df)
                 else:
                     dbg_warning(f'Can not get lastest price of {symbol}. Use previous date instead.')
                     selling_analyzer.add_symbol([symbol])
+                # dbg_error(f"trading date: {modified_last_trading_day}, {target_df.index.max()}")
 
                 # --- Convert current position info to order_history format ---
                 # Format: tuple of tuples -> ((datetime, size, price, data_name),)

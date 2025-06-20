@@ -415,6 +415,7 @@ class Backtest:
                 # Use internal attributes for date range
                 # data = bt.feeds.PandasData(dataname=df, fromdate=self._from_date, todate=self._to_date)
                 data = ExtPandasDataFeed(dataname=df, fromdate=self._from_date, todate=self._to_date)
+                # dbg_info(f"Data for {symbol}:\n{df.to_string()}")
 
                 dbg_trace(f"Add product {symbol}.")
 

@@ -85,11 +85,13 @@ def test_core_start_and_stop_flow(test_id: str) -> bool:
             # A small actual sleep is necessary here, as the flags are set by the threads themselves.
             start_time = time.time()
             timeout = 5 # seconds
+            dbg_info(f"start time: {start_time}")
             while (not core_instance.flag_heatbeat_running or
                    not core_instance.flag_trade_service_running or
                    not core_instance.flag_selling_service_running or
                    not core_instance.flag_datasource_service_running) and (time.time() - start_time < timeout):
                 time.sleep(0.1) # Small sleep to yield to other threads
+            dbg_info(f"end time: {time.time()}")
 
             if not core_instance.flag_core_running:
                 dbg_error("flag_core_running is False after start.")

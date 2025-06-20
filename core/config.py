@@ -24,7 +24,7 @@ class AppConfig(BasicConfig):
         lot_unit = 1
         # since there is no minimum fee of it, so we lower down the trade limit.
         cash_min_per_trade = 1000
-        cash_max_per_trade = 30000
+        cash_max_per_trade = 10000
 
 class AppConfigManager(ConfigManager):
     def __init__(self, *args, **kwargs):
