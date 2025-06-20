@@ -302,7 +302,6 @@ class BTCLI(CommandLineInterface):
             else:
                 self.print(f"Update product {args['1']}")
                 current_market.update_data(product_list = [args['1']])
-            return True
         elif args['#'] == 2:
             if args['1'] == 'force':
                 if args['2'] == 'all':

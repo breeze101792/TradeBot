@@ -298,6 +298,9 @@ class BasicStrategy(bt.Strategy):
         if self.initial_order_history is None or len(self.initial_order_history) == 0:
             dbg_debug('No order history found.')
             return
+        if self.initial_order_history is None or len(self.initial_order_history) == 0:
+            dbg_debug('No order history found.')
+            return
         for data in self.datas:
             for each_record in self.initial_order_history:
                 # FIXME, insufficent fund will cause update fail without any notification.
@@ -400,9 +403,9 @@ class BasicStrategy(bt.Strategy):
             price=price,
             size=size,
         )
-        if self.order is not None:
-            dbg_warning(f"Cancelling existing order for {self.order.data._name}: Ref: {self.order.ref}, Type: {'Buy' if self.order.isbuy() else 'Sell'}, Size: {self.order.size}, Price: {self.order.price}, Status: {self.order.getstatusname()}")
-            self.order.cancel()
+        # if self.order is not None:
+        #     dbg_warning(f"Cancelling existing order for {self.order.data._name}: Ref: {self.order.ref}, Type: {'Buy' if self.order.isbuy() else 'Sell'}, Size: {self.order.size}, Price: {self.order.price}, Status: {self.order.getstatusname()}")
+        #     self.order.cancel()
 
         self.order = super().buy(data=data, size=size, *args, **kwargs)
         return self.order

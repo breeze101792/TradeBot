@@ -39,7 +39,7 @@ class DataProvider:
         file_path = os.path.join(folder, filename)
 
         # Save the DataFrame to CSV
-        df.to_csv(file_path, index=True)
+        df.to_csv(file_path, index=True, mode='w')
         dbg_trace(f"DataFrame saved to {file_path}")
 
     @staticmethod
@@ -243,9 +243,16 @@ class DataProvider:
             if new_df is not None and not new_df.empty:
                 if df is not None and not df.empty:
                     # Combine old and new data, remove duplicates, and sort by index
-                    df = pd.concat([df, new_df]).drop_duplicates(keep='last').sort_index()
+                    df = pd.concat([df, new_df])
                 else:
                     df = new_df
+
+                # remove the duplication.
+                if not df.index.is_unique:
+                    dbg_warning(f"Duplicate indices found for {product_id}. Removing duplicates.")
+                    df = df.drop_duplicates(keep='last')
+                    df = df[~df.index.duplicated(keep='last')] # Keep the last occurrence in case of duplicates
+                    df = df.sort_index()
                 self.save_to_csv(df, ticker_local_file, folder=ticker_local_path)
             else:
                 dbg_debug(f"No new data downloaded for {product_id} in range {download_start_date} to {download_end_date}.")
@@ -264,6 +271,11 @@ class DataProvider:
         if df.empty:
             dbg_debug(f"No data for {product_id} in the requested range {start_date} to {end_date}.")
             return pd.DataFrame()
+
+        # check for the duplication
+        if not df.index.is_unique:
+            dbg_warning(f"Duplicate indices found for {product_id}. Removing duplicates.")
+            df = df[~df.index.duplicated(keep='last')] # Keep the last occurrence in case of duplicates
 
         dbg_debug(f"DataFrame for {product_id} loaded and filtered from {df.index.min().date()} to {df.index.max().date()}")
         return df

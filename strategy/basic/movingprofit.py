@@ -79,13 +79,13 @@ class MovingProfitStrategy(BasicExitStrategy):
                 # Exit conditions
                 if price < self.stop_loss[data]:
                     # entry stop loss.
-                    # self.sell(data=data, size=pos.size)
-                    self.close()
+                    self.sell(data=data, size=pos.size)
+                    # self.close()
                     dbg_trace(f"📉 [{self.data.datetime.date(0)}]{data._name} Exit Signal (Stop Loss) @ {price:.2f}, pos:{pos.size}") # Improved log message
                 elif self.stra_sell_out(data):
                     # strategy safty.
-                    # self.sell(data=data, size=pos.size)
-                    self.close()
+                    self.sell(data=data, size=pos.size)
+                    # self.close()
                     dbg_trace(f"📉 [{self.data.datetime.date(0)}]{data._name} Exit Signal (Strategy Stop Loss) @ {price:.2f}, pos:{pos.size}") # Improved log message
                 # elif price > self.take_profit[data]:
                 #     # strategy safty.

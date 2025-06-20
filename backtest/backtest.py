@@ -412,6 +412,12 @@ class Backtest:
             try:
                 df = each_data['data']
                 symbol = each_data['symbol']
+                if df.empty:
+                    dbg_warning(f"Ignore {symbol}, since it's empty. {df.head()}")
+                    continue
+                if len(df) < 5:
+                    dbg_warning(f"Ignore {symbol}, since it's less then 5 records. {df.head()}")
+                    continue
                 # Use internal attributes for date range
                 # data = bt.feeds.PandasData(dataname=df, fromdate=self._from_date, todate=self._to_date)
                 data = ExtPandasDataFeed(dataname=df, fromdate=self._from_date, todate=self._to_date)
@@ -449,9 +455,16 @@ class Backtest:
         for each_product in product_list:
             try:
                 df = self.market.get_data(each_product, start_date = self._from_date.date(), end_date = self._to_date.date())
+                if df.empty:
+                    dbg_warning(f"Ignore {each_product}, since it's empty. {df.head()}")
+                    continue
+                if len(df) < 5:
+                    dbg_warning(f"Ignore {each_product}, since it's less then 5 records. {df.head()}")
+                    continue
                 # Use internal attributes for date range
                 # data = bt.feeds.PandasData(dataname=df, fromdate=self._from_date, todate=self._to_date)
                 data = ExtPandasDataFeed(dataname=df, fromdate=self._from_date, todate=self._to_date)
+                # dbg_info(f"Data for {each_product}:\n{df.to_string()}")
 
                 dbg_trace(f"Add product {each_product}.")
 
