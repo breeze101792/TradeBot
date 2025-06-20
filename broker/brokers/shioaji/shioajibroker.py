@@ -144,14 +144,17 @@ class ShioajiBroker(BaseBroker):
             # for savty, logout when fail to connect.
             if self.shioaji_api is not None:
                 self.shioaji_api.logout()
+                self.shioaji_api = None
             return False
         finally:
-            self.__show_usage()
+            if self.shioaji_api is not None:
+                self.__show_usage()
 
-            if check and self.check_quota() is False:
-                dbg_error(f"!!! Hit quota limit, block login.!!!")
-                self.shioaji_api.logout()
-                return False
+                if check and self.check_quota() is False:
+                    dbg_error(f"!!! Hit quota limit, block login.!!!")
+                    self.shioaji_api.logout()
+                    self.shioaji_api = None
+                    return False
         dbg_debug("login and activate ca success")
         return True
 
@@ -165,6 +168,7 @@ class ShioajiBroker(BaseBroker):
         if self.shioaji_api is not None:
             print("Logout Account.")
             self.shioaji_api.logout()
+            self.shioaji_api = None
         else:
             dbg_warning('Shioaji is not connected.')
 
@@ -774,6 +778,9 @@ class ShioajiBroker(BaseBroker):
             dbg_info("--------------------")
 
     def __show_usage(self):
+        if self.shioaji_api is None:
+            dbg_warning("shioaji_api is None.")
+            return
         try:
             dbg_info("--- Usage Data ---")
             usage_data = self.shioaji_api.usage()
