@@ -41,9 +41,8 @@ class Trading:
                     # budget should smaller then CASH_MAX_PER_TRADE.
                     buying_budget = current_cash if current_cash < CASH_MAX_PER_TRADE else CASH_MAX_PER_TRADE
                     current_price = trade_broker.get_last_price(each_symbol, OrderPrice.ASK)
-
                     # sanity check
-                    if current_price == 0:
+                    if current_price == None or current_price <= 0:
                         dbg_info(f'get price fail for {each_symbol}, ignore it.')
                         continue
 
@@ -92,14 +91,20 @@ class Trading:
 
                     current_cash = trade_broker.get_balance()
                     current_price = trade_broker.get_last_price(symbol, OrderPrice.BID)
+                    if current_price is None or current_price <= 0:
+                        # FIXME, need notification to user.
+                        dbg_warning(f"Can't get current price of {symbol} (returned None), ignore actions.")
+                        continue
                     holding_size = trade_broker.get_position_by_symbol(symbol).size
-
-                    dbg_info(f'Selling product: {symbol}, current hoding: {holding_size}')
-
                     # sanity check
-                    if selling_size == holding_size:
+                    if holding_size <= 0:
+                        dbg_warning(f'Selling product: {symbol}, current hoding: {holding_size}.')
+                        continue
+                    elif selling_size == holding_size or selling_size <= 0:
                         # if equal then we just sell it all.
                         trade_broker.place_order(symbol=symbol, size=selling_size, action=OrderAction.SELL)
+
+                    dbg_info(f'Selling product: {symbol}, current hoding: {holding_size}')
                     if current_price == 0:
                         # FIXME, find another way to take actions.
                         dbg_warning("can't get current price of {symbol}, ignore actions.")

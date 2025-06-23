@@ -452,11 +452,11 @@ class ShioajiBroker(BaseBroker):
     def __get_last_price_odd(self, symbol: str, price_type: OrderPrice) -> float:
         timeout=3
         tick_queue = queue.Queue()
-        last_price = 0.0
+        last_price = None
 
         if not self.is_connected():
-            dbg_warning("Account not connected. Cannot fetch last price.")
-            return 0.0 # Return 0.0 if not connected
+            dbg_warning(f"Account not connected. Cannot fetch last price.")
+            return None
 
         def tick_callback_quote(exchange: sj.Exchange, tick:sj.TickSTKv1): # Changed 'quote' to 'tick'
             print(f"Exchange: {exchange}, Tick: {tick}")
@@ -499,7 +499,7 @@ class ShioajiBroker(BaseBroker):
             contract = self.shioaji_api.Contracts.Stocks[symbol]
             if not contract:
                 dbg_warning(f"Contract for symbol {symbol} not found for price fetching.")
-                return 0.0
+                return None
 
             # Subscribe to odd lot quotes
             self.shioaji_api.quote.subscribe(
@@ -515,17 +515,18 @@ class ShioajiBroker(BaseBroker):
             # NOTE. we don't have bid/ask price for shioaji, use close for it.
             # Determine which price to return based on price_type
             if tick_data.suspend is True:
-                return float(0.0)
+                dbg_warning(f"{symbol} data supended.")
+                return None
             else:
                 last_price = float(tick_data.close)
         except queue.Empty:
             dbg_warning(f'[{symbol}] tick get empty. No price received within timeout.')
-            last_price = 0.0
+            last_price = None
         except Exception as e:
             dbg_warning(f"Error fetching odd lot price for {symbol}: {e}")
             traceback_output = traceback.format_exc()
             dbg_warning(traceback_output)
-            last_price = 0.0 # Ensure last_price is set to 0.0 on error
+            last_price = None # Ensure last_price is set to 0.0 on error
         finally:
             # Automatically unsubscribe after completion
             if contract: # Only unsubscribe if contract was successfully found
@@ -580,6 +581,10 @@ class ShioajiBroker(BaseBroker):
             if price is None:
                 price_type = OrderPrice.BID if action == OrderAction.SELL else OrderPrice.ASK
                 current_market_price = self.get_last_price(symbol, price_type)
+                if current_market_price is None:
+                    reason = f"Could not get a valid market price for {symbol} to place order (price is None)."
+                    dbg_error(reason)
+                    return None
                 if current_market_price <= 0:
                     reason = f"Could not get a valid market price for {symbol} to place order."
                     dbg_error(reason)

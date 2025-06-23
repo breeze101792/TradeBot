@@ -98,7 +98,7 @@ class MovingProfitStrategy(BasicExitStrategy):
                     lot_size = pos.size / self.LOT_UNIT
                     sell_pos = 0
                     if lot_size >= 2 and floor(lot_size/2) * self.LOT_UNIT * price >= self.MIN_CASH_PER_TRADE:
-                        sell_pos = ceil(lot_size/2) * self.LOT_UNIT
+                        sell_pos = int(ceil(lot_size/2) * self.LOT_UNIT)
                     else:
                         sell_pos = lot_size * self.LOT_UNIT
                     # dbg_info(f'Selling debug: {pos.size}->{sell_pos}')
@@ -117,7 +117,7 @@ class MovingProfitStrategy(BasicExitStrategy):
                     lot_size = pos.size / self.LOT_UNIT
                     sell_pos = 0
                     if lot_size >= 2 and floor(lot_size/2) * self.LOT_UNIT * price >= self.MIN_CASH_PER_TRADE:
-                        sell_pos = ceil(lot_size/2) * self.LOT_UNIT
+                        sell_pos = int(ceil(lot_size/2) * self.LOT_UNIT)
                     else:
                         sell_pos = lot_size * self.LOT_UNIT
                     # dbg_info(f'Selling debug: {pos.size}->{sell_pos}')

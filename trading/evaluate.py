@@ -228,8 +228,8 @@ class Evaluate:
 
         # 'price' variable will store the latest price
         price = trade_broker.get_last_price(symbol, OrderPrice.BID) # float 
-        if price == 0:
-            dbg_warning(f"Current price for {symbol} is 0.")
+        if price is None or price <= 0:
+            dbg_warning(f"Current price for {symbol} is {price}.")
             return None
         # current_trading_day is a datetime.date object, defined earlier in the method
 
@@ -382,7 +382,7 @@ class Evaluate:
                 selling_analyzer.add_strategy([target_strategy], last_trading_day = modified_last_trading_day.date())
                 selling_analyzer.eval()
 
-                last_price = target_df['Close'].iloc[-1] if target_df is not None and not target_df.empty else 0.0
+                last_price = target_df['Close'].iloc[-1] if target_df is not None and not target_df.empty else None
                 # Print detailed last trade information
                 trade_info = target_strategy.last_trade
                 selling_eval_result_list.append({
@@ -431,12 +431,12 @@ class Evaluate:
                     result.get('symbol', 'N/A'),
                     result.get('open', 'N/A'),
                     result.get('action', 'N/A'),
-                    f"{result.get('hoding_size', 0):.2f}",
+                    f"{result.get('hoding_size', 0)}",
                     f"{result.get('entry_price', 0.0):.2f}",
                     f"{result.get('last_price', 0.0):.2f}", # Use 'last_price' which is the current price
                     f"{result.get('realtime_pl', 0.0):.2f}",
                     f"{result.get('selling_price', 0.0):.2f}",
-                    f"{result.get('selling_size', 0):.2f}",
+                    f"{result.get('selling_size', 0)}",
                     result.get('strategy').NAME if result.get('strategy') else 'N/A'
                 ])
             dbg_info("\n--- Selling Evaluation Results ---")
@@ -460,7 +460,7 @@ class Evaluate:
             symbol = sell_candidate['symbol']
             product_info = self.market.get_data_info(symbol)
             strategy_name = sell_candidate['strategy'].NAME # Get name from strategy object
-            dbg_info(f"Product to Sell: {symbol} ({product_info.get('name', 'N/A')}/{product_info.get('category', 'N/A')}), Strategy: {strategy_name}, Size: {sell_candidate['size']:.2f}, Indicative Price: {sell_candidate['price']:.2f}")
+            dbg_info(f"Product to Sell: {symbol} ({product_info.get('name', 'N/A')}/{product_info.get('category', 'N/A')}), Strategy: {strategy_name}, Size: {sell_candidate['size']}, Indicative Price: {sell_candidate['price']:.2f}")
 
         return selling_list # Return the list of dictionaries
 

@@ -179,6 +179,10 @@ class MockBroker(BaseBroker):
         price_type = OrderPrice.BID if action == OrderAction.SELL else OrderPrice.ASK
         # Get the current market price for execution comparison and potential fill
         market_price = self.get_last_price(symbol, price_type)
+        if market_price is None:
+            reason = f"Could not retrieve market price for {symbol}."
+            dbg_error(f"Order rejected for {symbol}: {reason}")
+            return None
         if market_price <= 0.0:
              reason = f"Invalid or zero market price ({market_price:.2f}) obtained."
              dbg_error(f"Order rejected for {symbol}: {reason}")
@@ -327,10 +331,10 @@ class MockBroker(BaseBroker):
             return self.data_provider.get_current_price(symbol, price_type)
         except (KeyError, IndexError, TypeError) as e:
             dbg_error(f"Error retrieving last price for {symbol} from DataFrame: {e}")
-            return 0.0 # Return 0.0 on error
+            return None # Return None on error
         except Exception as e:
             dbg_error(f"An unexpected error occurred in get_last_price for {symbol}: {e}")
-            return 0.0 # Return 0.0 on unexpected errors
+            return None # Return None on unexpected errors
 
     def get_portfolio_value(self) -> float:
         """
@@ -340,6 +344,9 @@ class MockBroker(BaseBroker):
         holdings_value = 0.0
         for symbol, position in self.positions.items():
             current_price = self.get_last_price(symbol, OrderPrice.LAST) # Needs real price data
+            if current_price is None:
+                dbg_warning(f"Could not get current price for {symbol}. Skipping its value in portfolio calculation.")
+                continue # Skip this position if price is not available
             holdings_value += position.get_market_value(current_price)
 
         total_value = self.cash + holdings_value

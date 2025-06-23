@@ -60,47 +60,49 @@ class TWSE(DataProvider):
     def get_current_price(self, symbol, price_type:OrderPrice = OrderPrice.BID) -> float:
         # price_type => bid/ask/trade
         result = None
-        # this is for mock broker, don't use it on real code.
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                self.lock()
-                # dbg_info(f'get_current_price : {symbol}')
-                result = twstock.realtime.get(symbol)
+        try:
+            self.lock()
+            # dbg_info(f'get_current_price : {symbol}')
+            result = twstock.realtime.get(symbol)
 
-                # dbg_info('Realtime info:', result)
-                trade = result.get('realtime').get('latest_trade_price')
-                bid = result.get('realtime').get('best_bid_price')[0]
-                ask = result.get('realtime').get('best_ask_price')[0]
-                if price_type == OrderPrice.BID:
-                    return float(bid)
-                elif price_type == OrderPrice.ASK:
-                    return float(ask)
-                elif price_type == OrderPrice.LAST:
-                    if trade.isdigit() is True:
-                        return float(trade)
-                    else:
-                        # NOTE. it's fail to get trade from TWSE, so we use ask for it.
-                        # normal we got postion to check, so in that time, we use bid.
-                        return float(bid)
+            # dbg_info('Realtime info:', result)
+            trade = result.get('realtime').get('latest_trade_price')
+            bid = result.get('realtime').get('best_bid_price')[0]
+            ask = result.get('realtime').get('best_ask_price')[0]
+            price = None
+            if price_type == OrderPrice.BID:
+                price = bid
+            elif price_type == OrderPrice.ASK:
+                price = ask
+            elif price_type == OrderPrice.LAST:
+                if '-' not in trade:
+                    price = trade
                 else:
-                    return 0.0
-            except ValueError as e:
-                dbg_debug(f'[{symbol}] value error: {result}. Attempt {attempt + 1}/{max_retries}')
-                dbg_error(e)
-                traceback_output = traceback.format_exc()
-                dbg_error(traceback_output)
-                time.sleep(1) # Wait a bit before retrying
-            except Exception as e:
-                dbg_error(f'Error found on {symbol}. Attempt {attempt + 1}/{max_retries}')
-                dbg_error(e)
-                traceback_output = traceback.format_exc()
-                dbg_error(traceback_output)
-                time.sleep(1) # Wait a bit before retrying
-            finally:
-                self.unlock()
-        dbg_error(f'Failed to get current price for {symbol} after {max_retries} attempts.')
-        return 0.0
+                    # NOTE. it's fail to get trade from TWSE, so we use ask for it.
+                    # normal we got postion to check, so in that time, we use bid.
+                    price = bid
+            if '-' not in price:
+                return float(price)
+            else:
+                dbg_warning(f"[{symbol}]get {price_type} fail {price}.")
+                return None
+        except ValueError as e:
+            dbg_debug(f'[{symbol}] value error. Result: {result}')
+            dbg_error(e)
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+            time.sleep(1) # Wait a bit before retrying
+        except Exception as e:
+            dbg_error(f'Error found on {symbol}. Result: {result}')
+            dbg_error(e)
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+            time.sleep(1) # Wait a bit before retrying
+        finally:
+            self.unlock()
+
+        dbg_warning(f'Failed to get current price for {symbol}.')
+        return None
 
     def download_data_list(self, market: str = None, country: str = None, product_type: ProductType = ProductType.STOCK):
         product_list = []

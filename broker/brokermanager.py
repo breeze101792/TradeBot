@@ -430,10 +430,10 @@ class BrokerManager:
         """
         if self.is_connected() is False:
             dbg_info('Please init it first.')
-            return 0
+            return None
         if self.lock() is False:
             dbg_error(f"Lock acquire fail.")
-            return 0
+            return None
         try:
             # Note: This might need adjustment if different brokers handle price fetching differently.
             return self.broker.get_last_price(symbol, price_type)
@@ -444,7 +444,7 @@ class BrokerManager:
             dbg_error(traceback_output)
         finally:
             self.unlock()
-        return 0
+        return None
 
     def get_portfolio_value(self) -> float:
         """
@@ -522,7 +522,7 @@ class BrokerManager:
         for symbol, pos in positions.items():
             try:
                 current_price = self.get_last_price(symbol, OrderPrice.LAST)
-                if current_price <= 0:
+                if current_price is None or current_price <= 0:
                     dbg_warning(f"Could not get valid market price for {symbol}, using 0.0 for calculations.")
                     current_price = 0.0 # Handle case where price might be invalid
 
@@ -655,7 +655,7 @@ class BrokerManager:
                 now_iso,
                 symbol,
                 action,
-                size,
+                int(size),
                 price,
                 commission,
                 cash_balance
@@ -993,7 +993,11 @@ class BrokerManager:
                                                 Returns None if any conversion fails or a key is missing.
         """
         try:
-            size = int(t_data['size'])
+            # Not sure we need to support float, but just keep for compatiable.
+            if '.' in t_data['size']:
+                size = float(t_data['size'])
+            else:
+                size = int(t_data['size'])
             price = float(t_data['price'])
             commission = float(t_data['commission'])
             return size, price, commission
