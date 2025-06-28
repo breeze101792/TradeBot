@@ -522,19 +522,31 @@ class BrokerManager:
         for symbol, pos in positions.items():
             try:
                 current_price = self.get_last_price(symbol, OrderPrice.LAST)
-                if current_price is None or current_price <= 0:
-                    dbg_warning(f"Could not get valid market price for {symbol}, using 0.0 for calculations.")
-                    current_price = 0.0 # Handle case where price might be invalid
+                
+                market_value_str = "N/A"
+                cost_basis_str = "N/A"
+                unrealized_pl_str = "N/A"
+                unrealized_pl_percent_str = "N/A"
+                current_price_str = "N/A"
 
-                market_value = pos.size * current_price
-                cost_basis = pos.size * pos.average_entry_price
-                unrealized_pl = market_value - cost_basis
-                unrealized_pl_percent = (unrealized_pl / cost_basis * 100) if cost_basis != 0 else 0.0
+                if current_price is not None and current_price > 0:
+                    current_price_str = f"{current_price:,.2f}"
+                    market_value = pos.size * current_price
+                    cost_basis = pos.size * pos.average_entry_price
+                    unrealized_pl = market_value - cost_basis
+                    unrealized_pl_percent = (unrealized_pl / cost_basis * 100) if cost_basis != 0 else 0.0
 
-                # Add to totals
-                total_market_value += market_value
-                total_cost_basis += cost_basis
-                total_unrealized_pl += unrealized_pl
+                    # Add to totals ONLY if price is valid
+                    total_market_value += market_value
+                    total_cost_basis += cost_basis
+                    total_unrealized_pl += unrealized_pl
+
+                    market_value_str = f"{market_value:,.2f}"
+                    cost_basis_str = f"{cost_basis:,.2f}"
+                    unrealized_pl_str = f"{unrealized_pl:,.2f}"
+                    unrealized_pl_percent_str = f"{unrealized_pl_percent:,.2f}%"
+                else:
+                    dbg_warning(f"Could not get valid market price for {symbol}. Calculations skipped for this position.")
 
                 # Format data for the table row
                 row = [
@@ -543,19 +555,19 @@ class BrokerManager:
                     f"{pos.average_entry_price:,.2f}",
                     f"{pos.initial_entry_price:,.2f}",
                     pos.open_date.isoformat() if pos.open_date else 'N/A',
-                    f"{current_price:,.2f}",
-                    f"{market_value:,.2f}",
-                    f"{cost_basis:,.2f}",
-                    f"{unrealized_pl:,.2f}",
-                    f"{unrealized_pl_percent:,.2f}%"
+                    current_price_str,
+                    market_value_str,
+                    cost_basis_str,
+                    unrealized_pl_str,
+                    unrealized_pl_percent_str
                 ]
                 table_data.append(row)
                 dbg_debug(f"Position Row Data for {symbol}: {row}")
 
             except Exception as e:
                 dbg_error(f"Error processing position for {symbol}: {e}")
-                # Optionally add a row indicating an error for this symbol
-                table_data.append([symbol, pos.size, 'Error', 'Error', 'Error', 'Error', 'Error', 'Error', 'Error'])
+                # Add a row indicating an error for this symbol
+                table_data.append([symbol, pos.size, 'Error', 'Error', 'Error', 'Error', 'Error', 'Error', 'Error', 'Error'])
 
 
         # Use tabulate to create the table string
