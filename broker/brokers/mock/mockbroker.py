@@ -250,7 +250,7 @@ class MockBroker(BaseBroker):
                 self.positions[symbol] = Position(symbol)
             self.positions[symbol].update(action, size, market_price) # Use market_price here
             # self._state_changed = True
-            self._save_state() # Save state using the configured filepath
+            self._save_position_state() # Save state using the configured filepath
             dbg_info(f"Executed BUY: {symbol}, Size: {size}, Price: {market_price:.2f}. New Position: {self.positions[symbol]}")
 
         elif action == OrderAction.SELL:
@@ -280,14 +280,15 @@ class MockBroker(BaseBroker):
 
             # Update position
             self.positions[symbol].update(action, size, market_price) # Use market_price here
-            # self._state_changed = True
-            self._save_state() # Save state using the configured filepath
-            dbg_info(f"Executed SELL: {symbol}, Size: {size}, Price: {market_price:.2f}. New Position: {self.positions[symbol]}")
 
             # Clean up position if size becomes zero
             if self.positions[symbol].size == 0:
                 dbg_debug(f"Position closed for {symbol}. Removing from holdings.")
                 del self.positions[symbol]
+
+            # self._state_changed = True
+            self._save_position_state() # Save state using the configured filepath
+            dbg_info(f"Executed SELL: {symbol}, Size: {size}, Price: {market_price:.2f}. New Position: {self.positions[symbol]}")
 
         # Create an MockOrder object to report the filled order
         order_instance = MockOrder(
@@ -375,7 +376,7 @@ class MockBroker(BaseBroker):
         self.state_filepath = filepath
         dbg_trace(f"Broker state file path set to: {self.state_filepath}")
 
-    def _save_state(self, filepath: str | None = None):
+    def _save_position_state(self, filepath: str | None = None):
         """
         Saves the current broker state (cash and positions) to a JSON file.
 
@@ -399,7 +400,7 @@ class MockBroker(BaseBroker):
         except IOError as e:
             dbg_error(f"Failed to save broker state to {save_path}: {e}")
 
-    def _load_state(self, filepath: str | None = None):
+    def _load_position_state(self, filepath: str | None = None):
         """
         Loads the broker state (cash and positions) from a JSON file.
 
@@ -423,6 +424,23 @@ class MockBroker(BaseBroker):
             self.positions = {} # Clear current positions before loading
 
             for symbol, pos_data in loaded_positions.items():
+                # Sanity check for loaded position data
+                if not all(k in pos_data for k in ['symbol', 'size', 'average_entry_price']):
+                    dbg_error(f"Skipping invalid position data for symbol '{symbol}': missing required keys.")
+                    continue
+
+                if pos_data['symbol'] != symbol:
+                    dbg_error(f"Symbol mismatch in position data: key is '{symbol}', but data says '{pos_data['symbol']}'. Skipping.")
+                    continue
+
+                if pos_data['size'] == 0:
+                    dbg_error(f"Empty size for position '{symbol}': size is {pos_data['size']}. Skipping.")
+                    continue
+                elif pos_data['size'] < 0:
+                    dbg_error(f"Negative size for position '{symbol}': size is {pos_data['size']}. Currently don't support nagtive size(Please check logic).")
+                    continue
+
+
                 # Load open_date string and convert back to date object
                 open_date_str = pos_data.get('open_date') # Get string or None
                 loaded_open_date = None
@@ -452,7 +470,7 @@ class MockBroker(BaseBroker):
         Connects the simulated broker. For MockBroker, this means loading the last saved state.
         """
         dbg_trace(f"Connecting MockBroker: Loading state from {self.state_filepath}...")
-        self._load_state() # Load state using the configured filepath
+        self._load_position_state() # Load state using the configured filepath
 
     def disconnect(self):
         """
@@ -462,7 +480,7 @@ class MockBroker(BaseBroker):
         # We save it immediately in to file.
         # if self._state_changed:
         #     dbg_trace(f"Disconnecting MockBroker: State changed, saving state to {self.state_filepath}...")
-        #     self._save_state() # Save state using the configured filepath
+        #     self._save_position_state() # Save state using the configured filepath
         # else:
         #     dbg_trace(f"Disconnecting MockBroker: State unchanged since last load/save, skipping save to {self.state_filepath}.")
         pass
