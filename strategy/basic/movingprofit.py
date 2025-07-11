@@ -56,7 +56,7 @@ class MovingProfitStrategy(BasicExitStrategy):
             price = data.close[0]
 
             # Debug info
-            log_message = f"[{self.data.datetime.date(0)}]{data._name} @ {price:.2f}, pos:{pos.size}"
+            log_message = f"Next: [{self.data.datetime.date(0)}]{data._name} @ {price:.2f}, pos:{pos.size}"
             if data in self.stop_loss:
                 log_message += f", Stop Loss: {self.stop_loss[data]:.2f}"
             if data in self.take_profit:

@@ -34,6 +34,10 @@ def event_callback(event: Event, data: Optional[Any] = None):
         event (Event): The type of event that occurred.
         data (Optional[Any]): The data associated with the event, typically an `OrderTracker` object.
     """
+
+    if BrokerManager.order_callback is not None:
+        BrokerManager.order_callback(Event, data)
+
     if event == Event.OrderFilled:
         if not isinstance(data, OrderTracker):
             dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
@@ -94,6 +98,8 @@ class BrokerManager:
     transaction_log_path = ""
     _broker_connected = False
     _lock = threading.Lock() # Class-level lock for thread safety
+    order_callback = None
+    broker_path = None
 
     def __init__(self):
         """
@@ -102,6 +108,9 @@ class BrokerManager:
         """
         self.cm = AppConfigManager()
 
+    def set_order_callback(self, callback):
+        BrokerManager.order_callback = callback
+
     def is_connected(self) -> bool:
         """
         Checks if the BrokerManager has been successfully initialized with a broker and order service.
@@ -109,7 +118,7 @@ class BrokerManager:
         Returns:
             bool: True if initialized, False otherwise.
         """
-        if self.broker is not None and self.order_svc is not None and self._broker_connected is True:
+        if BrokerManager.broker is not None and BrokerManager.order_svc is not None and BrokerManager._broker_connected is True:
             return True
         else:
             return False
@@ -137,7 +146,7 @@ class BrokerManager:
 
         # Lock acquired, now check quota
         try:
-            if self.broker.check_quota() is False:
+            if BrokerManager.broker.check_quota() is False:
                 dbg_error(f'[{caller_filename}:{caller_function}@{caller_line_no}] Quota check failed after acquiring lock.')
                 BrokerManager._lock.release() # Release the lock if quota check fails
                 return False
@@ -221,11 +230,12 @@ class BrokerManager:
             initial_cash = kwargs.get('initial_cash', 1000000.0)
             commission_rate = kwargs.get('commission_rate', 0.003)
             simulation = kwargs.get('simulation', False)
+            BrokerManager.broker_path = os.path.join(cfg_mgr.get_path('broker'), f'{broker_type}')
 
             cls.broker = MockBroker(
                 initial_cash=initial_cash,
                 commission_rate=commission_rate,
-                broker_path = os.path.join(cfg_mgr.get_path('broker'), f'{broker_type}'),
+                broker_path = BrokerManager.broker_path,
                 simulation = simulation
             )
             # Set the state file path after initialization, this is for unitest.
@@ -238,9 +248,10 @@ class BrokerManager:
             # Current we only enable simulation use.
             # simulation = kwargs.get('simulation', False)
             simulation = True
+            BrokerManager.broker_path = os.path.join(cfg_mgr.get_path('broker'), f'{broker_type}')
 
             cls.broker = ShioajiBroker(
-                broker_path = os.path.join(cfg_mgr.get_path('broker'), f'{broker_type}'),
+                broker_path = BrokerManager.broker_path,
                 simulation = simulation
             )
             dbg_info(f"Initialized ShioajiBroker via BrokerManager.")
@@ -325,7 +336,7 @@ class BrokerManager:
             dbg_error(f"Lock acquire fail.")
             return False
         try:
-            order = self.broker.place_order(symbol, action, size, price)
+            order = BrokerManager.broker.place_order(symbol, action, size, price)
         except Exception as e:
             dbg_error(e)
         
@@ -336,7 +347,7 @@ class BrokerManager:
             self.unlock()
 
         if order is not None:
-            self.order_svc.add_order(order)
+            BrokerManager.order_svc.add_order(order)
             return True
         else:
             dbg_warning(f"Order not found.")
@@ -356,7 +367,7 @@ class BrokerManager:
             dbg_error(f"Lock acquire fail.")
             return 0
         try:
-            return self.broker.get_balance()
+            return BrokerManager.broker.get_balance()
         except Exception as e:
             dbg_error(e)
         
@@ -385,7 +396,7 @@ class BrokerManager:
             return None
 
         try:
-            return self.broker.get_position_by_symbol(symbol)
+            return BrokerManager.broker.get_position_by_symbol(symbol)
         except Exception as e:
             dbg_error(e)
         
@@ -408,7 +419,7 @@ class BrokerManager:
             dbg_error(f"Lock acquire fail.")
             return {}
         try:
-            return self.broker.get_all_positions()
+            return BrokerManager.broker.get_all_positions()
         except Exception as e:
             dbg_error(e)
         
@@ -436,7 +447,7 @@ class BrokerManager:
             return None
         try:
             # Note: This might need adjustment if different brokers handle price fetching differently.
-            return self.broker.get_last_price(symbol, price_type)
+            return BrokerManager.broker.get_last_price(symbol, price_type)
         except Exception as e:
             dbg_error(e)
         
@@ -461,7 +472,7 @@ class BrokerManager:
             dbg_error(f"Lock acquire fail.")
             return 0
         try:
-            return self.broker.get_portfolio_value()
+            return BrokerManager.broker.get_portfolio_value()
         except Exception as e:
             dbg_error(e)
         
@@ -482,7 +493,7 @@ class BrokerManager:
         if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
-        self.broker.set_state_filepath(filepath)
+        BrokerManager.broker.set_state_filepath(filepath)
 
     def summarize_positions(self):
         """
@@ -657,11 +668,11 @@ class BrokerManager:
             commission (float): Commission paid for the transaction.
             cash_balance (float): Cash balance after the transaction.
         """
-        # log_exists = os.path.exists(self.transaction_log_path)
+        # log_exists = os.path.exists(BrokerManager.transaction_log_path)
         now_iso = datetime.now().isoformat()
 
         # File exists, append the current transaction
-        with open(self.transaction_log_path, 'a', newline='') as f:
+        with open(BrokerManager.transaction_log_path, 'a', newline='') as f:
             writer = csv.writer(f)
             current_transaction_row = [
                 now_iso,
@@ -686,10 +697,10 @@ class BrokerManager:
         if self.is_connected() is False:
             dbg_info('Please init it first.')
             raise ValueError
-        if not os.path.exists(self.transaction_log_path):
+        if not os.path.exists(BrokerManager.transaction_log_path):
             return []
             
-        with open(self.transaction_log_path, 'r') as f:
+        with open(BrokerManager.transaction_log_path, 'r') as f:
             reader = csv.DictReader(f)
             return list(reader)
 
@@ -1020,5 +1031,5 @@ class BrokerManager:
     # You might add other broker-specific methods here as needed,
 
     # You might add other broker-specific methods here as needed,
-    # potentially checking self.broker_type if they aren't universal.
+    # potentially checking BrokerManager.broker_type if they aren't universal.
 

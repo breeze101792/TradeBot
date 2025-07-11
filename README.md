@@ -23,6 +23,9 @@ pip install yfinance backtrader
 15. reconnect if broker offline/disconnected.
 16. when fail on sell eval, also need to list the fail one, not ignore it(command: position).
 
+# Potential Risk
+1. Potential Risk (`trading/traderecord.py`): Size inconsistencies may occur between broker and recorder after manual interventions
+
 # TODO
 1. on strategy, do profit check on real time.
 2. History feed back on trading evaluation(sell/buy)

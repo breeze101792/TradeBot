@@ -302,7 +302,17 @@ class BasicStrategy(bt.Strategy):
             dbg_debug('No order history found.')
             return
         for data in self.datas:
-            for each_record in self.initial_order_history:
+            # Debug.
+            # dbg_trace(f"Processing data feed: {data._name} ({len(data)} bars)")
+            # num_bars = len(data)
+            # if num_bars > 0:
+            #     dbg_trace("  Latest 5 data points (if available):")
+            #     start_index = max(0, num_bars - 5)
+            #     for i in range(start_index, num_bars):
+            #         dt = bt.num2date(data.datetime[i]).date()
+            #         o, h, l, c, v = data.open[i], data.high[i], data.low[i], data.close[i], data.volume[i]
+            #         dbg_trace(f"    Date: {dt}, O: {o:.2f}, H: {h:.2f}, L: {l:.2f}, C: {c:.2f}, V: {v}")
+            for each_record in self.initial_order_history[:]:
                 # FIXME, insufficent fund will cause update fail without any notification.
                 if each_record[data_name_idx] == data._name:
                     price = each_record[data_price_idx]
@@ -317,6 +327,7 @@ class BasicStrategy(bt.Strategy):
 
                     dbg_trace(f"Add order history of {data._name}, pos:{each_record[data_pos_idx]}/price:{each_record[data_price_idx]}")
 
+                    # NOTE we use [:] on for -> shadow copy, so we don't miss any record.
                     self.initial_order_history.remove(each_record)
                 else:
                     dbg_warning(f"{data._name}/{each_record[data_name_idx]}(recorded data is wrong?) are different.")
@@ -326,6 +337,7 @@ class BasicStrategy(bt.Strategy):
             dbg_error(f"initial_order_history init fail {self.initial_order_history}.")
             raise
         else:
+            # dbg_info(f"initial_order_history init finished.")
             self.initial_order_history = []
         # Lock acquired in start() is held until stop()
 

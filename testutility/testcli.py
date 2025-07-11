@@ -89,6 +89,8 @@ class TestCLI(CommandLineInterface):
             "exec_selling",      # Tests Trading.selling_exec
             "flow_trading_eval", # Tests Trading.trading_eval flow
             "flow_selling_eval", # Tests Trading.selling_eval flow
+            "callback_order",
+            "record_save_load",
             "all"                # Special command to run all trading related tests
         ]
         self.regist_cmd(
@@ -154,6 +156,7 @@ class TestCLI(CommandLineInterface):
         self.integration_sub_tests = [
             "buying_flow",
             "selling_flow",
+            "selling_flow_with_real_strategy",
             "all" # Special command to run all tests
         ]
         self.regist_cmd(

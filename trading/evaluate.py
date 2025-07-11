@@ -1,4 +1,4 @@
-from datetime import timedelta, date
+from datetime import timedelta, date, datetime
 import traceback
 from dateutil.relativedelta import relativedelta
 import pandas as pd
@@ -9,7 +9,8 @@ from backtest.backtest import Backtest as Analyzer
 from strategy.strategy import StrategyManager
 from market.market import Market, MarketTime
 from broker.brokermanager import BrokerManager
-from broker.order.constant import OrderPrice
+from broker.order.constant import OrderPrice, OrderAction
+from trading.traderecord import Recorder
 from core.config import *
 
 class Evaluate:
@@ -140,10 +141,6 @@ class Evaluate:
                     'score': score
                 }
 
-                # TODO, find a way to check in the early day.
-                # if profit > self.BUY_CANDIDATE_SCORE_THRESHOLD:
-                #     candidate_buying_dict[each_product] = {'strategy': target_strategy, 'profit' : profit}
-
             except Exception as e:
                 dbg_warning(e)
             
@@ -155,14 +152,13 @@ class Evaluate:
         sorted_candidates = sorted(candidate_buying_dict.items(), key=lambda item: item[1].get('score', invalid_number), reverse=True)
 
         # Add positive products to buying_dict
-        for i, (product, data) in enumerate(sorted_candidates):
+        for product, data in sorted_candidates:
             ###############################
             ## Check evaluation
             ###############################
-            if data['score'] > self.BUY_CANDIDATE_SCORE_THRESHOLD and data['sqn'] > self.BUY_CANDIDATE_SQN_THRESHOLD: # Take top 3
+            # dbg_debug(f"  - Checking {product}: Score={data['score']:.2f} (>{Evaluate.BUY_CANDIDATE_SCORE_THRESHOLD}), SQN={data['sqn']:.2f} (>{Evaluate.BUY_CANDIDATE_SQN_THRESHOLD})")
+            if data['score'] > Evaluate.BUY_CANDIDATE_SCORE_THRESHOLD and data['sqn'] > Evaluate.BUY_CANDIDATE_SQN_THRESHOLD:
                 buying_dict[product] = data
-            else:
-                break
 
         # Prepare data for tabulation
         headers = ["Product", "Strategy", "Profit (%)", "Sharpe", "VWR", "Drawdown (%)", "SQN", "Score"]
@@ -233,9 +229,7 @@ class Evaluate:
             return None
         # current_trading_day is a datetime.date object, defined earlier in the method
 
-        # Convert current_trading_day to pandas Timestamp for DataFrame indexing
-        current_trading_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        last_trading_day_ts = pd.Timestamp(current_trading_day)
+        current_date = datetime.now().date()
 
         # Prepare data for the current_trading_day
         # Initialize with previous day's data if available, else with defaults based on temp_df columns
@@ -268,17 +262,26 @@ class Evaluate:
             if col_name in current_day_data and current_day_data[col_name] is None:
                 current_day_data[col_name] = 0
 
-        if last_trading_day_ts in temp_df.index:
-            dbg_warning(f"Updating data for {symbol} on {last_trading_day_ts} with Close price {price}")
+        # Check if any entry for the current date already exists in the DataFrame's index.
+        # This ignores the time component for the check.
+        existing_rows = temp_df[temp_df.index.date == current_date]
+
+        if not existing_rows.empty:
+            # An entry for today already exists. Update the last one for this date.
+            existing_ts_to_update = existing_rows.index[-1]
+            dbg_warning(f"Updating data for {symbol} on {existing_ts_to_update} with Close price {price}")
             # Update existing row
             for col, value in current_day_data.items():
                 if col in temp_df.columns: # Ensure column exists before assignment
-                    temp_df.loc[last_trading_day_ts, col] = value
+                    temp_df.loc[existing_ts_to_update, col] = value
             target_df = temp_df
         else:
-            dbg_trace(f"Appending new data for {symbol} on {last_trading_day_ts} with Close price {price}")
+            # No entry for today, append a new one.
+            # Use a timestamp at midnight for the new row's index.
+            new_row_ts = pd.Timestamp(current_date)
+            dbg_trace(f"Appending new data for {symbol} on {new_row_ts} with Close price {price}")
             # Create a new row as a DataFrame
-            new_row_df = pd.DataFrame([current_day_data], index=[last_trading_day_ts])
+            new_row_df = pd.DataFrame([current_day_data], index=[new_row_ts])
             # Ensure the new row DataFrame has the same index name as the original DataFrame
             new_row_df.index.name = temp_df.index.name if temp_df.index.name else 'Date'
             
@@ -311,6 +314,7 @@ class Evaluate:
             return []
 
         trade_broker = BrokerManager()
+        recorder = Recorder()
 
         selling_analyzer = Analyzer(self.market)
         selling_analyzer.clean_result()
@@ -321,16 +325,53 @@ class Evaluate:
         # Iterate through positions provided by the broker (dict: {symbol: Position_object})
         for symbol, position_obj in position_dict.items():
             try:
-                # Extract details from the Position object
-                position_size = position_obj.size # Current size of the position
-                purchase_date = position_obj.open_date     # Date the position was opened (datetime.date object)
-                purchase_price = position_obj.initial_entry_price   # Price of the first buy transaction
+                # Init with position_obj as fallback
+                position_size = position_obj.size
+                purchase_date = position_obj.open_date
+                purchase_price = position_obj.initial_entry_price
+                strategy_name = self.default_strategy.NAME # Default strategy
+
+                # --- Get position data from Recorder or Broker ---
+                open_trade = next((t for t in recorder.get_records(symbol) if t.is_open), None)
+                order_history = None
+
+                # if open_trade and open_trade.symbol == symbol:
+                if open_trade:
+                    dbg_info(f"Found open trade for {symbol} in recorder. Using recorded data.{open_trade}")
+                    # FIXME, currently not supported.
+                    # strategy_name = open_trade.strategy if open_trade.strategy else strategy_name
+
+                    # Construct order_history from all buy transactions in the trade
+                    buy_transactions = []
+                    for trans in open_trade.transactions:
+                        # Example: order_history = (('2012-04-11', 10, 100.50, 'AAPL'), ('2012-05-01', -10, 105.20, 'AAPL'))
+                        if trans['action'] == OrderAction.BUY:
+                            trans_date = datetime.fromtimestamp(trans['timestamp'] / 1000).date()
+                            buy_transactions.append((trans_date, trans['size'], trans['price'], symbol))
+                        elif trans['action'] == OrderAction.SELL:
+                            trans_date = datetime.fromtimestamp(trans['timestamp'] / 1000).date()
+                            buy_transactions.append((trans_date, -trans['size'], trans['price'], symbol))
+
+                    if buy_transactions:
+                        order_history = tuple(buy_transactions)
+
+                else:
+                    if open_trade is not None:
+                        dbg_info(f"No open trade for {symbol}/{open_trade.symbol} in recorder. Using data from broker.")
+                    else:
+                        dbg_info(f"No open trade for {symbol} in recorder. Using data from broker.")
+                
+                if order_history is None:
+                    # Fallback or default order history if not created from recorder
+                    order_history = ((purchase_date, position_size, purchase_price, symbol),)
+
+                dbg_debug(order_history)
 
                 # --- Strategy Assumption ---
                 # FIXME: The Position object doesn't store the entry strategy.
                 # Currently assuming the default strategy for evaluating sell conditions for ALL positions.
                 # A better approach would be to store the strategy with the position.
-                strategy_name = self.default_strategy.NAME
+                # strategy_name is now set above based on recorder or default
                 # ---
 
                 # Ensure we have valid data to proceed
@@ -359,15 +400,6 @@ class Evaluate:
                     dbg_warning(f'Can not get lastest price of {symbol}. Use previous date instead.')
                     selling_analyzer.add_symbol([symbol])
                 # dbg_error(f"trading date: {modified_last_trading_day}, {target_df.index.max()}")
-
-                # --- Convert current position info to order_history format ---
-                # Format: tuple of tuples -> ((datetime, size, price, data_name),)
-                # We use the initial purchase details to represent the historical buy order.
-                # Note: Cerebro's add_history might expect datetime, but let's try with date first.
-                # Size should be the original size, but using current size might be okay if strategy logic handles it.
-                # Using initial_entry_price as the historical price.
-                order_history = ((purchase_date, position_size, purchase_price, symbol),) # Using current size here
-                # ---
 
                 # Add the historical buy order context to the analyzer
                 selling_analyzer.add_history(order_history)

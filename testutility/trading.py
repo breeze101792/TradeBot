@@ -1,6 +1,7 @@
 # testutility/trading.py
 import traceback
-from datetime import date, timedelta
+import os
+from datetime import date, timedelta, datetime
 
 # Standard library
 from unittest.mock import patch, MagicMock
@@ -8,9 +9,12 @@ from unittest.mock import patch, MagicMock
 # Local file
 from trading.evaluate import Evaluate
 from trading.trading import Trading # Import the Trading class
+from trading.traderecord import Recorder
 from utility.debug import dbg_info, dbg_warning, dbg_error, dbg_trace
 from core.config import AppConfigManager # Evaluate uses this
 from broker.order.constant import OrderAction
+from broker.order.event import Event
+from broker.order.ordertracker import OrderTracker
 from broker.brokermanager import BrokerManager # Import BrokerManager for patching class methods
 
 # ANSI color codes
@@ -451,6 +455,74 @@ def test_trading_trading_eval_flow() -> bool:
     finally:
         BrokerManager.finalize()
 
+def test_trading_order_callback() -> bool:
+    """Tests the order_callback method of the Trading class and recorder integration."""
+    dbg_info("--- Running Test: Trading order_callback ---")
+    all_passed = True
+    try:
+        # Patch Recorder to check if add_record is called correctly.
+        # Patch datetime to control the timestamp.
+        # We patch `builtins.isinstance` to bypass the type check in the callback.
+        with patch('trading.trading.Recorder') as mock_recorder_class, \
+             patch('trading.trading.datetime') as mock_datetime, \
+             patch('trading.trading.OrderTracker') as mock_order_tracker_class, \
+             patch('trading.trading.isinstance', return_value=True):
+
+            # Setup mock for datetime
+            mock_now = datetime(2023, 1, 1, 12, 0, 0)
+            mock_datetime.now.return_value = mock_now
+            expected_timestamp = int(mock_now.timestamp() * 1000)
+
+            # Setup mock for Recorder
+            mock_recorder_instance = MagicMock()
+            mock_recorder_class.return_value = mock_recorder_instance
+
+            # Create a mock OrderTracker instance for the test.
+            # Using an instance of the patched class will pass isinstance checks.
+            mock_order_data = mock_order_tracker_class()
+            mock_order_data.symbol = '2330'
+            mock_order_data.action = OrderAction.BUY
+            mock_order_data.size = 1000
+            mock_order_data.price = 500.0
+            mock_order_data.commission = 20.0
+
+            # Instantiate Trading to test its callback
+            trading_instance = Trading()
+
+            # Scenario 1: OrderFilled event
+            dbg_info("Scenario 1: OrderFilled event triggers recorder")
+            trading_instance.order_callback(Event.OrderFilled, mock_order_data)
+
+            # Verify Recorder.add_record was called with correct parameters
+            mock_recorder_instance.add_record.assert_called_once_with(
+                symbol='2330',
+                action=OrderAction.BUY,
+                price=500.0,
+                size=1000,
+                timestamp=expected_timestamp,
+                commission=20.0
+            )
+            dbg_info("Scenario 1: Passed")
+
+            # Scenario 2: Other event (e.g., OrderFailed) does not trigger recorder
+            dbg_info("Scenario 2: OrderFailed event does not trigger recorder")
+            mock_recorder_instance.reset_mock()
+            
+            mock_failed_order_data = mock_order_tracker_class()
+            trading_instance.order_callback(Event.OrderFailed, mock_failed_order_data)
+            mock_recorder_instance.add_record.assert_not_called()
+            dbg_info("Scenario 2: Passed")
+
+    except AssertionError as e:
+        dbg_error(f"AssertionError in test_trading_order_callback: {e}")
+        dbg_error(traceback.format_exc())
+        all_passed = False
+    except Exception as e:
+        dbg_error(f"Error in test_trading_order_callback: {e}")
+        dbg_error(traceback.format_exc())
+        all_passed = False
+    return all_passed
+
 def test_trading_selling_eval_flow() -> bool:
     """Tests the selling_eval method flow of the Trading class."""
     dbg_info("--- Running Test: Trading selling_eval_flow ---")
@@ -495,6 +567,127 @@ def test_trading_selling_eval_flow() -> bool:
     finally:
         BrokerManager.finalize()
 
+def test_recorder_save_and_load() -> bool:
+    """Tests the save and load functionality of the Recorder class with multiple scenarios."""
+    dbg_info("--- Running Test: Recorder Save and Load ---")
+    test_file = 'test_trade_records.csv'
+    all_passed = True
+
+    # Clean up previous test file if it exists
+    if os.path.exists(test_file):
+        os.remove(test_file)
+
+    try:
+        # Scenario 1: Initialization and loading from non-existent file
+        dbg_info("Scenario 1: Initialization and loading from non-existent file")
+        Recorder.trades = []
+        Recorder._loaded = False
+        recorder_init = Recorder(record_file_path=test_file)
+        assert len(recorder_init.trades) == 0
+        dbg_info("Scenario 1: Passed")
+
+        # Scenario 2: Add records and save
+        dbg_info("Scenario 2: Add records and save")
+        # recorder1 uses the same class state
+        recorder1 = Recorder(record_file_path=test_file)
+        
+        # Trade 1: AAPL (partial sell)
+        recorder1.add_record(symbol='AAPL', action=OrderAction.BUY, price=150.0, size=10, timestamp=int(datetime.now().timestamp() * 1000), commission=1.2, strategy='Momentum')
+        recorder1.add_record(symbol='AAPL', action=OrderAction.SELL, price=160.0, size=5, timestamp=int(datetime.now().timestamp() * 1000), commission=0.8)
+
+        # Trade 2: GOOG (full sell)
+        recorder1.add_record(symbol='GOOG', action=OrderAction.BUY, price=2800.0, size=2, timestamp=int(datetime.now().timestamp() * 1000), commission=2.5, strategy='Mac')
+        recorder1.add_record(symbol='GOOG', action=OrderAction.SELL, price=2850.0, size=2, timestamp=int(datetime.now().timestamp() * 1000), commission=2.6)
+        
+        # Trade 3: NVDA (buy only)
+        recorder1.add_record(symbol='NVDA', action=OrderAction.BUY, price=300.0, size=20, timestamp=int(datetime.now().timestamp() * 1000), commission=3.0, strategy='Value')
+
+        dbg_info(f"Recorder1 has {len(recorder1.trades)} trades.")
+        assert len(recorder1.trades) == 3
+        dbg_info("Scenario 2: Passed")
+
+        # Scenario 3: Sell without an open position (should be ignored)
+        dbg_info("Scenario 3: Sell without an open position")
+        recorder1.add_record(symbol='TSLA', action=OrderAction.SELL, price=700.0, size=5, timestamp=int(datetime.now().timestamp() * 1000), commission=1.0)
+        assert len(recorder1.trades) == 3 # Should not increase
+        tsla_trade = next((t for t in recorder1.trades if t.symbol == 'TSLA'), None)
+        assert tsla_trade is None
+        dbg_info("Scenario 3: Passed")
+
+        # Scenario 4: Load from file into a new recorder instance
+        dbg_info("Scenario 4: Load from file")
+        # Reset class-level state to ensure loading from file
+        Recorder.trades = []
+        Recorder._loaded = False
+        recorder2 = Recorder(record_file_path=test_file)
+        dbg_info(f"Loaded {len(recorder2.trades)} trades into recorder2.")
+        assert len(recorder2.trades) == 3
+        dbg_info("Scenario 4: Passed")
+
+        # Scenario 5: Verify loaded data
+        dbg_info("Scenario 5: Verify loaded data")
+        aapl_trade = next((t for t in recorder2.trades if t.symbol == 'AAPL'), None)
+        goog_trade = next((t for t in recorder2.trades if t.symbol == 'GOOG'), None)
+        nvda_trade = next((t for t in recorder2.trades if t.symbol == 'NVDA'), None)
+
+        assert aapl_trade is not None
+        assert goog_trade is not None
+        assert nvda_trade is not None
+
+        # Verify AAPL trade (open, partial sell)
+        assert aapl_trade.is_open is True
+        assert aapl_trade.current_size == 5
+        assert len(aapl_trade.transactions) == 2
+        assert aapl_trade.transactions[0]['price'] == 150.0
+        assert aapl_trade.transactions[1]['price'] == 160.0
+        assert aapl_trade.strategy == 'Momentum'
+
+        # Verify GOOG trade (closed)
+        assert goog_trade.is_open is False
+        assert goog_trade.current_size == 0
+        assert len(goog_trade.transactions) == 2
+        assert goog_trade.strategy == 'Mac'
+
+        # Verify NVDA trade (open, no sells)
+        assert nvda_trade.is_open is True
+        assert nvda_trade.current_size == 20
+        assert len(nvda_trade.transactions) == 1
+        assert nvda_trade.strategy == 'Value'
+        dbg_info("Scenario 5: Passed")
+
+        # Scenario 6: Test shared state between recorder instances
+        dbg_info("Scenario 6: Test shared state")
+        # recorder2 has loaded 3 trades into the class-level `trades` list.
+        # A new instance should share this state without reloading.
+        recorder3 = Recorder(record_file_path=test_file)
+        assert len(recorder3.trades) == 3 # Should see the same trades as recorder2
+        assert id(recorder3.trades) == id(recorder2.trades) # Should be the same list object
+
+        # A new trade added to recorder3 should be visible in recorder2
+        recorder3.add_record(symbol='MSFT', action=OrderAction.BUY, price=400.0, size=10, timestamp=int(datetime.now().timestamp() * 1000), commission=2.0, strategy='Growth')
+        assert len(recorder2.trades) == 4 # recorder2 should also see the new trade
+        msft_trade = next((t for t in recorder2.trades if t.symbol == 'MSFT'), None)
+        assert msft_trade is not None
+        dbg_info("Scenario 6: Passed")
+
+        dbg_info("Trade record test passed!")
+
+    except AssertionError as e:
+        dbg_error(f"AssertionError in test_recorder_save_and_load: {e}")
+        dbg_error(traceback.format_exc())
+        all_passed = False
+    except Exception as e:
+        dbg_error(f"Trade record test failed: {e}")
+        dbg_error(traceback.format_exc())
+        all_passed = False
+    finally:
+        # Clean up the test file
+        if os.path.exists(test_file):
+            os.remove(test_file)
+            dbg_info(f"Cleaned up {test_file}")
+    
+    return all_passed
+
 # --- Test Runner ---
 def run_trading_tests(test_names: list[str]):
     """Runs specified trading tests for Evaluate and Trading classes."""
@@ -507,6 +700,8 @@ def run_trading_tests(test_names: list[str]):
         "exec_selling": (test_trading_selling_exec, 'trading'),
         "flow_trading_eval": (test_trading_trading_eval_flow, 'trading'),
         "flow_selling_eval": (test_trading_selling_eval_flow, 'trading'),
+        "callback_order": (test_trading_order_callback, 'trading'),
+        "record_save_load": (test_recorder_save_and_load, 'traderecord'),
     }
 
     specified_tests_to_run = [name for name in test_names if name in all_tests_info] if "all" not in test_names else list(all_tests_info.keys())

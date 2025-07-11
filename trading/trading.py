@@ -1,12 +1,18 @@
 import math
 import traceback
+from typing import Type, Dict, Any, Optional, List
+from datetime import datetime
+
 from utility.debug import *
 from core.config import AppConfigManager
 
 from market.market import *
 from trading.evaluate import Evaluate
+from trading.traderecord import Recorder
 from broker.brokermanager import BrokerManager
 from broker.order.constant import OrderStatus, OrderAction, OrderPrice
+from broker.order.event import Event
+from broker.order.ordertracker import OrderTracker
 
 # Note.
 # BrokerManager.initialize() should be called externally before these methods.
@@ -16,9 +22,74 @@ class Trading:
     BUYING_IGNORE = False
     SELLING_IGNORE = False
 
-    # def __init__(self):
-    #     # this will break mock on test case, if you want this mock before init.
-    #     self.cm = AppConfigManager()
+    def __init__(self):
+        # this will break mock on test case, if you want this mock before init.
+        # self.cm = AppConfigManager()
+
+        # for record open/close trade.
+        # self.recorder = Recorder()
+        bm = BrokerManager()
+        bm.set_order_callback(self.order_callback)
+    def order_callback(self, event: Event, data: Optional[Any] = None):
+        """
+        Callback function for handling events from the OrderService.
+        This method processes different types of order-related events (e.g., OrderFilled, OrderFailed).
+
+        Args:
+            event (Event): The type of event that occurred.
+            data (Optional[Any]): The data associated with the event, typically an `OrderTracker` object.
+        """
+
+        # recorder = Recorder()
+        dbg_info(f"order_callback received event: {event}, data: {data}")
+
+        if event == Event.OrderFilled:
+            if not isinstance(data, OrderTracker):
+                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
+                return
+            
+            # Data is an OrderTracker object
+            order_tracker: OrderTracker = data
+            recorder = Recorder()
+
+            dbg_info(f"Order Filled: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
+                        f"Size={order_tracker.size}, Price={order_tracker.price}, Commission={order_tracker.commission}.")
+
+            # Log the transaction using data from the OrderTracker
+            # FIXME: The strategy is not available in the order_tracker.
+            # FIXME: The timestamp is not available in the order_tracker, use current time for now.
+            recorder.add_record(
+                symbol=order_tracker.symbol,
+                action=order_tracker.action,
+                price=order_tracker.price,
+                size=order_tracker.size,
+                timestamp=int(datetime.now().timestamp() * 1000),
+                commission=order_tracker.commission
+            )
+        elif event == Event.OrderFailed:
+            if not isinstance(data, OrderTracker):
+                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
+                return
+            order_tracker: OrderTracker = data
+            dbg_warning(f"Order Failed: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
+                        f"Size={order_tracker.size}, Reason={order_tracker.reason}.")
+            # Optionally log failed orders or take other actions
+        elif event == Event.OrderPending:
+            if not isinstance(data, OrderTracker):
+                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
+                return
+            order_tracker: OrderTracker = data
+            dbg_info(f"Order Pending: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
+                        f"Size={order_tracker.size}, Price={order_tracker.price}.")
+        elif event == Event.OrderCanceled:
+            if not isinstance(data, OrderTracker):
+                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
+                return
+            order_tracker: OrderTracker = data
+            dbg_info(f"Order Canceled: Symbol={order_tracker.symbol}, Order ID={order_tracker.order_id}, "
+                        f"Reason={order_tracker.reason}.")
+        else:
+            dbg_info(f"Unhandled event received: {event}, data: {data}")
 
     def buying_exec(self, buy_list):
         if self.BUYING_IGNORE is True:

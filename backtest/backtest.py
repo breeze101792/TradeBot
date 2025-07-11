@@ -547,9 +547,9 @@ class Backtest:
         # must be sorted ascending (Backtrader expects this)
         # (datetime, size, price, data_name)
         # Example: order_history = (('2012-04-11', 10, 100.50, 'AAPL'), ('2012-05-01', -10, 105.20, 'AAPL'))
+        # NOTE. only work with tuple.
         dbg_trace(f"Adding {len(self.cached_validated_history)} validated historical orders.")
-        # cerebro.add_order_history(self.cached_validated_history, notify = False)
-        cerebro.add_order_history(self.cached_validated_history, notify = True)
+        cerebro.add_order_history(tuple(self.cached_validated_history), notify = True)
 
     def add_optstrategy(self, target_strategy, cerebro = None, **kwargs):
         # This only for test.
