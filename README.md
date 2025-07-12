@@ -25,6 +25,7 @@ pip install yfinance backtrader
 
 # Potential Risk
 1. Potential Risk (`trading/traderecord.py`): Size inconsistencies may occur between broker and recorder after manual interventions
+2. dynamic load_record to avoid out of memomry on traderecord.
 
 # TODO
 1. on strategy, do profit check on real time.

@@ -137,7 +137,9 @@ class BTCLI(CommandLineInterface):
         self.bt_info.to_date = self.backtest.to_date
 
         ## post set
-        self.history_path = self.cm.get_path('bt_cmd_history')
+        backtest_root_path = self.cm.get_path('backtest')
+        self.test_path = os.path.join(backtest_root_path, 'test')
+        self.history_path = os.path.join(backtest_root_path, 'command.history')
 
         ## cmds
         ########################################################################
@@ -791,7 +793,9 @@ class BTCLI(CommandLineInterface):
             file_path = args['1']
         
         file_path = file_path + '.test'
+        file_path = os.path.join(self.test_path, file_path)
         try:
+            os.makedirs(self.test_path, exist_ok=True)
             info_dict = self.bt_info.to_dict()
             dbg_trace(f"Save info: {info_dict}")
             with open(file_path, 'w') as f:
@@ -811,6 +815,7 @@ class BTCLI(CommandLineInterface):
             file_path = args['1']
 
         file_path = file_path + '.test'
+        file_path = os.path.join(self.test_path, file_path)
         try:
             with open(file_path, 'r') as f:
                 info_dict = json.load(f)

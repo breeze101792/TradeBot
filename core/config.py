@@ -17,7 +17,8 @@ class AppConfig(BasicConfig):
         broker = "broker"
         trade_cmd_history = 'trade_cmd.history'
 
-        bt_cmd_history = 'backtrade_cmd.history'
+        backtest = 'backtest'
+        # bt_cmd_history = 'backtrade_cmd.history'
         bt_report = 'backtest/report'
     class stock:
         # We could use this to control which kind of trading we are doing
