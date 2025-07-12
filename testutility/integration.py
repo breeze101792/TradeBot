@@ -317,7 +317,7 @@ def test_selling_flow(test_id: str) -> bool:
         dbg_error(traceback.format_exc())
         return False
 
-def test_selling_flow_with_real_strategy(test_id: str) -> bool:
+def test_selling_flow_with_real_strategy_take_profit(test_id: str) -> bool:
     dbg_info(f"--- Running Test: Selling Flow ({test_id}) ---")
     try:
         # Mock all external dependencies and internal components that interact with external systems
@@ -457,16 +457,162 @@ def test_selling_flow_with_real_strategy(test_id: str) -> bool:
         dbg_error(traceback.format_exc())
         return False
 
+def test_selling_flow_with_real_strategy_stop_lose(test_id: str) -> bool:
+    dbg_info(f"--- Running Test: Selling Flow ({test_id}) ---")
+    try:
+        # Mock all external dependencies and internal components that interact with external systems
+        with patch('broker.brokermanager.BrokerManager') as MockBrokerManager, \
+             patch('market.market.Market') as MockMarket, \
+             patch('trading.evaluate.Market') as MockEvaluateMarket, \
+             patch('trading.evaluate.BrokerManager') as MockEvaluateBrokerManager, \
+             patch('trading.evaluate.AppConfigManager') as MockEvaluateAppConfigManager, \
+             patch('trading.trading.BrokerManager') as MockTradingBrokerManager, \
+             patch('trading.trading.AppConfigManager') as MockTradingAppConfigManager, \
+             patch('market.market.MarketTime') as MockMarketTime, \
+             patch('trading.evaluate.MarketTime') as MockEvaluateMarketTime, \
+             patch('trading.evaluate.datetime') as MockEvaluateDatetime, \
+             patch('backtest.backtest.Backtest') as MockBacktest, \
+             patch('trading.evaluate.Recorder') as MockRecorder:
+
+            # MockBrokerManager.broker_path = temp_dir.name
+
+            # Configure Mock AppConfigManager to provide a default strategy
+            mock_cfg_mgr = MagicMock(spec=AppConfigManager)
+            mock_cfg_mgr.get.side_effect = lambda key: {
+                'debug.development': False,
+                'stock.lot_unit': 1000,
+                'stock.cash_max_per_trade': 100000,
+                'stock.cash_min_per_trade': 1000,
+                'strategy.default': 'sma_crossover' # Set a default strategy for the real StrategyManager
+            }.get(key, None)
+            MockEvaluateAppConfigManager.return_value = mock_cfg_mgr
+            MockTradingAppConfigManager.return_value = mock_cfg_mgr
+
+            test_date = datetime(2024, 6, 7, 10, 0, 0)
+
+            # Configure Mock Recorder to simulate an open trade from records
+            mock_recorder_instance = MagicMock()
+            mock_trade = MagicMock()
+            mock_trade.is_open = True
+            mock_trade.strategy = "MockStrategy"
+            # This is the position size that should be used in evaluation
+            mock_trade.current_size = 4000
+            # The transaction history for the trade
+            ts1 = int(datetime(2023, 1, 1).timestamp() * 1000)
+            ts2 = int(datetime(2023, 6, 1).timestamp() * 1000)
+            ts3 = int(datetime(2023, 9, 1).timestamp() * 1000)
+            mock_trade.transactions = [
+                {'action': OrderAction.BUY, 'price': 550, 'size': 2000, 'timestamp': ts1, 'commission': 0.0},
+                {'action': OrderAction.BUY, 'price': 580, 'size': 3000, 'timestamp': ts2, 'commission': 0.0},
+                {'action': OrderAction.SELL, 'price': 600, 'size': 1000, 'timestamp': ts3, 'commission': 0.0}
+            ]
+
+            # get_records should return a list with the mock trade for '2330'
+            def get_records_side_effect(symbol):
+                print(f"get_records_side_effect {symbol}")
+                if symbol == '2330':
+                    return [mock_trade]
+                return []
+            mock_recorder_instance.get_records.side_effect = get_records_side_effect
+            MockRecorder.return_value = mock_recorder_instance
+
+            MockMarketTime.get_previous_market_update_time.return_value = test_date
+            MockEvaluateMarketTime.get_previous_market_update_time.return_value = test_date
+            MockEvaluateMarketTime.get_next_market_open_time.return_value = test_date + timedelta(days=1)
+            MockEvaluateMarketTime.get_next_market_close_time.return_value = test_date + timedelta(hours=4)
+            MockEvaluateMarketTime.is_trading_day.return_value = True
+            MockEvaluateDatetime.now.return_value = test_date
+            MockEvaluateDatetime.date.return_value = test_date.date()
+            MockEvaluateDatetime.fromtimestamp.side_effect = lambda *args, **kwargs: datetime.fromtimestamp(*args, **kwargs)
+
+            mock_market = MagicMock(spec=Market)
+            mock_market.get_data_list.return_value = ['0050', '2330']
+            mock_market.get_data_info.side_effect = lambda symbol: {
+                '2330': {'code': '2330', 'name': 'TSMC', 'type': 'Stock', 'market': 'TWSE', 'category': 'Semiconductor', 'start': '1994-09-05', 'country': 'TW'},
+                '0050': {'code': '0050', 'name': 'Taiwan 50', 'type': 'ETF', 'market': 'TWSE', 'category': 'ETF', 'start': '2003-10-24', 'country': 'TW'}
+            }.get(symbol)
+            mock_df_index = pd.to_datetime(pd.date_range(end=test_date, periods=365, freq='D'))
+            # This data is a steady incline, so a simple strategy should not produce a sell signal.
+            mock_market.get_data.return_value = pd.DataFrame({
+                'Open': [100 + i for i in range(365)],
+                'High': [105 + i for i in range(365)],
+                'Low': [99 + i for i in range(365)],
+                'Close': [102 + i for i in range(365)],
+                'Volume': [1000 + i*10 for i in range(365)],
+                'Turnover': [100000 + i*100 for i in range(365)]
+            }, index=mock_df_index)
+
+            MockMarket.return_value = mock_market
+            MockEvaluateMarket.return_value = mock_market
+
+            mock_broker = MagicMock(spec=BrokerManager)
+            mock_broker.get_balance.return_value = 1000000
+            # 600 * 0.9, set stop lose to 10%
+            mock_broker.get_last_price.side_effect = lambda symbol, price_type: {'2330': 540, '0050': 150}.get(symbol, 0)
+            mock_broker.place_order.return_value = True
+            mock_broker.summarize_positions.return_value = None
+
+            # size, date, price
+            mock_positions = {
+                '2330': MockPosition('2330', 4000, date(2023, 1, 1), 550),
+                # '0050': MockPosition('0050', 2000, date(2023, 3, 15), 140)
+            }
+            mock_broker.get_all_positions.return_value = mock_positions
+            mock_broker.get_position_by_symbol.side_effect = lambda symbol: mock_positions.get(symbol)
+
+            MockBrokerManager.return_value = mock_broker
+            MockEvaluateBrokerManager.return_value = mock_broker
+            MockTradingBrokerManager.return_value = mock_broker
+
+            mock_backtest_instance = MagicMock()
+            mock_backtest_instance.get_analysis.return_value = [{'score': -1.0}] # Still needed for part of the logic
+            MockBacktest.return_value = mock_backtest_instance
+
+            # Instantiate Trading after mocks are set up
+            trading_instance = Trading()
+
+            # 1. Run selling evaluation
+            dbg_info("Running selling evaluation...")
+            sell_list = trading_instance.selling_eval()
+            dbg_info(f"Selling evaluation returned: {sell_list}")
+
+            if not any(item['symbol'] == '2330' for item in sell_list):
+                dbg_error("Expected '2330' to be a selling candidate but it was not.")
+                return False
+
+            # 2. Execute selling orders
+            dbg_info("Executing selling orders...")
+            trading_instance.selling_exec(sell_list)
+
+            # Assertions:
+            # The sell size (4000) comes from the strategy's decision.
+            # The test ensures that evaluation uses the recorder's position data,
+            # and execution correctly uses the strategy's output.
+            mock_broker.place_order.assert_called_with(symbol='2330', size=4000, action=OrderAction.SELL)
+            dbg_info(f"BrokerManager.place_order was called {mock_broker.place_order.call_count} times.")
+
+            dbg_info("Selling flow test passed.")
+            return True
+    except Exception as e:
+        dbg_error(f"Error in test_selling_flow: {e}")
+        dbg_error(traceback.format_exc())
+        return False
+
+# --- Test Definitions ---
+INTEGRATION_TEST_DEFINITIONS = {
+    "buying_flow": test_buying_flow,
+    "selling_flow": test_selling_flow,
+    "selling_flow_take_profit": test_selling_flow_with_real_strategy_take_profit,
+    "selling_flow_stop_lose": test_selling_flow_with_real_strategy_stop_lose,
+}
+INTEGRATION_TEST_CASES = list(INTEGRATION_TEST_DEFINITIONS.keys()) + ["all"]
+
 # --- Test Runner ---
 def run_integration_tests(test_names: list[str]):
     results = {}
     
     # All integration test definitions
-    all_test_definitions = {
-        "buying_flow": test_buying_flow,
-        "selling_flow": test_selling_flow,
-        "selling_flow_with_real_strategy": test_selling_flow_with_real_strategy,
-    }
+    all_test_definitions = INTEGRATION_TEST_DEFINITIONS
 
     tests_to_run_names = []
     if "all" in test_names:

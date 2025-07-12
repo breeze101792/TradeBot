@@ -7,14 +7,14 @@ from core.config import *
 from utility.debug import *
 from utility.cli import CommandLineInterface
 from market.market import Market # Import Market class
-from testutility.market import run_market_tests # Import the test runner
-from testutility.broker import run_broker_tests # Import the broker test runner
-from testutility.backtest import run_backtest_tests # Import the backtest test runner
-from testutility.core import run_core_tests # Import the core test runner
-from testutility.integration import run_integration_tests # Import the integration test runner
+from testutility.market import run_market_tests, MARKET_TEST_CASES
+from testutility.broker import run_broker_tests, BROKER_TEST_CASES
+from testutility.backtest import run_backtest_tests, BACKTEST_TEST_CASES
+from testutility.core import run_core_tests, CORE_TEST_CASES
+from testutility.integration import run_integration_tests, INTEGRATION_TEST_CASES
 from trading.evaluate import Evaluate # Import Evaluate class
 from trading.trading import Trading # Import Trading class
-from testutility.trading import run_trading_tests # Import the trading test runner
+from testutility.trading import run_trading_tests, TRADING_TEST_CASES
 import traceback # For detailed error logging in cmd_market
 from tabulate import tabulate # For pretty table output
 
@@ -42,17 +42,7 @@ class TestCLI(CommandLineInterface):
 
     def _register_test_commands(self):
         """Registers all test commands."""
-        # Define available core sub-tests
-        self.core_sub_tests = [
-            "initialization",
-            "start_stop_flow",
-            "sanity_check_method",
-            "cmd_status_output",
-            "datasource_service_loop",
-            "trading_service_flow",
-            "selling_service_flow",
-            "all" # Special command to run all tests
-        ]
+        self.core_sub_tests = CORE_TEST_CASES
         self.regist_cmd(
             "core",
             self.cmd_core,
@@ -61,18 +51,7 @@ class TestCLI(CommandLineInterface):
             group='testing'
         )
 
-        # Define available market sub-tests
-        self.market_sub_tests = [
-            "list_providers",
-            "switch_market",
-            "get_data_list",
-            "get_data",
-            "get_info",
-            "get_top_product_list", # New test case
-            "get_product_list_by_date", # New test case
-            "update_data", # New test case
-            "all" # Special command to run all tests
-        ]
+        self.market_sub_tests = MARKET_TEST_CASES
         self.regist_cmd(
             "market",
             self.cmd_market,
@@ -81,18 +60,7 @@ class TestCLI(CommandLineInterface):
             group='testing'
         )
 
-        # Define available trading sub-tests
-        self.trading_sub_tests = [
-            "eval_buying",       # Was buying_evaluation, tests Evaluate.buying_evaluation
-            "eval_selling",      # Was selling_evaluation, tests Evaluate.selling_evaluation
-            "exec_buying",       # Tests Trading.buying_exec
-            "exec_selling",      # Tests Trading.selling_exec
-            "flow_trading_eval", # Tests Trading.trading_eval flow
-            "flow_selling_eval", # Tests Trading.selling_eval flow
-            "callback_order",
-            "record_save_load",
-            "all"                # Special command to run all trading related tests
-        ]
+        self.trading_sub_tests = TRADING_TEST_CASES
         self.regist_cmd(
             "trading",
             self.cmd_trading,
@@ -101,25 +69,7 @@ class TestCLI(CommandLineInterface):
             group='testing'
         )
 
-        # Define available broker sub-tests (match keys in run_broker_tests)
-        self.broker_sub_tests = [
-            "initial_state",
-            "buy_sufficient_cash",
-            "get_position",
-            "sell_sufficient_position",
-            "buy_insufficient_cash",
-            "sell_insufficient_position",
-            "portfolio_value",
-            "summarize_positions",
-            "summarize_transactions",
-            "summarize_positions_no_positions",
-            "summarize_transactions_no_history",
-            "summarize_transactions_pnl_duration",
-            "save_load_state",
-            "transaction_logging",
-            "event_callback",
-            "all" # Special command
-        ]
+        self.broker_sub_tests = BROKER_TEST_CASES
         self.regist_cmd(
             "broker",
             self.cmd_broker,
@@ -128,22 +78,7 @@ class TestCLI(CommandLineInterface):
             group='testing'
         )
 
-        # Define available backtest sub-tests (match keys in run_backtest_tests)
-        self.backtest_sub_tests = [
-            "initial_configuration",
-            "setup_method",
-            "add_symbol",
-            "add_data_frame",
-            "add_history_validation",
-            "add_strategy",
-            "add_optstrategy",
-            "eval_basic",
-            "eval_with_history",
-            "save_report",
-            "show_result",
-            "eval_lock",
-            "all" # Special command
-        ]
+        self.backtest_sub_tests = BACKTEST_TEST_CASES
         self.regist_cmd(
             "backtest",
             self.cmd_backtest,
@@ -152,13 +87,7 @@ class TestCLI(CommandLineInterface):
             group='testing'
         )
 
-        # Define available integration sub-tests (match keys in run_integration_tests)
-        self.integration_sub_tests = [
-            "buying_flow",
-            "selling_flow",
-            "selling_flow_with_real_strategy",
-            "all" # Special command to run all tests
-        ]
+        self.integration_sub_tests = INTEGRATION_TEST_CASES
         self.regist_cmd(
             "integration",
             self.cmd_integration,

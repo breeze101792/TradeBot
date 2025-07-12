@@ -821,28 +821,32 @@ def test_event_callback(test_id: str, symbol=DEFAULT_BROKER_TEST_TICKER, qty=DEF
         BrokerManager.finalize()
         cleanup_test_broker_files(test_id)
 
+# --- Test Definitions ---
+BROKER_TEST_DEFINITIONS = {
+    "initial_state": test_initial_state,
+    "buy_sufficient_cash": test_place_buy_order_sufficient_cash,
+    "get_position": test_get_position,
+    "sell_sufficient_position": test_place_sell_order_sufficient_position,
+    "buy_insufficient_cash": test_place_buy_order_insufficient_cash,
+    "sell_insufficient_position": test_place_sell_order_insufficient_position,
+    "portfolio_value": test_portfolio_value,
+    "summarize_positions": test_summarize_positions,
+    "summarize_transactions": test_summarize_transactions,
+    "save_load_state": test_save_load_state,
+    "transaction_logging": test_transaction_logging,
+    "summarize_positions_no_positions": test_summarize_positions_no_positions,
+    "summarize_transactions_no_history": test_summarize_transactions_no_history,
+    "summarize_transactions_pnl_duration": test_summarize_transactions_with_pnl_and_duration,
+    "event_callback": test_event_callback,
+}
+BROKER_TEST_CASES = list(BROKER_TEST_DEFINITIONS.keys()) + ["all"]
+
 # --- Test Runner ---
 def run_broker_tests(test_names: list[str]):
     results = {}
     
     # All tests are now standalone
-    all_test_definitions = {
-        "initial_state": test_initial_state,
-        "buy_sufficient_cash": test_place_buy_order_sufficient_cash,
-        "get_position": test_get_position, # Renamed and made standalone
-        "sell_sufficient_position": test_place_sell_order_sufficient_position,
-        "buy_insufficient_cash": test_place_buy_order_insufficient_cash,
-        "sell_insufficient_position": test_place_sell_order_insufficient_position,
-        "portfolio_value": test_portfolio_value,
-        "summarize_positions": test_summarize_positions,
-        "summarize_transactions": test_summarize_transactions,
-        "save_load_state": test_save_load_state,
-        "transaction_logging": test_transaction_logging,
-        "summarize_positions_no_positions": test_summarize_positions_no_positions,
-        "summarize_transactions_no_history": test_summarize_transactions_no_history,
-        "summarize_transactions_pnl_duration": test_summarize_transactions_with_pnl_and_duration,
-        "event_callback": test_event_callback, # New test case
-    }
+    all_test_definitions = BROKER_TEST_DEFINITIONS
 
     tests_to_run_names = []
     if "all" in test_names:

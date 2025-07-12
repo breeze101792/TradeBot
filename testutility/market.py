@@ -281,20 +281,24 @@ def test_update_data(market_instance: Market, product_id: str = DEFAULT_TEST_TIC
         dbg_error(traceback.format_exc())
         return False
 
+# --- Test Definitions ---
+MARKET_TEST_DEFINITIONS = {
+    "list_providers": test_list_providers,
+    "switch_market": test_switch_market,
+    "get_data_list": test_get_data_list,
+    "get_data": lambda m: test_get_data(m), # Use default ticker
+    "get_info": lambda m: test_get_data_info(m), # Use default ticker
+    "get_top_product_list": test_get_top_product_list,
+    "get_product_list_by_date": test_get_product_list_by_date,
+    "update_data": lambda m: test_update_data(m), # Use default ticker
+}
+MARKET_TEST_CASES = list(MARKET_TEST_DEFINITIONS.keys()) + ["all"]
+
 # --- Test Runner ---
 def run_market_tests(market_instance: Market, test_names: list[str]):
     """Runs specified market tests."""
     results = {}
-    all_tests = {
-        "list_providers": test_list_providers,
-        "switch_market": test_switch_market,
-        "get_data_list": test_get_data_list,
-        "get_data": lambda m: test_get_data(m), # Use default ticker
-        "get_info": lambda m: test_get_data_info(m), # Use default ticker
-        "get_top_product_list": test_get_top_product_list,
-        "get_product_list_by_date": test_get_product_list_by_date,
-        "update_data": lambda m: test_update_data(m), # Use default ticker
-    }
+    all_tests = MARKET_TEST_DEFINITIONS
 
     tests_to_run = []
     if "all" in test_names:

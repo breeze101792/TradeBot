@@ -67,14 +67,14 @@ def test_core_start_and_stop_flow(test_id: str) -> bool:
     core_instance.initialize()
     
     # Mock sleep functions to prevent actual blocking
-    with patch('core.core.sleep_with_flag', side_effect=lambda *args, **kwargs: (time.sleep(5) or -1)) as mock_sleep_with_flag, \
-         patch('core.core.sleep_until_with_flag', side_effect=lambda *args, **kwargs: (time.sleep(5) or -1)) as mock_sleep_until_with_flag, \
+    with patch('core.core.sleep_with_flag', side_effect=lambda *args, **kwargs: (time.sleep(3) or -1)) as mock_sleep_with_flag, \
+         patch('core.core.sleep_until_with_flag', side_effect=lambda *args, **kwargs: (time.sleep(3) or -1)) as mock_sleep_until_with_flag, \
          patch.object(core_instance, '_Core__update_datasource', return_value=True) as mock_update_datasource, \
          patch.object(core_instance.trading, 'trading_eval', return_value=[]) as mock_trading_eval, \
          patch.object(core_instance.trading, 'buying_exec', return_value=True) as mock_buying_exec, \
          patch.object(core_instance.trading, 'selling_eval', return_value=[]) as mock_selling_eval, \
          patch.object(core_instance.trading, 'selling_exec', return_value=True) as mock_selling_exec, \
-         patch.object(core_instance.tdcli, 'run') as mock_tdcli_run: # Mock CLI run to prevent blocking
+         patch.object(core_instance.tdcli, 'run', side_effect=lambda: time.sleep(3)) as mock_tdcli_run: # Mock CLI run to prevent blocking
         try:
             
             # Start core in a separate thread to allow main thread to interact
@@ -492,19 +492,23 @@ def test_selling_service_flow(test_id: str) -> bool:
         core_instance.flag_selling_service_running = False
         core_instance.finalize()
 
+# --- Test Definitions ---
+CORE_TEST_DEFINITIONS = {
+    "initialization": test_core_initialization,
+    "start_stop_flow": test_core_start_and_stop_flow,
+    "sanity_check_method": test_core_sanity_check_method,
+    "cmd_status_output": test_cmd_status_output,
+    "datasource_service_loop": test_datasource_service_loop_and_update,
+    "trading_service_flow": test_trading_service_flow,
+    "selling_service_flow": test_selling_service_flow,
+}
+CORE_TEST_CASES = list(CORE_TEST_DEFINITIONS.keys()) + ["all"]
+
 # --- Test Runner ---
 def run_core_tests(test_names: list[str]):
     results = {}
     
-    all_test_definitions = {
-        "initialization": test_core_initialization,
-        "start_stop_flow": test_core_start_and_stop_flow,
-        "sanity_check_method": test_core_sanity_check_method,
-        "cmd_status_output": test_cmd_status_output,
-        "datasource_service_loop": test_datasource_service_loop_and_update,
-        "trading_service_flow": test_trading_service_flow,
-        "selling_service_flow": test_selling_service_flow,
-    }
+    all_test_definitions = CORE_TEST_DEFINITIONS
 
     tests_to_run_names = []
     if "all" in test_names:

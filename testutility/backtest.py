@@ -700,26 +700,30 @@ def test_eval_lock(backtester: Backtest) -> bool:
         if backtester._EVAL_LOCK.locked():
             backtester._EVAL_LOCK.release()
 
+# --- Test Definitions ---
+BACKTEST_TEST_DEFINITIONS = {
+    "initial_configuration": test_initial_configuration,
+    "setup_method": test_setup_method,
+    "add_symbol": test_add_symbol,
+    "add_data_frame": test_add_data_frame,
+    "add_history_validation": test_add_history_validation,
+    "add_strategy": test_add_strategy,
+    "add_optstrategy": test_add_optstrategy,
+    "eval_basic": test_eval_basic,
+    "eval_with_history": test_eval_with_history,
+    "save_report": test_save_report,
+    "show_result": test_show_result,
+    "eval_lock": test_eval_lock,
+}
+BACKTEST_TEST_CASES = list(BACKTEST_TEST_DEFINITIONS.keys()) + ["all"]
+
 # --- Test Runner ---
 
 def run_backtest_tests(test_names: list[str]):
     results = {}
     
     # Map test names to functions
-    all_test_definitions = {
-        "initial_configuration": test_initial_configuration,
-        "setup_method": test_setup_method,
-        "add_symbol": test_add_symbol,
-        "add_data_frame": test_add_data_frame,
-        "add_history_validation": test_add_history_validation,
-        "add_strategy": test_add_strategy,
-        "add_optstrategy": test_add_optstrategy,
-        "eval_basic": test_eval_basic,
-        "eval_with_history": test_eval_with_history,
-        "save_report": test_save_report,
-        "show_result": test_show_result,
-        "eval_lock": test_eval_lock,
-    }
+    all_test_definitions = BACKTEST_TEST_DEFINITIONS
 
     tests_to_run_names = []
     if "all" in test_names:

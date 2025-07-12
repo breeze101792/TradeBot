@@ -688,21 +688,25 @@ def test_recorder_save_and_load() -> bool:
     
     return all_passed
 
+# --- Test Definitions ---
+TRADING_TEST_DEFINITIONS = {
+    "eval_buying": (test_buying_evaluation, 'evaluate'),
+    "eval_selling": (test_selling_evaluation, 'evaluate'),
+    "exec_buying": (test_trading_buying_exec, 'trading'),
+    "exec_selling": (test_trading_selling_exec, 'trading'),
+    "flow_trading_eval": (test_trading_trading_eval_flow, 'trading'),
+    "flow_selling_eval": (test_trading_selling_eval_flow, 'trading'),
+    "callback_order": (test_trading_order_callback, 'trading'),
+    "record_save_load": (test_recorder_save_and_load, 'traderecord'),
+}
+TRADING_TEST_CASES = list(TRADING_TEST_DEFINITIONS.keys()) + ["all"]
+
 # --- Test Runner ---
 def run_trading_tests(test_names: list[str]):
     """Runs specified trading tests for Evaluate and Trading classes."""
     results = {}
     # Test function and the type of instance it requires ('evaluate' or 'trading')
-    all_tests_info = {
-        "eval_buying": (test_buying_evaluation, 'evaluate'),
-        "eval_selling": (test_selling_evaluation, 'evaluate'),
-        "exec_buying": (test_trading_buying_exec, 'trading'),
-        "exec_selling": (test_trading_selling_exec, 'trading'),
-        "flow_trading_eval": (test_trading_trading_eval_flow, 'trading'),
-        "flow_selling_eval": (test_trading_selling_eval_flow, 'trading'),
-        "callback_order": (test_trading_order_callback, 'trading'),
-        "record_save_load": (test_recorder_save_and_load, 'traderecord'),
-    }
+    all_tests_info = TRADING_TEST_DEFINITIONS
 
     specified_tests_to_run = [name for name in test_names if name in all_tests_info] if "all" not in test_names else list(all_tests_info.keys())
 
