@@ -13,6 +13,10 @@ from broker.order.constant import OrderPrice, OrderAction
 from trading.traderecord import Recorder
 from core.config import *
 
+from strategy.candidate.mac import MovingAverageCrossoverStrategy
+from strategy.candidate.bm import BreakoutMomentumStrategy
+from strategy.candidate.rsi import RelativeStrengthIndexStrategy
+
 class Evaluate:
     # threshold
     BUY_CANDIDATE_SCORE_THRESHOLD = 1
@@ -22,17 +26,16 @@ class Evaluate:
         self.stra_mgr = StrategyManager()
         self.market = Market()
 
-        self.default_strategy = self.stra_mgr.get_default_strategy()
-        dbg_info(f"default strategy: {self.default_strategy}")
+        # self.strategy_list = [MovingAverageCrossoverStrategy, RelativeStrengthIndexStrategy, BreakoutMomentumStrategy]
+        self.strategy_list = self.stra_mgr.get_strategy_list([StrategyManager.Level.OFFICIAL])
+        self.default_strategy = self.strategy_list[0]
+        dbg_info(f"default strategy: {self.default_strategy}, Strategy list: {self.strategy_list}")
 
         self.cm = AppConfigManager()
 
     def __buy_find_candidate(self):
 
         candidate_dict = dict()
-
-        # predefine for development
-        strategy_list=[self.default_strategy]
 
         product_list = self.market.get_data_list()
 
@@ -42,11 +45,12 @@ class Evaluate:
 
         trade_analyzer = Analyzer(self.market)
         trade_analyzer.clean_result()
-        for each_strategy in strategy_list:
 
-            # for each_product in product_list:
-            for each_idx in range(0, len(product_list)):
-                each_product = product_list[each_idx]
+        # for each_product in product_list:
+        for each_idx in range(0, len(product_list)):
+            each_product = product_list[each_idx]
+
+            for each_strategy in self.strategy_list:
                 try:
                     dbg_info(f"[{each_idx + 1:>2}/{len(product_list)}] {each_product}" , prefix = '\r',end=' ' * 10)
                     # test only one year for accerate performance.
@@ -69,6 +73,8 @@ class Evaluate:
                         if trade_info['symbol'] not in candidate_dict:
                             dbg_info(f"Evaluation Trade {trade_info['symbol']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
                             candidate_dict[trade_info['symbol']] = {'strategy': each_strategy}
+                            # NOTE. if candidated, we ignore the following strategy test.
+                            break
                         else:
                             dbg_info(f"Duplicated! Evaluation Trade {trade_info['symbol']}@{trade_info['date']}: Action: {trade_info['action']}, Current: {trade_info['price']:.2f}, size: {trade_info['size']:.2f}")
                     else:
@@ -338,8 +344,7 @@ class Evaluate:
                 # if open_trade and open_trade.symbol == symbol:
                 if open_trade:
                     dbg_info(f"Found open trade for {symbol} in recorder. Using recorded data.{open_trade}")
-                    # FIXME, currently not supported.
-                    # strategy_name = open_trade.strategy if open_trade.strategy else strategy_name
+                    strategy_name = open_trade.strategy if open_trade.strategy else strategy_name
 
                     # Construct order_history from all buy transactions in the trade
                     buy_transactions = []

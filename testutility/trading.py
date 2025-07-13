@@ -380,6 +380,8 @@ def test_trading_trading_eval_flow() -> bool:
              patch('trading.evaluate.Analyzer') as mock_analyzer_class, \
              patch('trading.evaluate.StrategyManager') as mock_strategy_manager_class:
 
+             # patch.object(trading_instance, 'strategy_list', [MagicMock(NAME="MockStrategy", last_trade={'action': 'buy', 'symbol': DEFAULT_TEST_TICKER, 'date': date.today(), 'price': 100, 'size': 10})  ]), \
+
             # Setup mock for Market.get_data_list()
             mock_get_data_list.return_value = [DEFAULT_TEST_TICKER]
 
@@ -405,6 +407,7 @@ def test_trading_trading_eval_flow() -> bool:
             # Mock get_default_strategy and get_strategy_by_name to return a mock strategy
             mock_strategy_instance.get_default_strategy.return_value = MagicMock(NAME="MockStrategy", last_trade={'action': 'buy', 'symbol': DEFAULT_TEST_TICKER, 'date': date.today(), 'price': 100, 'size': 10})
             mock_strategy_instance.get_strategy_by_name.return_value = MagicMock(NAME="MockStrategy", last_trade={'action': 'buy', 'symbol': DEFAULT_TEST_TICKER, 'date': date.today(), 'price': 100, 'size': 10})
+            mock_strategy_instance.get_strategy_list.return_value = [MagicMock(NAME="MockStrategy", last_trade={'action': 'buy', 'symbol': DEFAULT_TEST_TICKER, 'date': date.today(), 'price': 100, 'size': 10})]
 
             result = trading_instance.trading_eval()
 
@@ -487,7 +490,9 @@ def test_trading_order_callback() -> bool:
             mock_order_data.commission = 20.0
 
             # Instantiate Trading to test its callback
+            Trading.BUYING_CANDIDATE = {}
             trading_instance = Trading()
+
 
             # Scenario 1: OrderFilled event
             dbg_info("Scenario 1: OrderFilled event triggers recorder")
@@ -500,7 +505,8 @@ def test_trading_order_callback() -> bool:
                 price=500.0,
                 size=1000,
                 timestamp=expected_timestamp,
-                commission=20.0
+                commission=20.0,
+                strategy='MovingAverageCrossover'
             )
             dbg_info("Scenario 1: Passed")
 

@@ -91,6 +91,10 @@ class Recorder:
         open_trade = next((t for t in Recorder.trades if t.symbol == symbol and t.is_open), None)
 
         if open_trade:
+            if strategy and open_trade.strategy != strategy:
+                dbg_warning(f"Strategy changed for open trade {open_trade.trade_id}. "
+                            f"Original: '{open_trade.strategy}', New: '{strategy}'. "
+                            f"The original strategy will be kept.")
             open_trade.add_transaction(action, price, size, timestamp, commission)
             if not open_trade.is_open:
                 dbg_info(f"Closed trade for {symbol}. Trade ID: {open_trade.trade_id}")

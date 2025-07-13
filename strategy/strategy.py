@@ -1,6 +1,7 @@
 import backtrader as bt
 import pandas as pd
 from utility.debug import *
+from enum import Enum, auto
 
 # Offical
 from strategy.candidate.mac import MovingAverageCrossoverStrategy, MACDCrossoverStrategy, EMACrossoverStrategy
@@ -17,18 +18,25 @@ from strategy.experiment.test import *
 from strategy.experiment.vwap import *
 
 class StrategyManager:
+    class Level(Enum):
+        OFFICIAL = auto()
+        BETA = auto()
+        TESTING = auto()
     def __init__(self, test = 0):
-        self.strategy_dict = dict()
+        self.strategies = {level: {} for level in self.Level}
         
+        ## Official strategy
         # adjust for win rate/profit.
-        self.register_strategy(MovingAverageCrossoverStrategy)
-        self.register_strategy(BreakoutMomentumStrategy)
-        self.register_strategy(RelativeStrengthIndexStrategy)
-        self.register_strategy(BollingerMeanReversionStrategy)
+        self.register_strategy(MovingAverageCrossoverStrategy, level=self.Level.OFFICIAL)
+        self.register_strategy(BreakoutMomentumStrategy, level=self.Level.OFFICIAL)
+        self.register_strategy(RelativeStrengthIndexStrategy, level=self.Level.OFFICIAL)
+
+        ## Beta strategy
+        self.register_strategy(BollingerMeanReversionStrategy, level=self.Level.BETA)
 
         # Moving average.
-        self.register_strategy(MACDCrossoverStrategy)
-        self.register_strategy(EMACrossoverStrategy)
+        self.register_strategy(MACDCrossoverStrategy, level=self.Level.BETA)
+        self.register_strategy(EMACrossoverStrategy, level=self.Level.BETA)
 
         # RSI .
         # self.register_strategy(RSI_SMA)
@@ -36,20 +44,21 @@ class StrategyManager:
         # new added.
         # need to use the original price for it.
         # self.register_strategy(VolumeWeightedAveragePriceStrategy)
-        self.register_strategy(VolumeWeightedAveragePriceCrossStrategy)
+        self.register_strategy(VolumeWeightedAveragePriceCrossStrategy, level=self.Level.BETA)
 
         # signal watcher
-        self.register_strategy(MultiSignalStrategy)
+        self.register_strategy(MultiSignalStrategy, level=self.Level.BETA)
 
-        if False:
+        # Testing, don't enable it on real world.
+        if test > 0:
             # Strategy registration.
             # tested
-            self.register_strategy(MovingAverageCrossoverEn)
-            self.register_strategy(BreakoutMomentumEn)
+            self.register_strategy(MovingAverageCrossoverEn, level=self.Level.TESTING)
+            self.register_strategy(BreakoutMomentumEn, level=self.Level.TESTING)
             # self.register_strategy(MovingAverageCrossover)
             # self.register_strategy(BreakoutMomentum)
-            self.register_strategy(PriceVolumeStrategy)
-            self.register_strategy(VWAPStrategy)
+            self.register_strategy(PriceVolumeStrategy, level=self.Level.TESTING)
+            self.register_strategy(VWAPStrategy, level=self.Level.TESTING)
 
             # New.
             # self.register_strategy(BollingerRebound)
@@ -58,32 +67,51 @@ class StrategyManager:
             # self.register_strategy(ADLineStrategy)
             # self.register_strategy(PriceVolumeBreakoutStrategy)
             # self.register_strategy(CMFStrategy)
-            self.register_strategy(VolumeSpikeStrategy)
+            self.register_strategy(VolumeSpikeStrategy, level=self.Level.TESTING)
 
             # Test
             # self.register_strategy(TestStrategy)
             # self.register_strategy(Test2Strategy)
             # self.register_strategy(HighWinRateStrategy)
 
-        # print(f'Init StrategyManager {self.strategy_dict}, {test}', )
+        # print(f'Init StrategyManager {self.strategies}, {test}', )
 
     def get_default_strategy(self):
-        if not self.strategy_dict:
-            return None  # Or raise an exception, depending on desired behavior
-        return list(self.strategy_dict.values())[0]
+        """
+        Gets the default strategy, prioritizing OFFICIAL strategies.
+        If no OFFICIAL strategies are found, it falls back to BETA.
+        """
+        for level in [self.Level.OFFICIAL, self.Level.BETA]:
+            if self.strategies[level]:
+                return list(self.strategies[level].values())[0]
+        return None  # Or raise an exception, depending on desired behavior
 
-    def register_strategy(self, new_strategy):
-        if self.strategy_dict.get(new_strategy.NAME) is not None:
-            dbg_error(f'Strategy has been registerd. {new_strategy.NAME}')
-            raise
-        self.strategy_dict[new_strategy.NAME] = new_strategy
-    def get_strategy_list(self):
-        # for each_key in self.strategy_dict.keys():
-        #     print(each_key)
-        return [self.strategy_dict[each_key] for each_key in self.strategy_dict.keys()]
+    def register_strategy(self, new_strategy, level=None):
+        if level is None:
+            level = self.Level.TESTING
+
+        for lvl in self.Level:
+            if new_strategy.NAME in self.strategies[lvl]:
+                dbg_error(f'Strategy has been registered: {new_strategy.NAME} in level {lvl.name}')
+                raise
+
+        self.strategies[level][new_strategy.NAME] = new_strategy
+
+    def get_strategy_list(self, levels=None):
+        if levels is None:
+            levels = [self.Level.OFFICIAL]
+
+        strategies = []
+        for level in levels:
+            if level in self.strategies:
+                strategies.extend(self.strategies[level].values())
+        return strategies
+
     def get_strategy_by_name(self, name):
-        if self.strategy_dict.get(name) is None:
-            dbg_error(f"Strategy not found. {name}")
-            raise
-        else:
-            return self.strategy_dict[name]
+        for level in self.Level:
+            strategy = self.strategies[level].get(name)
+            if strategy:
+                return strategy
+        
+        dbg_error(f"Strategy not found. {name}")
+        raise

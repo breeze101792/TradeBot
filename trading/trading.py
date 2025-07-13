@@ -5,6 +5,7 @@ from datetime import datetime
 
 from utility.debug import *
 from core.config import AppConfigManager
+from strategy.strategy import StrategyManager
 
 from market.market import *
 from trading.evaluate import Evaluate
@@ -21,6 +22,8 @@ from broker.order.ordertracker import OrderTracker
 class Trading:
     BUYING_IGNORE = False
     SELLING_IGNORE = False
+
+    BUYING_CANDIDATE = dict()
 
     def __init__(self):
         # this will break mock on test case, if you want this mock before init.
@@ -56,7 +59,22 @@ class Trading:
                         f"Size={order_tracker.size}, Price={order_tracker.price}, Commission={order_tracker.commission}.")
 
             # Log the transaction using data from the OrderTracker
-            # FIXME: The strategy is not available in the order_tracker.
+            strategy_name = None
+            if order_tracker.action == OrderAction.BUY:
+                if order_tracker.symbol in Trading.BUYING_CANDIDATE:
+                    strategy_name = Trading.BUYING_CANDIDATE[order_tracker.symbol]['strategy'].NAME
+                else:
+                    dbg_warning(f"Symbol {order_tracker.symbol} not in BUYING_CANDIDATE for a BUY order.")
+
+            if strategy_name is None:
+                # Fallback for BUYING not in candidate, or for SELLING
+                # For SELL, the strategy should be part of the open trade record.
+                # Passing a strategy here might be for opening trades only.
+                # Let's use default as a fallback.
+                stra_mgr = StrategyManager()
+                strategy_name = stra_mgr.get_default_strategy().NAME
+                dbg_info(f"Using default strategy for {order_tracker.symbol} ({order_tracker.action}).")
+
             # FIXME: The timestamp is not available in the order_tracker, use current time for now.
             recorder.add_record(
                 symbol=order_tracker.symbol,
@@ -64,7 +82,8 @@ class Trading:
                 price=order_tracker.price,
                 size=order_tracker.size,
                 timestamp=int(datetime.now().timestamp() * 1000),
-                commission=order_tracker.commission
+                commission=order_tracker.commission,
+                strategy=strategy_name
             )
         elif event == Event.OrderFailed:
             if not isinstance(data, OrderTracker):
@@ -208,10 +227,10 @@ class Trading:
     def trading_eval(self, args = None):
         trade_eval = Evaluate()
 
-        # Buyig evaluation.
-        buy_list = trade_eval.buying_evaluation()
+        # Buyig evaluation, also override candidate.
+        Trading.BUYING_CANDIDATE = trade_eval.buying_evaluation()
 
-        return buy_list
+        return Trading.BUYING_CANDIDATE
     def selling_eval(self, args = None):
         trade_eval = Evaluate()
 

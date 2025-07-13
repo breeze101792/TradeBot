@@ -108,6 +108,7 @@ def test_buying_flow(test_id: str) -> bool:
             mock_strategy.last_trade = {'action': 'buy', 'symbol': '2330', 'date': test_date.date(), 'price': 600, 'size': 1000}
             mock_strategy_manager_instance.get_default_strategy.return_value = mock_strategy
             mock_strategy_manager_instance.get_strategy_by_name.return_value = mock_strategy
+            mock_strategy_manager_instance.get_strategy_list.return_value = [mock_strategy]
             MockStrategyManagerEval.return_value = mock_strategy_manager_instance
             MockStrategyManagerTrading.return_value = mock_strategy_manager_instance
 
@@ -271,6 +272,7 @@ def test_selling_flow(test_id: str) -> bool:
             mock_strategy.last_trade = {'action': 'sell', 'symbol': '2330', 'date': test_date.date(), 'price': 600, 'size': 4000}
             mock_strategy_manager_instance.get_default_strategy.return_value = mock_strategy
             mock_strategy_manager_instance.get_strategy_by_name.return_value = mock_strategy
+            mock_strategy_manager_instance.get_strategy_list.return_value = [mock_strategy]
             MockStrategyManagerEval.return_value = mock_strategy_manager_instance
             MockStrategyManagerTrading.return_value = mock_strategy_manager_instance
 
@@ -354,7 +356,7 @@ def test_selling_flow_with_real_strategy_take_profit(test_id: str) -> bool:
             mock_recorder_instance = MagicMock()
             mock_trade = MagicMock()
             mock_trade.is_open = True
-            mock_trade.strategy = "MockStrategy"
+            mock_trade.strategy = "MovingAverageCrossover"
             # This is the position size that should be used in evaluation
             mock_trade.current_size = 4000
             # The transaction history for the trade
@@ -494,7 +496,7 @@ def test_selling_flow_with_real_strategy_stop_lose(test_id: str) -> bool:
             mock_recorder_instance = MagicMock()
             mock_trade = MagicMock()
             mock_trade.is_open = True
-            mock_trade.strategy = "MockStrategy"
+            mock_trade.strategy = "MovingAverageCrossover"
             # This is the position size that should be used in evaluation
             mock_trade.current_size = 4000
             # The transaction history for the trade

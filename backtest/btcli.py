@@ -161,7 +161,8 @@ class BTCLI(CommandLineInterface):
         self.regist_cmd("data", self.cmd_data, description=f"Change database, test list stored. Ops: {self.total_data_op_list}, Data:{self.total_data_list}", arg_list = self.total_data_list +self.total_data_op_list, group='setting')
 
         # self.total_strategy_list = ['MovingAverageCrossover', 'BreakoutMomentum']
-        self.total_strategy_list = [each_stra.NAME for each_stra in self.strategyMgr.get_strategy_list()]
+        self.total_strategy_list = [each_stra.NAME for each_stra in self.strategyMgr.get_strategy_list([StrategyManager.Level.OFFICIAL,StrategyManager.Level.BETA])]
+
         self.total_strategy_op_list = ['set', 'add', 'modify', 'list', 'del', 'all', 'tune']
         # self.regist_cmd("add_strategy", self.cmd_add_strategy, description=f"Add strategy. {self.total_strategy_list}", arg_list = self.total_strategy_list, group='setting')
         self.regist_cmd("strategy", self.cmd_strategy, description=f"Set strategy. Ops: {self.total_strategy_op_list}, Stra:{self.total_strategy_list}", arg_list = self.total_strategy_list + self.total_strategy_op_list, group='setting')
