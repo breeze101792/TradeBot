@@ -36,7 +36,7 @@ def event_callback(event: Event, data: Optional[Any] = None):
     """
 
     if BrokerManager.order_callback is not None:
-        BrokerManager.order_callback(Event, data)
+        BrokerManager.order_callback(event, data)
 
     if event == Event.OrderFilled:
         if not isinstance(data, OrderTracker):

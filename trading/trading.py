@@ -85,30 +85,31 @@ class Trading:
                 commission=order_tracker.commission,
                 strategy=strategy_name
             )
-        elif event == Event.OrderFailed:
-            if not isinstance(data, OrderTracker):
-                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
-                return
-            order_tracker: OrderTracker = data
-            dbg_warning(f"Order Failed: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
-                        f"Size={order_tracker.size}, Reason={order_tracker.reason}.")
-            # Optionally log failed orders or take other actions
-        elif event == Event.OrderPending:
-            if not isinstance(data, OrderTracker):
-                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
-                return
-            order_tracker: OrderTracker = data
-            dbg_info(f"Order Pending: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
-                        f"Size={order_tracker.size}, Price={order_tracker.price}.")
-        elif event == Event.OrderCanceled:
-            if not isinstance(data, OrderTracker):
-                dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
-                return
-            order_tracker: OrderTracker = data
-            dbg_info(f"Order Canceled: Symbol={order_tracker.symbol}, Order ID={order_tracker.order_id}, "
-                        f"Reason={order_tracker.reason}.")
-        else:
-            dbg_info(f"Unhandled event received: {event}, data: {data}")
+        # currently, we don't need to handle any other event.
+        # elif event == Event.OrderFailed:
+        #     if not isinstance(data, OrderTracker):
+        #         dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
+        #         return
+        #     order_tracker: OrderTracker = data
+        #     dbg_warning(f"Order Failed: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
+        #                 f"Size={order_tracker.size}, Reason={order_tracker.reason}.")
+        #     # Optionally log failed orders or take other actions
+        # elif event == Event.OrderPending:
+        #     if not isinstance(data, OrderTracker):
+        #         dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
+        #         return
+        #     order_tracker: OrderTracker = data
+        #     dbg_info(f"Order Pending: Symbol={order_tracker.symbol}, Action={order_tracker.action}, "
+        #                 f"Size={order_tracker.size}, Price={order_tracker.price}.")
+        # elif event == Event.OrderCanceled:
+        #     if not isinstance(data, OrderTracker):
+        #         dbg_error(f"Event '{event}' received with invalid data type. Expected OrderTracker, got {type(data)}.")
+        #         return
+        #     order_tracker: OrderTracker = data
+        #     dbg_info(f"Order Canceled: Symbol={order_tracker.symbol}, Order ID={order_tracker.order_id}, "
+        #                 f"Reason={order_tracker.reason}.")
+        # else:
+        #     dbg_info(f"Unhandled event received: {event}, data: {data}")
 
     def buying_exec(self, buy_list):
         if self.BUYING_IGNORE is True:
@@ -194,11 +195,15 @@ class Trading:
                         # if equal then we just sell it all.
                         trade_broker.place_order(symbol=symbol, size=selling_size, action=OrderAction.SELL)
 
-                    dbg_info(f'Selling product: {symbol}, current hoding: {holding_size}')
+                    dbg_info(f'Selling product: {symbol}, try selling {selling_size} from current hoding {holding_size}')
                     if current_price == 0:
                         # FIXME, find another way to take actions.
                         dbg_warning("can't get current price of {symbol}, ignore actions.")
                         continue
+
+                    elif selling_size == holding_size:
+                        # close the trade.
+                        trade_broker.place_order(symbol=symbol, size=selling_size, action=OrderAction.SELL)
 
                     elif selling_size < holding_size:
                         checking_size = selling_size if selling_size <= holding_size - selling_size else holding_size - selling_size
