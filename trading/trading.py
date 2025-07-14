@@ -126,6 +126,12 @@ class Trading:
             trade_broker = BrokerManager()
             for each_symbol in buy_list:
                 try:
+                    # NOTE. ignore holdings.
+                    each_position = trade_broker.get_position_by_symbol(each_symbol)
+                    if each_position is not None and each_position.size != 0:
+                        dbg_debug(f"[{each_symbol}] Skipping buy evaluation: already holding position (size: {each_position.size}).")
+                        continue
+
                     dbg_info(f'Buying product: {each_symbol}')
                     # 0.9 is to avoid market price increase cause insufficient funds.
                     current_cash = trade_broker.get_balance() * 0.9

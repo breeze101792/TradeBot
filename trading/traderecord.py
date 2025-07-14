@@ -17,14 +17,14 @@ class Trade:
     Represents a full trade cycle, from opening to closing.
     A trade consists of one or more transactions.
     """
-    def __init__(self, symbol: str, action: OrderAction, price: float, size: float, timestamp: int, commission: float = 0.0, strategy: str = ''):
+    def __init__(self, symbol: str, action: OrderAction, price: float, size: int, timestamp: int, commission: float = 0.0, strategy: str = ''):
         self.trade_id = str(uuid.uuid4())
         self.symbol = symbol
         self.strategy = strategy
         self.transactions = []
         self.add_transaction(action, price, size, timestamp, commission)
 
-    def add_transaction(self, action: OrderAction, price: float, size: float, timestamp: int, commission: float = 0.0):
+    def add_transaction(self, action: OrderAction, price: float, size: int, timestamp: int, commission: float = 0.0):
         """Adds a transaction to this trade."""
         transaction = {
             'action': action,
@@ -41,7 +41,7 @@ class Trade:
         return self.current_size > 0
 
     @property
-    def current_size(self) -> float:
+    def current_size(self) -> int:
         """Returns the current size held for this trade."""
         total_bought = sum(t['size'] for t in self.transactions if t['action'] == OrderAction.BUY)
         total_sold = sum(t['size'] for t in self.transactions if t['action'] == OrderAction.SELL)
@@ -101,7 +101,7 @@ class Recorder:
                 symbol=trade_info['symbol'],
                 action=OrderAction[first_trans['action']],
                 price=first_trans['price'],
-                size=first_trans['size'],
+                size=int(first_trans['size']),
                 timestamp=first_trans['timestamp'],
                 commission=first_trans['commission'],
                 strategy=trade_info['strategy']
@@ -112,7 +112,7 @@ class Recorder:
                 trade.add_transaction(
                     action=OrderAction[trans_row['action']],
                     price=trans_row['price'],
-                    size=trans_row['size'],
+                    size=int(trans_row['size']),
                     timestamp=trans_row['timestamp'],
                     commission=trans_row['commission']
                 )
@@ -133,7 +133,7 @@ class Recorder:
         """
         return self.get_open_trades(symbol)
 
-    def add_record(self, symbol: str, action: OrderAction, price: float, size: float, timestamp: int, commission: float = 0.0, strategy: str = ''):
+    def add_record(self, symbol: str, action: OrderAction, price: float, size: int, timestamp: int, commission: float = 0.0, strategy: str = ''):
         """Adds a new transaction record. It will either be added to an existing open trade
         for the same symbol or a new trade will be created."""
         open_trades = self.get_open_trades(symbol)
@@ -198,7 +198,7 @@ class Recorder:
                 symbol=trade_row['symbol'],
                 action=OrderAction[first_trans['action']],
                 price=first_trans['price'],
-                size=first_trans['size'],
+                size=int(first_trans['size']),
                 timestamp=first_trans['timestamp'],
                 commission=first_trans['commission'],
                 strategy=trade_row['strategy']
@@ -230,7 +230,7 @@ class Recorder:
         print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
         print("\n--- Transactions ---")
-        transaction_headers = ["Trade ID", "Symbol", "Strategy", "Action", "Price", "size", "Datetime", "commission"]
+        transaction_headers = ["Trade ID", "Symbol", "Strategy", "Action", "Price", "Size", "Datetime", "Commission"]
         transaction_data = []
         # Sort trades by the timestamp of their first transaction for chronological order
         for trade in sorted(all_trades, key=lambda x: x.transactions[0]['timestamp']):

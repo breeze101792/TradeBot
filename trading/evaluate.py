@@ -43,12 +43,19 @@ class Evaluate:
 
         dbg_info(f"Last Trad date {last_trading_day}")
 
+        trade_broker = BrokerManager()
         trade_analyzer = Analyzer(self.market)
         trade_analyzer.clean_result()
 
         # for each_product in product_list:
         for each_idx in range(0, len(product_list)):
             each_product = product_list[each_idx]
+
+            # NOTE. ignore holdings.
+            each_position = trade_broker.get_position_by_symbol(each_product)
+            if each_position is not None and each_position.size != 0:
+                dbg_debug(f"[{each_product}] Skipping buy evaluation: already holding position (size: {each_position.size}).")
+                continue
 
             for each_strategy in self.strategy_list:
                 try:

@@ -31,7 +31,7 @@ class Database(uDatabase):
                         trade_id TEXT NOT NULL,
                         action TEXT NOT NULL,
                         price REAL NOT NULL,
-                        size REAL NOT NULL,
+                        size INTEGER NOT NULL,
                         timestamp INTEGER NOT NULL,
                         commission REAL,
                         FOREIGN KEY(trade_id) REFERENCES Trades(trade_id)

@@ -151,6 +151,9 @@ def test_trading_buying_exec() -> bool:
             dbg_info("Scenario 2: Valid buy")
             mock_broker_instance.reset_mock() # Reset for new scenario
 
+            mock_position_s2 = MagicMock()
+            mock_position_s2.size = 0
+            mock_broker_instance.get_position_by_symbol.return_value = mock_position_s2
             mock_broker_instance.get_balance.return_value = default_cash_max_per_trade * 2 # e.g., 60000
             mock_broker_instance.get_last_price.return_value = 10 # Price per unit
             buy_list_s2 = [DEFAULT_TEST_TICKER]

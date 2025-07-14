@@ -287,7 +287,7 @@ class DataProvider:
                 # record we wait.
                 flag_wait = True
                 # sleep 10m
-                dbg_info(f"[{datetime.now()}] Wiat for another 10 Minutes got get require quota(require_quota/{self.get_quota()}).", prefix='\r', end=' ' * 10)
+                dbg_info(f"[{datetime.now()}] Wiat for another 10 Minutes got get require quota({require_quota}/{self.get_quota()}).", prefix='\r', end=' ' * 10)
                 sleep(10*60)
             except Exception as e:
                 raise e
