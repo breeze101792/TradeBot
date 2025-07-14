@@ -1,15 +1,14 @@
 import traceback
 import pandas as pd
-import os
 import uuid
 from datetime import datetime
 from tabulate import tabulate
 
 from utility.debug import *
-from core.config import AppConfigManager
+from trading.tradedata import Database
+from broker.brokermanager import BrokerManager
 
 from broker.order.constant import OrderAction
-from broker.brokermanager import BrokerManager
 
 # Trade instance for each trade with symbol(Product).
 # A Trade object represents a full deal, which can contain multiple transactions.
@@ -54,25 +53,73 @@ class Trade:
 # record trading with Trade.
 class Recorder:
     """
-    Records all trades and saves them to a file.
+    Records all trades into database.
     """
-    trades = []
-    _loaded = False
-
-    def __init__(self, record_file_path: str = ''):
-        if not record_file_path:
-            recorder_file_name = 'trading_record.csv'
-            if BrokerManager.broker_path is None:
-                dbg_error(f"Broker path is None, please do broker manager init befreo using it. Store on current folder.")
-                self.record_file = os.path.join('./', recorder_file_name)
-            else:
-                self.record_file = os.path.join(BrokerManager.broker_path, recorder_file_name)
+    def __init__(self, data_path: str = ''):
+        """
+        Initializes the Recorder. The record_file_path is ignored and kept for compatibility.
+        """
+        if data_path != '':
+            self.db = Database(data_path)
         else:
-            self.record_file = record_file_path
-        
-        if not Recorder._loaded:
-            self.load_records()
-            Recorder._loaded = True
+            broker_path = './'
+            if BrokerManager.broker_path is not None:
+                broker_path = BrokerManager.broker_path
+            self.db = Database(os.path.join(broker_path, 'trade.db'))
+
+        self.db.connect()
+        self.db.setup()
+    def __finalize__(self):
+        self.db.close()
+
+    def get_open_trades(self, symbol: str = None) -> list['Trade']:
+        """
+        Retrieves all open trades, optionally filtered by symbol.
+        An open trade is one where the sum of bought sizes is greater than the sum of sold sizes.
+        """
+        open_trades_info = self.db.get_open_trades_info(symbol)
+        if not open_trades_info:
+            return []
+
+        open_trade_ids = [row[0] for row in open_trades_info]
+        open_trades_map = {row[0]: {'symbol': row[1], 'strategy': row[2]} for row in open_trades_info}
+
+        transactions_list = self.db.get_transactions_for_trades(open_trade_ids)
+        transactions_df = pd.DataFrame(
+            transactions_list,
+            columns=['trade_id', 'action', 'price', 'size', 'timestamp', 'commission']
+        )
+
+        reconstructed_trades = []
+        for trade_id, trade_info in open_trades_map.items():
+            trade_transactions = transactions_df[transactions_df['trade_id'] == trade_id]
+            if trade_transactions.empty:
+                continue
+
+            first_trans = trade_transactions.iloc[0]
+            trade = Trade(
+                symbol=trade_info['symbol'],
+                action=OrderAction[first_trans['action']],
+                price=first_trans['price'],
+                size=first_trans['size'],
+                timestamp=first_trans['timestamp'],
+                commission=first_trans['commission'],
+                strategy=trade_info['strategy']
+            )
+            trade.trade_id = trade_id
+
+            for _, trans_row in trade_transactions.iloc[1:].iterrows():
+                trade.add_transaction(
+                    action=OrderAction[trans_row['action']],
+                    price=trans_row['price'],
+                    size=trans_row['size'],
+                    timestamp=trans_row['timestamp'],
+                    commission=trans_row['commission']
+                )
+            
+            reconstructed_trades.append(trade)
+            
+        return reconstructed_trades
 
     def get_records(self, symbol: str) -> list['Trade']:
         """
@@ -84,24 +131,29 @@ class Recorder:
         Returns:
             A list of open Trade objects for the specified symbol.
         """
-        return [t for t in Recorder.trades if t.symbol == symbol and t.is_open]
+        return self.get_open_trades(symbol)
+
     def add_record(self, symbol: str, action: OrderAction, price: float, size: float, timestamp: int, commission: float = 0.0, strategy: str = ''):
         """Adds a new transaction record. It will either be added to an existing open trade
         for the same symbol or a new trade will be created."""
-        open_trade = next((t for t in Recorder.trades if t.symbol == symbol and t.is_open), None)
+        open_trades = self.get_open_trades(symbol)
+        open_trade = open_trades[0] if open_trades else None
 
         if open_trade:
             if strategy and open_trade.strategy != strategy:
                 dbg_warning(f"Strategy changed for open trade {open_trade.trade_id}. "
                             f"Original: '{open_trade.strategy}', New: '{strategy}'. "
                             f"The original strategy will be kept.")
-            open_trade.add_transaction(action, price, size, timestamp, commission)
+            
+            self.db.insert_transaction(open_trade.trade_id, action, price, size, timestamp, commission)
+            open_trade.add_transaction(action, price, size, timestamp, commission) # update in-memory object for logging
             if not open_trade.is_open:
                 dbg_info(f"Closed trade for {symbol}. Trade ID: {open_trade.trade_id}")
         else:
             if action == OrderAction.BUY:
                 new_trade = Trade(symbol, action, price, size, timestamp, commission, strategy)
-                Recorder.trades.append(new_trade)
+                self.db.insert_trade(new_trade.trade_id, new_trade.symbol, new_trade.strategy)
+                self.db.insert_transaction(new_trade.trade_id, action, price, size, timestamp, commission)
                 dbg_info(f"Opened new trade for {symbol}. Trade ID: {new_trade.trade_id}")
             else:
                 # This could be a short sale, but for now we'll assume it's an error if no open long position exists.
@@ -109,111 +161,61 @@ class Recorder:
                 return
 
         self.show_records(symbol=symbol)
-        self.save_records()
-
-    def save_records(self):
-        """Saves all transactions from all trades to a CSV file."""
-        if not Recorder.trades:
-            return
-
-        try:
-            all_transactions = []
-            for trade in Recorder.trades:
-                for transaction in trade.transactions:
-                    record = transaction.copy()
-                    record['trade_id'] = trade.trade_id
-                    record['symbol'] = trade.symbol
-                    record['strategy'] = trade.strategy
-                    record['action'] = record['action'].name
-                    record['datetime'] = datetime.fromtimestamp(record['timestamp'] / 1000).strftime('%Y-%m-%d %H:%M:%S')
-                    all_transactions.append(record)
-
-            if not all_transactions:
-                return
-
-            df = pd.DataFrame(all_transactions)
-            # Reorder columns for clarity
-            cols = ['trade_id', 'symbol', 'strategy', 'action', 'price', 'size', 'timestamp', 'datetime', 'commission']
-            df = df[[c for c in cols if c in df.columns]]
-
-            record_dir = os.path.dirname(self.record_file)
-            if record_dir and not os.path.exists(record_dir):
-                os.makedirs(record_dir)
-
-            df.to_csv(self.record_file, index=False)
-            dbg_info('Trade records saved to ' + self.record_file)
-        except Exception as e:
-            dbg_error(f"Error saving trade records to {self.record_file}: {e}")
-            dbg_error(traceback.format_exc())
-
-
-    def load_records(self):
-        """Loads trade records from a CSV file and reconstructs trades."""
-        if not os.path.exists(self.record_file):
-            dbg_warning(f"Record file not found: {self.record_file}")
-            return
-
-        try:
-            df = pd.read_csv(self.record_file)
-            if df.empty:
-                dbg_info(f"Record file is empty: {self.record_file}")
-                return
-
-            # Replace NaN values for optional fields
-            df.fillna({'commission': 0.0, 'strategy': ''}, inplace=True)
-
-            # Group transactions by trade_id to reconstruct trades
-            trades_map = {}
-            # Sort by timestamp to process transactions in order
-            df.sort_values(by='timestamp', inplace=True)
-
-            for _, row in df.iterrows():
-                if pd.isna(row.get('trade_id')) or pd.isna(row['symbol']) or pd.isna(row['action']) or pd.isna(row['price']) or pd.isna(row['size']) or pd.isna(row['timestamp']):
-                    dbg_warning(f"Skipping row with missing essential data: {row.to_dict()}")
-                    continue
-
-                trade_id = row['trade_id']
-                if trade_id not in trades_map:
-                    # Create a new Trade object for the first transaction of a deal
-                    trade = Trade(
-                        symbol=row['symbol'],
-                        action=OrderAction[row['action']],
-                        price=float(row['price']),
-                        size=float(row['size']),
-                        timestamp=int(row['timestamp']),
-                        commission=float(row['commission']),
-                        strategy=row['strategy']
-                    )
-                    trade.trade_id = trade_id # Preserve original trade_id
-                    trades_map[trade_id] = trade
-                else:
-                    # Add subsequent transactions to the existing trade
-                    trades_map[trade_id].add_transaction(
-                        action=OrderAction[row['action']],
-                        price=float(row['price']),
-                        size=float(row['size']),
-                        timestamp=int(row['timestamp']),
-                        
-                        commission=float(row['commission'])
-                    )
-
-            Recorder.trades = list(trades_map.values())
-            dbg_info(f"Loaded {len(Recorder.trades)} trades from {self.record_file}")
-        except Exception as e:
-            dbg_error(f"Error loading trade records from {self.record_file}: {e}")
-            dbg_error(traceback.format_exc())
+    
     def show_records(self, symbol: str = None):
         """Displays the recorded trades and transactions in a tabular format.
         If a symbol is provided, only shows records for that symbol."""
-        if not Recorder.trades:
+        
+        trades_info = self.db.get_trades_info(symbol)
+
+        if not trades_info:
             print("No trade records to show.")
             return
 
-        trades_to_show = Recorder.trades
-        if symbol:
-            trades_to_show = [t for t in Recorder.trades if t.symbol == symbol]
+        trades_df = pd.DataFrame(trades_info, columns=['trade_id', 'symbol', 'strategy'])
+        trade_ids = [row['trade_id'] for index, row in trades_df.iterrows()]
 
-        if not trades_to_show:
+        if not trade_ids:
+            if symbol:
+                print(f"No trade records found for symbol: {symbol}")
+            else:
+                print("No trade records to show.")
+            return
+
+        transactions_list = self.db.get_transactions_for_trades(trade_ids)
+        transactions_df = pd.DataFrame(transactions_list, columns=['trade_id', 'action', 'price', 'size', 'timestamp', 'commission'])
+
+        # Reconstruct trades to calculate is_open and current_size
+        all_trades = []
+        for _, trade_row in trades_df.iterrows():
+            trade_id = trade_row['trade_id']
+            trade_transactions = transactions_df[transactions_df['trade_id'] == trade_id]
+            if trade_transactions.empty:
+                continue
+
+            first_trans = trade_transactions.iloc[0]
+            trade = Trade(
+                symbol=trade_row['symbol'],
+                action=OrderAction[first_trans['action']],
+                price=first_trans['price'],
+                size=first_trans['size'],
+                timestamp=first_trans['timestamp'],
+                commission=first_trans['commission'],
+                strategy=trade_row['strategy']
+            )
+            trade.trade_id = trade_id
+
+            for _, trans_row in trade_transactions.iloc[1:].iterrows():
+                trade.add_transaction(
+                    action=OrderAction[trans_row['action']],
+                    price=trans_row['price'],
+                    size=trans_row['size'],
+                    timestamp=trans_row['timestamp'],
+                    commission=trans_row['commission']
+                )
+            all_trades.append(trade)
+
+        if not all_trades:
             if symbol:
                 print(f"No trade records found for symbol: {symbol}")
             else:
@@ -223,7 +225,7 @@ class Recorder:
         print("\n--- Trades Summary ---")
         headers = ["Trade ID", "Symbol", "Strategy", "Is Open", "Current Qty", "Transactions"]
         table_data = []
-        for t in trades_to_show:
+        for t in all_trades:
             table_data.append([t.trade_id, t.symbol, t.strategy, t.is_open, t.current_size, len(t.transactions)])
         print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
@@ -231,7 +233,7 @@ class Recorder:
         transaction_headers = ["Trade ID", "Symbol", "Strategy", "Action", "Price", "size", "Datetime", "commission"]
         transaction_data = []
         # Sort trades by the timestamp of their first transaction for chronological order
-        for trade in sorted(trades_to_show, key=lambda x: x.transactions[0]['timestamp']):
+        for trade in sorted(all_trades, key=lambda x: x.transactions[0]['timestamp']):
             for t in trade.transactions:
                 transaction_data.append([
                     trade.trade_id,
