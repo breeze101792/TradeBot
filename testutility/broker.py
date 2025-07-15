@@ -9,6 +9,7 @@ import contextlib # New import for redirecting stdout
 from unittest.mock import patch, MagicMock # New imports for mocking
 from typing import Optional
 
+from core.config import AppConfigManager
 from utility.debug import dbg_info, dbg_warning, dbg_error, dbg_trace
 from broker.brokermanager import BrokerManager, Position # Assuming Position is also relevant
 from broker.order.event import Event
@@ -44,6 +45,10 @@ def _setup_test_broker_manager(test_name: str, initial_cash=1000000.0, commissio
             os.remove(actual_state_filepath)
         if os.path.exists(actual_transaction_log_path):
             os.remove(actual_transaction_log_path)
+
+    # adjust config, > 10 * 1000
+    cfgmgr = AppConfigManager()
+    cfgmgr.set('stock.cash_max_per_trade', 100000)
 
     dbg_trace(f"Initializing BrokerManager for test '{test_name}' with state: {actual_state_filepath}, transactions: {actual_transaction_log_path}")
     BrokerManager.initialize(
@@ -470,7 +475,7 @@ def test_transaction_logging(test_id: str) -> bool:
     dbg_info("--- Running Test: Transaction Logging ---")
     _setup_test_broker_manager(test_name=test_id)
     broker = BrokerManager()
-    tx_log_path = broker.transaction_log_path
+    tx_log_path = broker.transaction_mgr.transaction_log_path
     try:
         broker.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.BUY, 10, None)
         broker.place_order(DEFAULT_BROKER_TEST_TICKER, OrderAction.SELL, 5, None)
@@ -657,7 +662,8 @@ def test_summarize_transactions_with_pnl_and_duration(test_id="pnl_duration") ->
             # For this test, we only simulate successful fills.
             return order_tracker # Explicitly return None as BrokerManager.place_order does not return anything.
 
-        with patch('broker.brokermanager.datetime', wraps=datetime) as mock_dt, \
+        with patch('broker.transaction.datetime', wraps=datetime) as mock_dt, \
+                patch('broker.brokermanager.datetime', new=mock_dt), \
                 patch.object(broker_manager.broker, 'get_last_price', side_effect=lambda s, price_type: mock_market_prices.get(s, 0.0)), \
                 patch.object(broker_manager.broker, 'place_order', side_effect=_mock_broker_place_order_side_effect):
             

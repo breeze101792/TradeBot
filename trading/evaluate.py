@@ -350,7 +350,7 @@ class Evaluate:
 
                 # if open_trade and open_trade.symbol == symbol:
                 if open_trade:
-                    dbg_info(f"Found open trade for {symbol} in recorder. Using recorded data.{open_trade}")
+                    dbg_debug(f"Found open trade for {symbol} in recorder. Using recorded data.{open_trade}")
                     strategy_name = open_trade.strategy if open_trade.strategy else strategy_name
 
                     # Construct order_history from all buy transactions in the trade
@@ -369,9 +369,9 @@ class Evaluate:
 
                 else:
                     if open_trade is not None:
-                        dbg_info(f"No open trade for {symbol}/{open_trade.symbol} in recorder. Using data from broker.")
+                        dbg_warning(f"No open trade for {symbol}/{open_trade.symbol} in recorder. Using data from broker.")
                     else:
-                        dbg_info(f"No open trade for {symbol} in recorder. Using data from broker.")
+                        dbg_warning(f"No open trade for {symbol} in recorder. Using data from broker.")
                 
                 if order_history is None:
                     # Fallback or default order history if not created from recorder
@@ -435,7 +435,7 @@ class Evaluate:
                     'action': trade_info.get('action', 'None'), # Sell the position size strategy decided.
                     'entry_price':purchase_price,
                     'last_price': last_price, 
-                    'realtime_pl': (last_price/purchase_price - 1) * 100 , 
+                    'realtime_pl': (last_price/purchase_price - 1) * 100 if last_price is not None else None, 
                     'hoding_size': position_size, # current holding position size
                     'selling_price': trade_info.get('price', 0.0), # Target sell price from strategy (might be indicative)
                     'selling_size': trade_info.get('size', 0), # Sell the position size strategy decided.
@@ -483,9 +483,9 @@ class Evaluate:
                     f"{result.get('selling_size', 0)}",
                     result.get('strategy').NAME if result.get('strategy') else 'N/A'
                 ])
-            dbg_info("\n--- Selling Evaluation Results ---")
-            dbg_info("\n" + tabulate(table_data, headers=headers, tablefmt="grid"))
-            dbg_info("----------------------------------")
+            print("\n--- Selling Evaluation Results ---")
+            print("\n" + tabulate(table_data, headers=headers, tablefmt="grid"))
+            print("----------------------------------")
         else:
             dbg_info("No selling evaluation results to display.")
 

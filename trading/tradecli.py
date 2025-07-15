@@ -34,7 +34,7 @@ class TDCLI(CommandLineInterface):
         register_commands(self)
         self.regist_cmd("trade", self.cmd_trade, description="Setting trading actions", arg_list = ['buy', 'sell', 'enable', 'disable', 'status'], group='admin')
         self.regist_cmd("positons", self.cmd_positions, description=f"show positions.", arg_list = ['show'], group='trade')
-        self.regist_cmd("transactions", self.cmd_transactions, description="show transaction.", group='tools')
+        self.regist_cmd("transactions", self.cmd_transactions, description="show transaction.", arg_list=['year', 'month', 'week', 'day'], group='tools')
         self.regist_cmd("backtest", self.cmd_backtest, description="Enter backtest cli.", group='tools')
 
     def cmd_trade(self, args):
@@ -95,8 +95,10 @@ class TDCLI(CommandLineInterface):
                 trade_broker.summarize_transactions('month')
             elif args['1'] == 'week':
                 trade_broker.summarize_transactions('week')
+            elif args['1'] == 'day':
+                trade_broker.summarize_transactions('day')
         else:
-            trade_broker.summarize_transactions('year')
+            trade_broker.summarize_transactions('day')
 
         return True
 

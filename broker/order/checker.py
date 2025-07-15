@@ -1,5 +1,6 @@
 from core.config import AppConfig
 from broker.order.constant import OrderAction
+from utility.debug import * # Replace standard logging with custom debug system
 
 # It's a unify size/price checker, this check is for safty reson.
 # Always do it before place order. This is the 2nd safty.
