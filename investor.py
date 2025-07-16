@@ -9,11 +9,14 @@ from git import Repo
 
 # Local file
 from utility.debug import *
+
 from core.core import *
 from core.config import *
-from market.market import *
 from backtest.btcli import *
 from testutility.testcli import *
+from simulate.simulatecli import SimulateCLI
+
+from market.market import *
 
 def setup_matplot():
 
@@ -43,16 +46,17 @@ def main():
         dest="product_list", nargs='+',
         help="Specify product id. ")
 
-    # trading mode
-    parser.add_argument("-m", "--trade-mode", action="store",
-        dest="trading_mode", default="trade",
-        choices=['backtest', 'trade', 'test'],
-        help="Trading mode")
-
+    # broker
     parser.add_argument("--broker", action="store",
         dest="broker_type", default="mock",
         choices=['mock', 'shioaji'],
         help="Select broker for trading, default use mock broker.")
+
+    # trading mode
+    parser.add_argument("-m", "--trade-mode", action="store",
+        dest="trading_mode", default="trade",
+        choices=['backtest', 'test', 'trade', 'simulate'],
+        help="Trading mode")
 
     # Shortcut flag for backtest mode
     parser.add_argument("-b", "--backtest", action="store_const",
@@ -63,6 +67,11 @@ def main():
     parser.add_argument("-t", "--test", action="store_const",
         dest="trading_mode", const="test", # Set trading_mode to 'test' if -t is used
         help="Shortcut to enable test mode (equivalent to -m test)")
+
+    # Shortcut flag for simulate mode
+    parser.add_argument("-s", "--simulate", action="store_const",
+        dest="trading_mode", const="simulate",
+        help="Shortcut to enable simulate mode (equivalent to -m simulate)")
 
     # enable debug all
     # DebugSetting.setDbgLevel('all')
@@ -79,16 +88,20 @@ def main():
     args = parser.parse_args()
     # DebugSetting.setDbgLevel("all")
     if args.develoment:
-        dbg_warning('Enable development mode')
+        dbg_info(f'Enable {args.trading_mode} mode.')
         cm.set('path.broker', "broker_development")
         cm.set('debug.development', True)
     elif args.trading_mode == 'test':
-        dbg_warning('Enable development mode')
+        dbg_info(f'Enable {args.trading_mode} mode.')
         cm.set('path.broker', "broker_test")
         cm.set('debug.development', True)
     elif args.trading_mode == 'backtest':
-        dbg_warning('Enable development mode')
+        dbg_info(f'Enable {args.trading_mode} mode.')
         cm.set('path.broker', "broker_development")
+        cm.set('debug.development', True)
+    elif args.trading_mode == 'simulate':
+        dbg_info(f'Enable {args.trading_mode} mode.')
+        cm.set('path.broker', "simulate")
         cm.set('debug.development', True)
     else:
         ans = input("!!! It's a NOT in development mode, are you sure you want to proceed? (yes/No):")
@@ -129,6 +142,9 @@ def main():
             raise
         finally:
             core.finalize()
+    elif args.trading_mode == "simulate":
+        simulatecli = SimulateCLI()
+        simulatecli.run()
     elif args.trading_mode == "backtest":
         btcli = BTCLI()
         btcli.run()

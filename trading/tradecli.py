@@ -20,8 +20,8 @@ from trading.trading import Trading
 from trading.traderecord import Recorder
 
 class TDCLI(CommandLineInterface):
-    def __init__(self):
-        super().__init__(promote='TDCLI')
+    def __init__(self, promote = 'TDCLI'):
+        super().__init__(promote=promote)
 
         ## Vars
         self.market = Market()

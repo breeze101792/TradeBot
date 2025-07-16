@@ -540,6 +540,7 @@ class Core:
         return True
 
     def initialize(self, broker_type = "mock"):
+        # NOTE. this functon need to sync with simulate.initialize
         dbg_info('Core start initialize.')
         try:
             self.cm = AppConfigManager()

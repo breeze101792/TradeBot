@@ -154,14 +154,44 @@ class DataProvider:
         today = datetime.now().date()
         last_trading_day = self.get_last_trading_update_date()
 
+        base_datas_path = os.path.join(self.cache_data_root_path, self.cache_data_name, 'datas')
         data_cache_folder = ""
+
         if self.SUPPORTED_ADJUSTED_DATA is True:
             today_str = last_trading_day.strftime('%Y%m%d')
-            data_cache_folder = os.path.join(self.cache_data_root_path, self.cache_data_name, 'datas', today_str)
-        else:
-            data_cache_folder = os.path.join(self.cache_data_root_path, self.cache_data_name, 'datas')
+            
+            # Find the newest available data folder
+            actual_folder_to_use_str = today_str # Start with today's expected folder
+            
+            if os.path.exists(os.path.join(base_datas_path, actual_folder_to_use_str)):
+                # if the day exist we use it.
+                pass
+            elif os.path.exists(base_datas_path):
+                all_data_folders = [d for d in os.listdir(base_datas_path) if os.path.isdir(os.path.join(base_datas_path, d))]
+                
+                date_folders = []
+                for folder_name in all_data_folders:
+                    try:
+                        # Validate it's a date string (YYYYMMDD)
+                        datetime.strptime(folder_name, '%Y%m%d') 
+                        date_folders.append(folder_name)
+                    except ValueError:
+                        # Not a date folder, ignore
+                        pass
+                
+                if date_folders:
+                    latest_cached_date_str = max(date_folders)
+                    
+                    # If the latest cached date is newer than the current last_trading_day, use it
+                    if latest_cached_date_str > actual_folder_to_use_str:
+                        actual_folder_to_use_str = latest_cached_date_str
+                        dbg_debug(f"Using newer adjusted data folder: {actual_folder_to_use_str}")
 
-        ticker_local_path = f"{data_cache_folder}"
+            data_cache_folder = os.path.join(base_datas_path, actual_folder_to_use_str)
+        else:
+            data_cache_folder = base_datas_path # This is the path for non-adjusted data
+
+        ticker_local_path = data_cache_folder
         ticker_local_file = product_id.__str__() + ".csv"
 
         # Convert start_date and end_date to datetime.date objects if they are not None
