@@ -245,7 +245,7 @@ class BrokerManager:
             dbg_info(f"Initialized MockBroker via BrokerManager. Cash: ${initial_cash:,.2f}, Commission Rate: ${commission_rate:.2f}")
         elif broker_type == 'shioaji':
             # Extract relevant kwargs for ShioajiBroker, providing defaults if not present
-            # Current we only enable simulation use.
+            # Current we only run on simulation mode.
             # simulation = kwargs.get('simulation', False)
             simulation = True
             BrokerManager.broker_path = os.path.join(cfg_mgr.get_path('broker'), f'{broker_type}')

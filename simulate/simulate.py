@@ -13,12 +13,23 @@ from utility.debug import *
 from core.config import *
 from trading.trading import Trading
 from broker.brokermanager import BrokerManager
+from trading.traderecord import Recorder
 
 class Simulate(threading.Thread):
-    def __init__(self, start_time: datetime = None, end_time: datetime = None):
+    def __init__(self, start_time: datetime = None, end_time: datetime = None, product_list: list = None):
         super().__init__()
         self.daemon = True  # Daemonize the thread
         self._is_running = True
+
+        # vars
+        self.trading = None
+        self.broker_manager = None
+
+        # simulate vars
+        if product_list is None:
+            self._product_list = ['2330']
+        else:
+            self._product_list = product_list
 
         # settings
         self.broker_type = 'mock'
@@ -56,6 +67,19 @@ class Simulate(threading.Thread):
     def end_time(self, value: datetime):
         """Set the simulation end time."""
         self._end_time = value.replace(hour=10, minute=0, second=0, microsecond=0)
+    
+    @property
+    def product_list(self) -> list:
+        """Get the list of products for simulation."""
+        return self._product_list
+
+    @product_list.setter
+    def product_list(self, value: list):
+        """Set the list of products for simulation."""
+        if not isinstance(value, list):
+            raise ValueError("product_list must be a list.")
+        self._product_list = value
+    
     def prepare(self):
         cfg_mgr = AppConfigManager()
         broker_path = os.path.join(cfg_mgr.get_path('broker'), f'{self.broker_type}')
@@ -69,11 +93,11 @@ class Simulate(threading.Thread):
                 dbg_info(f"Removed existing broker directory: {broker_path}")
 
     def initialize(self):
-        # NOTE. this functon need to sync with core.initialize
-        BrokerManager.initialize(broker_type = self.broker_type)
-        # self.broker_manager = BrokerManager()
+        # NOTE. this functon need to sync with core.initialize, and enable simulation
+        BrokerManager.initialize(broker_type = self.broker_type, simulation=True)
+        self.broker_manager = BrokerManager()
         # self.market = Market()
-        # self.trading = Trading()
+        self.trading = Trading()
 
         dbg_info('Before simulation, please check the initialize is correct.')
     def run(self):
@@ -87,7 +111,7 @@ class Simulate(threading.Thread):
         # env setup
         self.prepare()
         self.initialize()
-        trading = Trading()
+        recorder = Recorder()
 
         # Start simulation from the specified start_time
         with freeze_time(self.start_time) as frozen_time:
@@ -95,20 +119,25 @@ class Simulate(threading.Thread):
                 dbg_info(f"simulation loop. Current time: {datetime.now()}")
                 #############################################################
                 # buying eval .
-                buying_list = trading.trading_eval()
+                buying_list = self.trading.trading_eval(product_list = self.product_list)
                 if len(buying_list) > 0:
                     dbg_info(f'Executing buying orders: {buying_list}')
-                    trading.buying_exec(buying_list)
+                    self.trading.buying_exec(buying_list)
                 else:
                     dbg_info('No buying actions triggered in this interval.')
 
                 # selling eval .
-                selling_list = trading.selling_eval()
+                selling_list = self.trading.selling_eval()
                 if len(selling_list) > 0:
                     dbg_info(f'Executing selling orders: {selling_list}')
-                    trading.selling_exec(selling_list) # Corrected: use selling_list
+                    self.trading.selling_exec(selling_list) # Corrected: use selling_list
                 else:
                     dbg_info('No selling actions triggered in this interval.')
+
+                # show summary.
+                self.broker_manager.summarize_positions()
+                # self.broker_manager.summarize_transactions()
+                recorder.show_records()
 
                 #############################################################
                 time.sleep(loop_interval)

@@ -33,15 +33,17 @@ class Evaluate:
 
         self.cm = AppConfigManager()
 
-    def __buy_find_candidate(self):
+    def __buy_find_candidate(self, product_list = None):
 
         candidate_dict = dict()
 
-        product_list = self.market.get_data_list()
+        if product_list is None:
+            product_list = self.market.get_data_list()
+            dbg_info(f"Use all products form market.")
 
         last_trading_day = MarketTime.get_previous_market_update_time()
 
-        dbg_info(f"Last Trad date {last_trading_day}")
+        dbg_info(f"Find product on {last_trading_day} with {len(product_list)} products.")
 
         trade_broker = BrokerManager()
         trade_analyzer = Analyzer(self.market)
@@ -193,8 +195,8 @@ class Evaluate:
         dbg_info(f"All {len(candidate_keys)} products are analysed. ", prefix='\n')
 
         return buying_dict
-    def buying_evaluation(self):
-        candidate_dict = self.__buy_find_candidate()
+    def buying_evaluation(self, product_list = None):
+        candidate_dict = self.__buy_find_candidate(product_list = product_list)
 
         buying_dict = self.__buy_filering_profitable_product(candidate_dict)
 

@@ -24,7 +24,7 @@ class MockBroker(BaseBroker):
     A basic simulated broker handling cash, positions, and simple order execution.
     This mimics the interface needed by a backtesting or simple trading system.
     """
-    def __init__(self, initial_cash: float = 1000000.0, commission_rate: float = 0.003, simulation = True, **kargs):
+    def __init__(self, initial_cash: float = 1000000.0, commission_rate: float = 0.003, simulation = False, **kargs):
         """
         Initializes the broker.
 
@@ -281,6 +281,9 @@ class MockBroker(BaseBroker):
             # Update position
             self.positions[symbol].update(action, size, market_price) # Use market_price here
 
+            # before clean up, we print it out.
+            dbg_info(f"Executed SELL: {symbol}, Size: {size}, Price: {market_price:.2f}. New Position: {self.positions[symbol]}")
+
             # Clean up position if size becomes zero
             if self.positions[symbol].size == 0:
                 dbg_debug(f"Position closed for {symbol}. Removing from holdings.")
@@ -288,7 +291,6 @@ class MockBroker(BaseBroker):
 
             # self._state_changed = True
             self._save_position_state() # Save state using the configured filepath
-            dbg_info(f"Executed SELL: {symbol}, Size: {size}, Price: {market_price:.2f}. New Position: {self.positions[symbol]}")
 
         # Create an MockOrder object to report the filled order
         order_instance = MockOrder(
@@ -329,7 +331,35 @@ class MockBroker(BaseBroker):
         A real implementation would fetch this from a market data source.
         """
         try:
-            return self.data_provider.get_current_price(symbol, price_type)
+            if self.simulation is True:
+                dbg_info(f"Running in simulation mode for {symbol}.")
+                # In simulation, get_data returns historical DataFrame.
+                # We need to extract the latest price from it, considering the simulation date.
+                data_df = self.data_provider.get_data(symbol, incremental_update = True)
+                if data_df is not None and not data_df.empty:
+                    # Ensure the index is datetime for proper filtering
+                    if not isinstance(data_df.index, pd.DatetimeIndex):
+                        data_df.index = pd.to_datetime(data_df.index)
+
+                    # Filter out data points that are in the future relative to the current simulation date
+                    filtered_df = data_df[data_df.index.date <= date.today()]
+
+                    if filtered_df.empty:
+                        dbg_warning(f"No historical data found for {symbol} up to {date.today()} in simulation mode.")
+                        return None
+
+                    column_name = 'Close'
+                    if column_name in filtered_df.columns:
+                        return filtered_df[column_name].iloc[-1] # Get the latest price from filtered data
+                    else:
+                        dbg_error(f"Price column '{column_name}' not found in data for {symbol}.")
+                        return None
+                else:
+                    dbg_warning(f"No historical data found for {symbol} in simulation mode.")
+                    return None
+            else:
+                # In real-time, use get_current_price
+                return self.data_provider.get_current_price(symbol, price_type)
         except (KeyError, IndexError, TypeError) as e:
             dbg_error(f"Error retrieving last price for {symbol} from DataFrame: {e}")
             return None # Return None on error
@@ -469,7 +499,7 @@ class MockBroker(BaseBroker):
         """
         Connects the simulated broker. For MockBroker, this means loading the last saved state.
         """
-        dbg_trace(f"Connecting MockBroker: Loading state from {self.state_filepath}...")
+        dbg_info(f"Connecting MockBroker(simulation: {self.simulation}): Loading state from {self.state_filepath}...")
         self._load_position_state() # Load state using the configured filepath
 
     def disconnect(self):

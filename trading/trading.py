@@ -235,11 +235,11 @@ class Trading:
         else:
             dbg_info('ignore selling, len is 0.')
 
-    def trading_eval(self, args = None):
+    def trading_eval(self, args = None, product_list = None):
         trade_eval = Evaluate()
 
         # Buyig evaluation, also override candidate.
-        Trading.BUYING_CANDIDATE = trade_eval.buying_evaluation()
+        Trading.BUYING_CANDIDATE = trade_eval.buying_evaluation(product_list = product_list)
 
         return Trading.BUYING_CANDIDATE
     def selling_eval(self, args = None):
