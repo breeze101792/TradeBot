@@ -7,21 +7,21 @@ from dateutil.relativedelta import relativedelta
 from utility.debug import *
 from utility.cli import *
 
-from trading.tradecli import TDCLI
 from broker.brokermanager import BrokerManager
 from trading.trading import Trading
 from trading.traderecord import Recorder
 from simulate.simulate import Simulate
 from market.market import Market
 
-class SimulateCLI(TDCLI):
+class SimulateCLI(CommandLineInterface):
     def __init__(self):
         super().__init__(promote='SIM')
+
         self.simulate = None
         # Cached simulation settings
-        self._cached_start_time = (datetime.now() - relativedelta(months=1)).replace(hour=10, minute=0, second=0, microsecond=0)
+        self._cached_start_time = (datetime.now() - relativedelta(days=7)).replace(hour=10, minute=0, second=0, microsecond=0)
         self._cached_end_time = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
-        self._cached_product_list = ['2330'] # Default product list
+        self._cached_product_list = None # Default product list
 
         # register commands
         self.regist_cmd("info", self._cmd_info, description="Show simulation information", group='tools')
@@ -31,47 +31,13 @@ class SimulateCLI(TDCLI):
 
         # configs
         self.regist_cmd("test", self._cmd_test, description="Test simulation settings", arg_list = ['single', 'multiple', 't50', 'all'], group='config')
-        self.regist_cmd("date", self._cmd_date, description="Set simulation start and end dates", arg_list = ['from', 'to', 'week', 'month'], group='config')
+        self.regist_cmd("date", self._cmd_date, description="Set simulation start and end dates", arg_list = ['from', 'to', 'week', 'month', 'halfyear', 'year'], group='config')
         self.regist_cmd("product", self._cmd_product, description="Set product list for simulation (e.g., 'product 2330 2331')", arg_list = ['product_id'], group='config')
 
         # trading
         self.regist_cmd("buy", self._cmd_buy, description="Execute a buy order in simulation", group='trading')
         self.regist_cmd("sell", self._cmd_sell, description="Execute a sell order in simulation", group='trading')
 
-    def _cmd_test(self, args):
-        if args['#'] == 1:
-            if args['1'] == 'single':
-                # buy & sell.
-                self._cached_start_time = datetime(2025, 6, 20, 10, 0, 0)
-                self._cached_end_time = datetime(2025, 7, 17, 10, 0, 0)
-                self._cached_product_list = ['6742'] # Default product list
-                self.print(f"Test settings (single) applied: Start={self._cached_start_time}, End={self._cached_end_time}, Products={self._cached_product_list}")
-                return True
-            elif args['1'] == 'multiple':
-                # buy & sell.
-                self._cached_start_time = datetime(2025, 6, 20, 10, 0, 0)
-                self._cached_end_time = datetime(2025, 7, 17, 10, 0, 0)
-                self._cached_product_list = ['6742', '2480', '3661', '6558'] # Default product list
-                self.print(f"Test settings (multiple) applied: Start={self._cached_start_time}, End={self._cached_end_time}, Products={self._cached_product_list}")
-                return True
-            elif args['1'] == 't50':
-                # buy & sell.
-                self._cached_start_time = (datetime.now() - relativedelta(months=6)).replace(hour=10, minute=0, second=0, microsecond=0)
-                self._cached_end_time = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
-                mkt = Market()
-                self._cached_product_list = market.get_top_product_list(50)
-                self.print(f"Test settings (multiple) applied: Start={self._cached_start_time}, End={self._cached_end_time}, Products={self._cached_product_list[:10]}...")
-                return True
-            elif args['1'] == 'all':
-                # buy & sell.
-                # half year.
-                self._cached_start_time = (datetime.now() - relativedelta(months=6)).replace(hour=10, minute=0, second=0, microsecond=0)
-                self._cached_end_time = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
-                mkt = Market()
-                self._cached_product_list = market.get_data_list()
-                self.print(f"Test settings (multiple) applied: Start={self._cached_start_time}, End={self._cached_end_time}, Products={self._cached_product_list[:10]}...")
-                return True
-        return False
     def _cmd_buy(self, args):
         if self.simulate.trading is not None:
             self.simulate.trading.trading_eval
@@ -100,7 +66,7 @@ class SimulateCLI(TDCLI):
             print("Simulation is not running. Cached settings:")
             print(f"  Cached Start Time: {self._cached_start_time}")
             print(f"  Cached End Time: {self._cached_end_time}")
-            print(f"  Cached Product List: {self._cached_product_list}")
+            print(f"  Cached Product List: {self._cached_product_list if self._cached_product_list is not None else 'Using default product list'}")
         return True
 
     def _cmd_start(self, args):
@@ -132,6 +98,41 @@ class SimulateCLI(TDCLI):
             print("Simulation is not running.")
         return True
 
+    def _cmd_test(self, args):
+        if args['#'] == 1:
+            if args['1'] == 'single':
+                # buy & sell.
+                self._cached_start_time = datetime(2025, 6, 20, 10, 0, 0)
+                self._cached_end_time = datetime(2025, 7, 17, 10, 0, 0)
+                self._cached_product_list = ['6742'] # Default product list
+                self.print(f"Test settings (single) applied: Start={self._cached_start_time}, End={self._cached_end_time}, Products={self._cached_product_list}")
+                return True
+            elif args['1'] == 'multiple':
+                # buy & sell.
+                self._cached_start_time = datetime(2025, 6, 20, 10, 0, 0)
+                self._cached_end_time = datetime(2025, 7, 17, 10, 0, 0)
+                self._cached_product_list = ['6742', '2480', '3661', '6558'] # Default product list
+                self.print(f"Test settings (multiple) applied: Start={self._cached_start_time}, End={self._cached_end_time}, Products={self._cached_product_list}")
+                return True
+            elif args['1'] == 't50':
+                # buy & sell.
+                self._cached_start_time = (datetime.now() - relativedelta(months=6)).replace(hour=10, minute=0, second=0, microsecond=0)
+                self._cached_end_time = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
+                mkt = Market()
+                self._cached_product_list = mkt.get_top_product_list(50)
+                self.print(f"Test settings (multiple) applied: Start={self._cached_start_time}, End={self._cached_end_time}, Products(len(self._cached_product_list))={self._cached_product_list[:10]}...")
+                return True
+            elif args['1'] == 'all':
+                # buy & sell.
+                # half year.
+                self._cached_start_time = (datetime.now() - relativedelta(months=6)).replace(hour=10, minute=0, second=0, microsecond=0)
+                self._cached_end_time = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
+                mkt = Market()
+                self._cached_product_list = mkt.get_data_list()
+                self.print(f"Test settings (multiple) applied: Start={self._cached_start_time}, End={self._cached_end_time}, Products(len(self._cached_product_list))={self._cached_product_list[:10]}...")
+                return True
+        return False
+
     def _cmd_date(self, args):
         try:
             if args['#'] == 1:
@@ -139,11 +140,13 @@ class SimulateCLI(TDCLI):
                     self._cached_end_time = datetime.today()
                     self._cached_start_time = datetime.today() - relativedelta(years=int(args['1']))
                 elif args['1'] == 'week':
-                    self._cached_end_time = self._cached_start_time + relativedelta(days=7)
+                    self._cached_start_time = self._cached_end_time - relativedelta(days=7)
                 elif args['1'] == 'month':
-                    self._cached_end_time = self._cached_start_time + relativedelta(days=30)
+                    self._cached_start_time = self._cached_end_time - relativedelta(months=1)
+                elif args['1'] == 'halfyear':
+                    self._cached_start_time = self._cached_end_time - relativedelta(months=6)
                 elif args['1'] == 'year':
-                    self._cached_end_time = self._cached_start_time + relativedelta(years=5)
+                    self._cached_start_time = self._cached_end_time - relativedelta(years=1)
             elif args['#'] == 2:
                 if args['1'] == 'from':
                     if args['2'].isdigit() and int(args['2']) < 100:

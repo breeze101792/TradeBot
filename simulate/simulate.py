@@ -26,10 +26,7 @@ class Simulate(threading.Thread):
         self.broker_manager = None
 
         # simulate vars
-        if product_list is None:
-            self._product_list = ['2330']
-        else:
-            self._product_list = product_list
+        self._product_list = product_list
 
         # settings
         self.broker_type = 'mock'
@@ -76,8 +73,9 @@ class Simulate(threading.Thread):
     @product_list.setter
     def product_list(self, value: list):
         """Set the list of products for simulation."""
-        if not isinstance(value, list):
-            raise ValueError("product_list must be a list.")
+        # could be none, let evaluate.py decide it.
+        # if not isinstance(value, list):
+        #     raise ValueError("product_list must be a list.")
         self._product_list = value
     
     def prepare(self):
@@ -127,6 +125,8 @@ class Simulate(threading.Thread):
                     dbg_info('No buying actions triggered in this interval.')
 
                 # selling eval .
+                # NOTE. only do it daily, it may have the difference between core trading flow.
+                # But it only better?
                 selling_list = self.trading.selling_eval()
                 if len(selling_list) > 0:
                     dbg_info(f'Executing selling orders: {selling_list}')

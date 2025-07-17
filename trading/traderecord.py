@@ -47,6 +47,17 @@ class Trade:
         total_sold = sum(t['size'] for t in self.transactions if t['action'] == OrderAction.SELL)
         return total_bought - total_sold
 
+    def calculate_profit(self) -> float:
+        """Calculates the realized profit for a closed trade."""
+        if self.is_open:
+            return 0.0  # Profit is only realized when the trade is closed
+
+        total_revenue = sum(t['price'] * t['size'] for t in self.transactions if t['action'] == OrderAction.SELL)
+        total_cost = sum(t['price'] * t['size'] for t in self.transactions if t['action'] == OrderAction.BUY)
+        total_commission = sum(t['commission'] for t in self.transactions)
+
+        return total_revenue - total_cost - total_commission
+
     def __repr__(self):
         return f"Trade(trade_id={self.trade_id}, symbol={self.symbol}, size={self.current_size}, is_open={self.is_open})"
 
@@ -223,10 +234,10 @@ class Recorder:
             return
 
         print("\n--- Trades Summary ---")
-        headers = ["Trade ID", "Symbol", "Strategy", "Is Open", "Current Qty", "Transactions"]
+        headers = ["Trade ID", "Symbol", "Strategy", "Is Open", "Current Qty", "Transactions", "Trade Profit"]
         table_data = []
         for t in all_trades:
-            table_data.append([t.trade_id, t.symbol, t.strategy, t.is_open, t.current_size, len(t.transactions)])
+            table_data.append([t.trade_id, t.symbol, t.strategy, t.is_open, t.current_size, len(t.transactions), f"{t.calculate_profit():.2f}"])
         print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
         print("\n--- Transactions ---")
