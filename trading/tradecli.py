@@ -46,8 +46,6 @@ class TDCLI(CommandLineInterface):
                 print(f"selling " + "enable" if Trading.SELLING_IGNORE is False else 'disable')
                 recorder = Recorder()
                 recorder.show_records()
-            else:
-                recorder.show_records(symbol=args['1'])
         elif args['#'] == 2:
             if args['1'] == 'buy':
                 if args['2'] == 'enable':

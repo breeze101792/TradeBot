@@ -83,11 +83,17 @@ class Database(uDatabase):
         query = f"SELECT trade_id, action, price, size, timestamp, commission FROM Transactions WHERE trade_id IN ({trade_ids_str}) ORDER BY timestamp ASC"
         return self.execute(query)
 
-    def get_trades_info(self, symbol: str = None) -> list:
+    def get_trades_info(self, symbol: str = None, strategy: str = None) -> list:
         """
-        Retrieves trade information, optionally filtered by symbol.
+        Retrieves trade information, optionally filtered by symbol and/or strategy.
         """
-        where_clause = f"WHERE symbol = '{symbol}'" if symbol else ""
+        conditions = []
+        if symbol:
+            conditions.append(f"symbol = '{symbol}'")
+        if strategy:
+            conditions.append(f"strategy = '{strategy}'")
+        
+        where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
         trades_query = f"SELECT trade_id, symbol, strategy FROM Trades {where_clause}"
         return self.execute(trades_query)
 

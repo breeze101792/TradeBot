@@ -173,11 +173,12 @@ class Recorder:
 
         self.show_records(symbol=symbol)
     
-    def show_records(self, symbol: str = None):
+    def show_records(self, symbol: str = None, strategy: str = None):
         """Displays the recorded trades and transactions in a tabular format.
-        If a symbol is provided, only shows records for that symbol."""
+        If a symbol is provided, only shows records for that symbol.
+        If a strategy is provided, only shows records for that strategy."""
         
-        trades_info = self.db.get_trades_info(symbol)
+        trades_info = self.db.get_trades_info(symbol, strategy)
 
         if not trades_info:
             print("No trade records to show.")

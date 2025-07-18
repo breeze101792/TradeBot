@@ -43,6 +43,13 @@ class Simulate(threading.Thread):
         else:
             self._end_time = end_time.replace(hour=10, minute=0, second=0, microsecond=0)
 
+        self._simulation_time = self._start_time
+
+    @property
+    def simulation_time(self) -> datetime:
+        """Get the current simulation time."""
+        return self._simulation_time
+
     @property
     def start_time(self) -> datetime:
         """Get the simulation start time."""
@@ -54,6 +61,7 @@ class Simulate(threading.Thread):
         if self._is_running:
             dbg_warning("Changing start_time while simulation is running may not take effect until restart.")
         self._start_time = value.replace(hour=10, minute=0, second=0, microsecond=0)
+        self._simulation_time = self._start_time
 
     @property
     def end_time(self) -> datetime:
@@ -104,7 +112,7 @@ class Simulate(threading.Thread):
         Add the simulation logic here.
         """
         loop_interval = 1
-        dbg_info("Simulation started.")
+        dbg_info("-- Simulation started. --")
 
         # env setup
         self.prepare()
@@ -113,8 +121,11 @@ class Simulate(threading.Thread):
 
         # Start simulation from the specified start_time
         with freeze_time(self.start_time) as frozen_time:
+            self._simulation_time = datetime.now()
             while self._is_running and datetime.now() < self.end_time:
                 dbg_info(f"simulation loop. Current time: {datetime.now()}")
+                # update vars.
+
                 #############################################################
                 # buying eval .
                 buying_list = self.trading.trading_eval(product_list = self.product_list)
@@ -143,11 +154,18 @@ class Simulate(threading.Thread):
                 time.sleep(loop_interval)
                 # Advance time by one day for the next iteration
                 frozen_time.tick(relativedelta(days=1))
+                self._simulation_time = datetime.now()
 
-        dbg_info("Simulation stopped.")
+        dbg_info("-- End of simulation. --")
 
     def stop(self):
         """
         Stops the simulation thread gracefully.
         """
         self._is_running = False
+
+    def time_machine_eval(self, fun_ptr, *args, **kwargs):
+        with freeze_time(self._simulation_time) as frozen_time:
+            dbg_info(f"Time machine eval: {fun_ptr.__name__}")
+            return fun_ptr(*args, **kwargs)
+
