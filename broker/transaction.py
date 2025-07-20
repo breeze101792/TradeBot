@@ -3,13 +3,21 @@ import csv
 from datetime import datetime, timedelta
 from collections import defaultdict
 from tabulate import tabulate
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple # Added Tuple for _parse_transaction_numerics return
 import threading
 import traceback
 
 from utility.debug import dbg_info, dbg_error, dbg_warning, dbg_debug
 from broker.order.constant import OrderAction, OrderPrice
 from broker.brokers.base.basebroker import BaseBroker
+
+
+# import threading
+# import traceback
+
+# from utility.debug import dbg_info, dbg_error, dbg_warning, dbg_debug
+# from broker.order.constant import OrderAction, OrderPrice
+# from broker.brokers.base.basebroker import BaseBroker
 
 class TransactionManager:
     def __init__(self, broker: BaseBroker, lock: threading.Lock, transaction_log_path: str):
@@ -113,27 +121,41 @@ class TransactionManager:
             reader = csv.DictReader(f)
             return list(reader)
 
-    def summarize_transactions(self, duration: Optional[str] = 'day'):
+    def get_summary_data(self, duration: Optional[str] = 'week') -> Dict[str, Any]:
         """
-        Prints a comprehensive summary of transactions, optionally filtered by a time duration.
+        Summarizes transactions, optionally filtered by a time duration, and returns the data.
         It includes overall transaction statistics and per-symbol details (buy/sell volume, P/L).
         If no transactions are found, it will display current positions as the initial state.
 
         Args:
             duration (Optional[str]): An optional filter for transactions.
-                                      Accepted values: 'day', 'month', 'year', 'week'. Defaults to 'day'.
-                                      If None, all historical transactions are summarized.
+                                      Accepted values: 'day', 'month', 'year', 'week', 'all'. Defaults to 'week'.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing:
+                - 'summary_data': List of lists for overall summary table.
+                - 'per_symbol_table_data': List of lists for per-symbol details table.
+                - 'current_positions_data': List of lists for initial positions table (if no transactions).
+                - 'period_display': String describing the current period (e.g., "Last Week").
+                - 'current_duration': The duration string used for filtering.
         """
         transactions = self.get_transactions()
         current_positions = self.broker.get_all_positions()
 
+        period_display = f"Last {duration.capitalize()}" if duration != 'all' else "All Time"
+        current_duration = duration
+
         # Handle case where there are no transactions (potentially initial state from loaded positions)
         if not transactions:
             if not current_positions:
-                print("No transactions recorded and no positions held.")
-                return
+                return {
+                    'summary_data': [],
+                    'per_symbol_table_data': [],
+                    'current_positions_data': [],
+                    'period_display': period_display,
+                    'current_duration': current_duration
+                }
             else:
-                print("\n--- Transactions Summary (No History) ---")
                 summary_data = [
                     ["Time Period", f"Initial State (No Transactions)"],
                     ["Total Transactions", 0],
@@ -142,9 +164,7 @@ class TransactionManager:
                     ["Total Commission", "$0.00"],
                     ["Estimated Profit", "$0.00"]
                 ]
-                print(tabulate(summary_data, tablefmt="grid", stralign="right"))
 
-                print("\n--- Stock Status (Initial) ---")
                 stock_status_data = []
                 for symbol, pos in current_positions.items():
                     try:
@@ -159,24 +179,19 @@ class TransactionManager:
                         f"${current_price:,.2f}"
                     ])
                 
-                if stock_status_data:
-                    print(tabulate(
-                        stock_status_data,
-                        headers=["Symbol", "Status", "Shares", "Avg Entry $", "Mkt Price"],
-                        tablefmt="grid",
-                        stralign="right"
-                    ))
-                else:
-                    # This case should technically not be reached if current_positions is not empty
-                    print("No current positions found despite initial check.")
-                return # Stop processing as there are no transactions
-
-        # --- Original logic continues below if transactions exist ---
+                return {
+                    'summary_data': summary_data,
+                    'per_symbol_table_data': [],
+                    'current_positions_data': stock_status_data,
+                    'period_display': period_display,
+                    'current_duration': current_duration
+                }
 
         # Filter by duration if specified
         now = datetime.now()
         filtered_transactions = transactions # Start with all transactions
-        if duration:
+        cutoff = None
+        if duration and duration != 'all':
             if duration == 'day':
                 cutoff = now - timedelta(days=1)
             elif duration == 'month':
@@ -186,17 +201,50 @@ class TransactionManager:
             elif duration == 'week':
                 cutoff = now - timedelta(days=7)
             else:
-                raise ValueError("Invalid duration. Use 'day', 'month', 'year' or 'week'")
+                raise ValueError("Invalid duration. Use 'day', 'month', 'year', 'week' or 'all'")
             
             filtered_transactions = [t for t in transactions 
                                      if datetime.fromisoformat(t['timestamp']) >= cutoff]
 
         if not filtered_transactions: # No transactions at all, or no transactions for the specified duration
-            if duration:
-                print(f"No transactions found for the specified period ('{duration}').")
+            # If no transactions for the period, but there are current positions, show initial state
+            if current_positions:
+                summary_data = [
+                    ["Period", f"Last {duration}" if duration else "All Time"],
+                    ["Total Txns", 0],
+                    ["Buys", 0],
+                    ["Sells", 0],
+                    ["Total Comm.", "$0.00"],
+                    ["Net P/L", "$0.00"]
+                ]
+                stock_status_data = []
+                for symbol, pos in current_positions.items():
+                    try:
+                        current_price = self.broker.get_last_price(symbol, OrderPrice.LAST)
+                    except Exception:
+                        current_price = 0.0 # Handle error fetching price
+                    stock_status_data.append([
+                        symbol,
+                        "Open", # Mark as Open since it's a current holding
+                        pos.size,
+                        f"${pos.average_entry_price:,.2f}",
+                        f"${current_price:,.2f}"
+                    ])
+                return {
+                    'summary_data': summary_data,
+                    'per_symbol_table_data': [],
+                    'current_positions_data': stock_status_data,
+                    'period_display': period_display,
+                    'current_duration': current_duration
+                }
             else:
-                print(f"No transactions found.")
-            return
+                return {
+                    'summary_data': [],
+                    'per_symbol_table_data': [],
+                    'current_positions_data': [],
+                    'period_display': period_display,
+                    'current_duration': current_duration
+                }
         
         # --- Calculate initial positions at cutoff_date if duration is set ---
         initial_positions_at_cutoff = defaultdict(lambda: {'size': 0, 'total_cost_basis': 0.0})
@@ -207,7 +255,7 @@ class TransactionManager:
             for t_data_raw in transactions: # Use original full list of transactions
                 try:
                     t_timestamp = datetime.fromisoformat(t_data_raw['timestamp'])
-                    if t_timestamp <= cutoff:
+                    if t_timestamp < cutoff: # Strictly less than cutoff for initial state
                         # Parse numerics here to avoid repeated parsing if transaction is used later
                         size_val, price_val, commission_val = self._parse_transaction_numerics(t_data_raw)
                         if size_val is None: continue # Skip malformed
@@ -235,13 +283,11 @@ class TransactionManager:
                 commission = t_data['commission']
                 
                 current_pos_state = initial_positions_at_cutoff[symbol]
-                # TODO, remove initial after check no one use it.
-                # buy/BUY/sell/SELL is for compatiable.
-                if action in [OrderAction.BUY.value, 'initial']:
+                if action == OrderAction.BUY.value or action == 'initial':
                     cost_of_this_buy = (price * size) + commission
                     current_pos_state['total_cost_basis'] += cost_of_this_buy
                     current_pos_state['size'] += size
-                elif action in [OrderAction.SELL.value]:
+                elif action == OrderAction.SELL.value:
                     if current_pos_state['size'] > 0:
                         avg_cost_per_share = current_pos_state['total_cost_basis'] / current_pos_state['size']
                         cost_basis_of_sold_shares = avg_cost_per_share * min(size, current_pos_state['size'])
@@ -253,11 +299,6 @@ class TransactionManager:
                 else:
                     dbg_warning(f"Unkown action: {action}")
         
-        # Check if there's any data to show (either period transactions or initial positions)
-        if not filtered_transactions and not any(p['size'] > 0 for p in initial_positions_at_cutoff.values()):
-            print(f"No transactions or relevant initial positions for the specified period ('{duration}').")
-            return
-
         # --- Aggregate data for symbols active in the period or at its start ---
         symbol_period_details = defaultdict(lambda: {
             'period_buy_volume': 0, 'period_buy_value': 0.0, 'period_buy_commissions': 0.0,
@@ -270,7 +311,7 @@ class TransactionManager:
         # This pnl_tracking_state evolves *during* the period for accurate COGS
         pnl_tracking_state = defaultdict(lambda: {'current_size': 0, 'current_total_cost_basis': 0.0})
 
-        if duration: # Populate with state at cutoff
+        if duration and cutoff: # Populate with state at cutoff
             for symbol, data in initial_positions_at_cutoff.items():
                 if data['size'] > 0:
                     pnl_tracking_state[symbol]['current_size'] = data['size']
@@ -280,10 +321,6 @@ class TransactionManager:
                     _ = symbol_period_details[symbol] 
         
         # Process period transactions (transactions in `filtered_transactions`)
-        # Ensure `filtered_transactions` are sorted by timestamp for correct P/L calculation
-        # `filtered_transactions` already contains parsed numerics if we modify its creation
-        
-        # Re-parse or pre-parse filtered_transactions to include datetime objects and numeric types
         processed_period_transactions = []
         for t_data_raw in filtered_transactions:
             try:
@@ -345,7 +382,7 @@ class TransactionManager:
                 current_pnl_state['current_size'] -= size # Actual size reduction from sell
                 current_pnl_state['current_size'] = max(0, current_pnl_state['current_size'])
                 if current_pnl_state['current_size'] == 0:
-                    current_pnl_state['current_total_cost_basis'] = 0.0
+                    current_pnl_state['total_cost_basis'] = 0.0 # Reset cost basis if position is closed
             
             if details['last_trade_timestamp_in_period'] is None or timestamp > details['last_trade_timestamp_in_period']:
                 details['last_trade_timestamp_in_period'] = timestamp
@@ -360,6 +397,7 @@ class TransactionManager:
         for symbol in sorted(list(active_symbols)): # Sort for consistent table order
             data = symbol_period_details[symbol] # Contains period transaction aggregates and P/L
             
+            # Only include symbols that had actual buy/sell activity in the period
             if data['period_buy_volume'] == 0 and data['period_sell_volume'] == 0:
                 continue
             
@@ -384,7 +422,6 @@ class TransactionManager:
             ])
 
         # Sort per_symbol_table_data by "Net Vol" (index 7) in descending order
-        # x[7] corresponds to net_volume_period
         per_symbol_table_data.sort(key=lambda x: x[7], reverse=True)
 
         # Overall Summary Table
@@ -401,6 +438,64 @@ class TransactionManager:
             ["Net P/L", f"${grand_total_net_pnl_period:,.2f}"]
         ]
 
+        return {
+            'summary_data': summary_data,
+            'per_symbol_table_data': per_symbol_table_data,
+            'current_positions_data': [], # This will be empty if transactions exist, handled by template
+            'period_display': period_display,
+            'current_duration': current_duration
+        }
+
+    def summarize_transactions(self, duration: Optional[str] = 'day'):
+        """
+        Prints a comprehensive summary of transactions, optionally filtered by a time duration.
+        It includes overall transaction statistics and per-symbol details (buy/sell volume, P/L).
+        If no transactions are found, it will display current positions as the initial state.
+
+        Args:
+            duration (Optional[str]): An optional filter for transactions.
+                                      Accepted values: 'day', 'month', 'year', 'week'. Defaults to 'day'.
+                                      If None, all historical transactions are summarized.
+        """
+        # Import tabulate here to keep it out of the main class scope if only used for printing
+        from tabulate import tabulate
+
+        summary_results = self.get_summary_data(duration)
+
+        summary_data = summary_results['summary_data']
+        per_symbol_table_data = summary_results['per_symbol_table_data']
+        current_positions_data = summary_results['current_positions_data']
+        period_display = summary_results['period_display']
+        current_duration = summary_results['current_duration']
+
+        if not summary_data and not per_symbol_table_data and not current_positions_data:
+            if duration:
+                print(f"No transactions or relevant initial positions for the specified period ('{duration}').")
+            else:
+                print(f"No transactions found.")
+            return
+
+        if current_positions_data and not summary_data and not per_symbol_table_data:
+            print("\n--- Transactions Summary (No History) ---")
+            summary_data_for_print = [
+                ["Time Period", f"Initial State (No Transactions)"],
+                ["Total Transactions", 0],
+                ["Buy Orders", 0],
+                ["Sell Orders", 0],
+                ["Total Commission", "$0.00"],
+                ["Estimated Profit", "$0.00"]
+            ]
+            print(tabulate(summary_data_for_print, tablefmt="grid", stralign="right"))
+
+            print("\n--- Stock Status (Initial) ---")
+            print(tabulate(
+                current_positions_data,
+                headers=["Symbol", "Status", "Shares", "Avg Entry $", "Mkt Price"],
+                tablefmt="grid",
+                stralign="right"
+            ))
+            return
+
         print("\n--- Overall Transactions Summary ---")
         print(tabulate(summary_data, tablefmt="grid", stralign="right"))
 
@@ -413,9 +508,9 @@ class TransactionManager:
             print("\n--- Per-Symbol Transaction Details (Period) ---")
             print(tabulate(per_symbol_table_data, headers=headers, tablefmt="grid", stralign="right"))
         else:
-            print("\nNo per-symbol transaction data to display for the period (after considering initial positions).")
+            print(f"\nNo per-symbol transaction data to display for the period ('{period_display}').")
 
-    def _parse_transaction_numerics(self, t_data: Dict[str, str]) -> Optional[tuple[int, float, float]]:
+    def _parse_transaction_numerics(self, t_data: Dict[str, str]) -> Optional[Tuple[int, float, float]]:
         """
         Helper method to safely parse numeric fields (size, price, commission)
         from a raw transaction data dictionary read from CSV.
@@ -425,7 +520,7 @@ class TransactionManager:
                                      where values are typically strings.
 
         Returns:
-            Optional[tuple[int, float, float]]: A tuple containing (size, price, commission)
+            Optional[Tuple[int, float, float]]: A tuple containing (size, price, commission)
                                                 as their respective numeric types if parsing is successful.
                                                 Returns None if any conversion fails or a key is missing.
         """
@@ -441,4 +536,3 @@ class TransactionManager:
         except (ValueError, KeyError) as e:
             dbg_error(f"Skipping transaction due to data conversion/missing key error: {t_data} - {e}")
             return None
-

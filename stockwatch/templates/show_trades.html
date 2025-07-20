@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Trades</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            max-width: 1000px;
+            margin: auto;
+        }
+        h1 {
+            color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Open Trades</h1>
+        <p><a href="/">Go back to Home</a></p>
+        {% if trades %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Trade ID</th>
+                        <th>Symbol</th>
+                        <th>Strategy</th>
+                        <th>Current Qty</th>
+                        <th>Is Open</th>
+                        <th>Transactions</th>
+                        <th>Profit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trade in trades %}
+                        <tr>
+                            <td>{{ trade.trade_id }}</td>
+                            <td>{{ trade.symbol }}</td>
+                            <td>{{ trade.strategy }}</td>
+                            <td>{{ trade.current_size }}</td>
+                            <td>{{ 'Yes' if trade.is_open else 'No' }}</td>
+                            <td>{{ trade.transactions_count }}</td>
+                            <td>{{ trade.profit }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No open trades found.</p>
+        {% endif %}
+    </div>
+</body>
+</html>
+

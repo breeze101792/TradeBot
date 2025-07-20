@@ -1,12 +1,13 @@
 # system file
 import traceback
-import time
+from time import sleep as t_sleep
 import threading
 import shutil
 
-from datetime import datetime
+from datetime import datetime, time # Import time
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
+from freezegun.api import real_datetime # Import real_datetime to get actual time
 
 # Local file
 from utility.debug import *
@@ -20,6 +21,8 @@ class Simulate(threading.Thread):
         super().__init__()
         self.daemon = True  # Daemonize the thread
         self._is_running = True
+        self._is_paused = False # New flag for pausing
+        self._pause_event = threading.Event() # Event to signal pausing
 
         # vars
         self.trading = None
@@ -123,6 +126,38 @@ class Simulate(threading.Thread):
         with freeze_time(self.start_time) as frozen_time:
             self._simulation_time = datetime.now()
             while self._is_running and datetime.now() < self.end_time:
+                current_sim_time = datetime.now() # This is the simulated time
+                current_real_time = real_datetime.now() # This is the actual real time
+
+                # Automatic pause/continue logic for trading hours (Monday-Friday, 9:00-13:30)
+                is_weekday = 0 <= current_real_time.weekday() <= 4 # Monday is 0, Friday is 4
+                
+                trading_start_time = time(9, 0, 0)
+                trading_end_time = time(13, 30, 0)
+                is_within_trading_hours = trading_start_time <= current_real_time.time() < trading_end_time
+
+                data_update_start_time = time(18, 0, 0)
+                data_update_end_time = time(20, 0, 0)
+                is_within_data_update_hours = data_update_start_time <= current_real_time.time() < data_update_end_time
+
+                should_pause = is_weekday and (is_within_trading_hours or is_within_data_update_hours)
+
+                if should_pause:
+                    if not self._is_paused: # Only pause if not already paused
+                        dbg_info(f"Automatically pausing simulation during restricted hours: {current_sim_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                        self.pause()
+                else:
+                    if self._is_paused: # Only continue if currently paused
+                        dbg_info(f"Automatically continuing simulation outside restricted hours: {current_sim_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                        self.continue_simulation()
+
+                # Check if paused (either manually or automatically)
+                if self._is_paused:
+                    dbg_info("Simulation paused. Waiting to continue...")
+                    self._pause_event.wait() # Wait until the event is set
+                    self._pause_event.clear() # Clear the event after resuming
+                    dbg_info("Simulation resumed.")
+
                 dbg_info(f"simulation loop. Current time: {datetime.now()}")
                 # update vars.
 
@@ -163,7 +198,7 @@ class Simulate(threading.Thread):
                     dbg_error(traceback_output)
 
                 #############################################################
-                time.sleep(loop_interval)
+                t_sleep(loop_interval)
                 # Advance time by one day for the next iteration
                 frozen_time.tick(relativedelta(days=1))
                 self._simulation_time = datetime.now()
@@ -175,6 +210,27 @@ class Simulate(threading.Thread):
         Stops the simulation thread gracefully.
         """
         self._is_running = False
+
+    def pause(self):
+        """
+        Pauses the simulation.
+        """
+        if self._is_running:
+            self._is_paused = True
+            dbg_info("Simulation is pausing (it'll take effect on next run.)...")
+        else:
+            dbg_warning("Simulation is not running, cannot pause.")
+
+    def continue_simulation(self):
+        """
+        Continues a paused simulation.
+        """
+        if self._is_paused:
+            self._is_paused = False
+            self._pause_event.set() # Signal to resume
+            dbg_info("Simulation is continuing...")
+        else:
+            dbg_warning("Simulation is not paused, cannot continue.")
 
     def time_machine_eval(self, fun_ptr, *args, **kwargs):
         with freeze_time(self._simulation_time) as frozen_time:

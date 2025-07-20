@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction Summary</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            max-width: 1200px;
+            margin: auto;
+        }
+        h1 {
+            color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .filter-links a {
+            margin-right: 15px;
+            text-decoration: none;
+            color: #007bff;
+            font-weight: bold;
+        }
+        .filter-links a:hover {
+            text-decoration: underline;
+        }
+        .filter-links a.active {
+            color: #0056b3;
+            text-decoration: underline;
+        }
+        .no-data {
+            font-style: italic;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Transaction Summary ({{ period_display }})</h1>
+        <p><a href="/">Go back to Home</a></p>
+
+        <div class="filter-links">
+            Filter by:
+            <a href="/show_transactions?duration=day" class="{{ 'active' if current_duration == 'day' }}">Day</a>
+            <a href="/show_transactions?duration=week" class="{{ 'active' if current_duration == 'week' }}">Week</a>
+            <a href="/show_transactions?duration=month" class="{{ 'active' if current_duration == 'month' }}">Month</a>
+            <a href="/show_transactions?duration=year" class="{{ 'active' if current_duration == 'year' }}">Year</a>
+            <a href="/show_transactions" class="{{ 'active' if current_duration == 'all' }}">All Time</a>
+        </div>
+
+        {% if not summary_data and not per_symbol_table_data and not current_positions_data %}
+            <p class="no-data">No transactions or relevant initial positions found for the specified period.</p>
+        {% elif not summary_data and current_positions_data %}
+            <h2>Transactions Summary (No History)</h2>
+            <table>
+                <thead>
+                    <tr><th>Time Period</th><th>Value</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Total Transactions</td><td>0</td></tr>
+                    <tr><td>Buy Orders</td><td>0</td></tr>
+                    <tr><td>Sell Orders</td><td>0</td></tr>
+                    <tr><td>Total Commission</td><td>$0.00</td></tr>
+                    <tr><td>Estimated Profit</td><td>$0.00</td></tr>
+                </tbody>
+            </table>
+
+            <h2>Stock Status (Initial)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Status</th>
+                        <th>Shares</th>
+                        <th>Avg Entry $</th>
+                        <th>Mkt Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in current_positions_data %}
+                        <tr>
+                            <td>{{ row[0] }}</td>
+                            <td>{{ row[1] }}</td>
+                            <td>{{ row[2] }}</td>
+                            <td>{{ row[3] }}</td>
+                            <td>{{ row[4] }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <h2>Overall Transactions Summary</h2>
+            <table>
+                <thead>
+                    <tr><th>Metric</th><th>Value</th></tr>
+                </thead>
+                <tbody>
+                    {% for row in summary_data %}
+                        <tr>
+                            <td>{{ row[0] }}</td>
+                            <td>{{ row[1] }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            {% if per_symbol_table_data %}
+                <h2>Per-Symbol Transaction Details (Period)</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Buy Vol</th>
+                            <th>Avg Buy $</th>
+                            <th>Buy Cost</th>
+                            <th>Sell Vol</th>
+                            <th>Avg Sell $</th>
+                            <th>Sell Income</th>
+                            <th>Net Vol</th>
+                            <th>Net P/L</th>
+                            <th>Last Trade</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in per_symbol_table_data %}
+                            <tr>
+                                <td>{{ row[0] }}</td>
+                                <td>{{ row[1] }}</td>
+                                <td>{{ row[2] }}</td>
+                                <td>{{ row[3] }}</td>
+                                <td>{{ row[4] }}</td>
+                                <td>{{ row[5] }}</td>
+                                <td>{{ row[6] }}</td>
+                                <td>{{ row[7] }}</td>
+                                <td>{{ row[8] }}</td>
+                                <td>{{ row[9] }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="no-data">No per-symbol transaction data to display for this period.</p>
+            {% endif %}
+        {% endif %}

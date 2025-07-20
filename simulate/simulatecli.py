@@ -40,6 +40,8 @@ Simulation path: {cm.get('path.broker')}
         self.regist_cmd("info", self._cmd_info, description="Show simulation information", group='tools')
         self.regist_cmd("start", self._cmd_start, description="Start the simulation", group='tools')
         self.regist_cmd("stop", self._cmd_stop, description="Stop the simulation", group='tools')
+        self.regist_cmd("pause", self._cmd_pause, description="Pause the simulation", group='tools')
+        self.regist_cmd("continue", self._cmd_continue, description="Continue a paused simulation", group='tools')
 
         # configs
         self.regist_cmd("test", self._cmd_test, description="Apply predefined test simulation settings (e.g., 'test single', 'test t50', 'test all')", arg_list = ['single', 'multiple', 't1', 't50', 'all'], group='config')
@@ -182,6 +184,28 @@ Simulation path: {cm.get('path.broker')}
             print("Simulation stopped.")
         else:
             print("Simulation is not running.")
+        return True
+
+    def _cmd_pause(self, args):
+        """
+        Pauses the simulation.
+        """
+        if self.simulate and self.simulate.is_alive():
+            self.simulate.pause()
+            print("Simulation paused.")
+        else:
+            print("Simulation is not running or already paused.")
+        return True
+
+    def _cmd_continue(self, args):
+        """
+        Continues a paused simulation.
+        """
+        if self.simulate and self.simulate.is_alive():
+            self.simulate.continue_simulation()
+            print("Simulation continued.")
+        else:
+            print("Simulation is not running or not paused.")
         return True
 
     def _cmd_date(self, args):
