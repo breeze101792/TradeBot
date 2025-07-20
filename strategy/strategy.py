@@ -28,10 +28,11 @@ class StrategyManager:
         ## Official strategy
         # adjust for win rate/profit.
         self.register_strategy(MovingAverageCrossoverStrategy, level=self.Level.OFFICIAL)
-        self.register_strategy(BreakoutMomentumStrategy, level=self.Level.OFFICIAL)
-        self.register_strategy(RelativeStrengthIndexStrategy, level=self.Level.OFFICIAL)
 
         ## Beta strategy
+        self.register_strategy(BreakoutMomentumStrategy, level=self.Level.BETA)
+        self.register_strategy(RelativeStrengthIndexStrategy, level=self.Level.BETA)
+
         self.register_strategy(BollingerMeanReversionStrategy, level=self.Level.BETA)
 
         # Moving average.

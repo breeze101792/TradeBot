@@ -292,7 +292,7 @@ class BasicStrategy(bt.Strategy):
 
         if self.trading_date is not None:
             if self.trading_date != self.datas[0].datetime.date(0):
-                dbg_error(f"Trading date mismatch. Expected: {self.trading_date}, Got: {self.datas[0].datetime.date(0)}")
+                dbg_error(f"[{self.datas[0]._name}]Trading date mismatch. Expected: {self.trading_date}, Got: {self.datas[0].datetime.date(0)}. Full data: {self.datas[0]}")
                 raise ValueError("Trading date mismatch during strategy start.")
 
         if self.initial_order_history is None or len(self.initial_order_history) == 0:

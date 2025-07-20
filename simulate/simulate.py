@@ -128,27 +128,39 @@ class Simulate(threading.Thread):
 
                 #############################################################
                 # buying eval .
-                buying_list = self.trading.trading_eval(product_list = self.product_list)
-                if len(buying_list) > 0:
-                    dbg_info(f'Executing buying orders: {buying_list}')
-                    self.trading.buying_exec(buying_list)
-                else:
-                    dbg_info('No buying actions triggered in this interval.')
+                try:
+                    buying_list = self.trading.trading_eval(product_list = self.product_list)
+                    if len(buying_list) > 0:
+                        dbg_info(f'Executing buying orders: {buying_list}')
+                        self.trading.buying_exec(buying_list)
+                    else:
+                        dbg_info('No buying actions triggered in this interval.')
+                except Exception as e:
+                    dbg_error(e)
+                
+                    traceback_output = traceback.format_exc()
+                    dbg_error(traceback_output)
 
                 # selling eval .
-                # NOTE. only do it daily, it may have the difference between core trading flow.
-                # But it only better?
-                selling_list = self.trading.selling_eval()
-                if len(selling_list) > 0:
-                    dbg_info(f'Executing selling orders: {selling_list}')
-                    self.trading.selling_exec(selling_list) # Corrected: use selling_list
-                else:
-                    dbg_info('No selling actions triggered in this interval.')
+                try:
+                    # NOTE. only do it daily, it may have the difference between core trading flow.
+                    # But it only better?
+                    selling_list = self.trading.selling_eval()
+                    if len(selling_list) > 0:
+                        dbg_info(f'Executing selling orders: {selling_list}')
+                        self.trading.selling_exec(selling_list) # Corrected: use selling_list
+                    else:
+                        dbg_info('No selling actions triggered in this interval.')
 
-                # show summary.
-                self.broker_manager.summarize_positions()
-                # self.broker_manager.summarize_transactions()
-                recorder.show_records()
+                    # show summary.
+                    self.broker_manager.summarize_positions()
+                    # self.broker_manager.summarize_transactions()
+                    recorder.show_records()
+                except Exception as e:
+                    dbg_error(e)
+                
+                    traceback_output = traceback.format_exc()
+                    dbg_error(traceback_output)
 
                 #############################################################
                 time.sleep(loop_interval)

@@ -2,6 +2,7 @@
 # system file
 import argparse
 import traceback
+import datetime
 
 import matplotlib
 from matplotlib import rcParams
@@ -101,7 +102,9 @@ def main():
         cm.set('debug.development', True)
     elif args.trading_mode == 'simulate':
         dbg_info(f'Enable {args.trading_mode} mode.')
-        cm.set('path.broker', "simulate")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # cm.set('path.broker', "simulate")
+        cm.set('path.broker', f"simulate/{timestamp}")
         cm.set('debug.development', True)
     else:
         ans = input("!!! It's a NOT in development mode, are you sure you want to proceed? (yes/No):")
