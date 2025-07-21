@@ -9,12 +9,14 @@ from tabulate import tabulate
 from utility.debug import *
 from utility.cli import *
 
-from core.config import *
 from broker.brokermanager import BrokerManager
-from trading.trading import Trading
-from trading.traderecord import Recorder
-from simulate.simulate import Simulate
+from core.config import *
 from market.market import Market
+from simulate.simulate import Simulate
+from stockwatch.commands import register_stockwatch_commands
+from trading.commands import register_trading_commands
+from trading.traderecord import Recorder
+from trading.trading import Trading
 
 class SimulateCLI(CommandLineInterface):
     def __init__(self):
@@ -42,6 +44,8 @@ Simulation path: {cm.get('path.broker')}
         self.regist_cmd("stop", self._cmd_stop, description="Stop the simulation", group='tools')
         self.regist_cmd("pause", self._cmd_pause, description="Pause the simulation", group='tools')
         self.regist_cmd("continue", self._cmd_continue, description="Continue a paused simulation", group='tools')
+        self.regist_cmd("ignore_pause", self._cmd_ignore_pause, description="Temporarily ignore automatic pausing for 1 hour.", group='tools')
+        self.regist_cmd("broker_path", self._cmd_broker_path, description="Show, set, or generate the broker simulation data path (e.g., 'broker_path' to show, 'broker_path generate' to create new, 'broker_path set <your/path>' to set).", arg_list=['path', 'generate', 'load'], group='config')
 
         # configs
         self.regist_cmd("test", self._cmd_test, description="Apply predefined test simulation settings (e.g., 'test single', 'test t50', 'test all')", arg_list = ['single', 'multiple', 't1', 't50', 'all'], group='config')
@@ -51,10 +55,19 @@ Simulation path: {cm.get('path.broker')}
         # trading
         self.regist_cmd("buy", self._cmd_buy, description="Execute a buy order in simulation", group='trading')
         self.regist_cmd("sell", self._cmd_sell, description="Execute a sell order in simulation", group='trading')
-        self.regist_cmd("positions", self._cmd_positions, description="Show current positions in simulation", group='trading')
-        self.regist_cmd("transactions", self._cmd_transactions, description="Show transaction history in simulation (e.g., 'transactions day', 'transactions month')", group='trading')
-        self.regist_cmd("trade", self._cmd_trade, description="Show trade records for a specific product and/or strategy (e.g., 'trade 2330' or 'trade strategy=MyStrategy')", arg_list = ['product_id', 'strategy'], group='trading')
 
+        # self.regist_cmd("positions", self._cmd_positions, description="Show current positions in simulation", group='trading')
+        # self.regist_cmd("transactions", self._cmd_transactions, description="Show transaction history in simulation (e.g., 'transactions day', 'transactions month')", group='trading')
+        # self.regist_cmd("trade", self._cmd_trade, description="Show trade records for a specific product and/or strategy (e.g., 'trade 2330' or 'trade strategy=MyStrategy')", arg_list = ['product_id', 'strategy'], group='trading')
+
+        # register trading commands.
+        register_trading_commands(self)
+        # register server
+        register_stockwatch_commands(self)
+
+    def on_exit(self):
+        if self.simulate:
+            self.simulate.finiallize()
     ## Trading, need to mock time.
     ############################################################################
     def _cmd_buy(self, args):
@@ -72,47 +85,51 @@ Simulation path: {cm.get('path.broker')}
             dbg_warning(f'Please start simulation first.')
             return False
     
-    def _cmd_positions(self, args):
-        if self.simulate:
-            # The summarize_positions method doesn't take arguments
-            self.simulate.time_machine_eval(BrokerManager().summarize_positions)
-            return True
-        else:
-            dbg_warning(f'Please start simulation first.')
-            return False
-
-    def _cmd_transactions(self, args):
-        if self.simulate:
-            period = 'day' # Default period
-            if args['#'] == 1:
-                if args['1'] in ['year', 'month', 'week', 'day']:
-                    period = args['1']
-            # The summarize_transactions method takes a 'period' argument
-            self.simulate.time_machine_eval(BrokerManager().summarize_transactions, period)
-            return True
-        else:
-            dbg_warning(f'Please start simulation first.')
-            return False
-    def _cmd_trade(self, args):
-        if self.simulate:
-            symbol = None
-            strategy = args.get('strategy', None)
-            if args['#'] == 1:
-                symbol = args['1']
-
-            self.simulate.time_machine_eval(Recorder().show_records, symbol=symbol, strategy=strategy)
-            return True
-        else:
-            dbg_warning(f'Please start simulation first.')
-            return False
     ## End of Trading
     ############################################################################
+
+    def _cmd_broker_path(self, args):
+        """
+        Sets the broker simulation path or generates a new one based on timestamp.
+        Usage: broker_path [new_path]
+        If no path is provided, the current path will be displayed.
+        If 'new_path' is provided, it will be set. If 'generate' is provided, a new timestamped path will be generated.
+        """
+        # cm = AppConfigManager() # No longer needed to re-initialize here, as we're updating cached value
+
+        if args['#'] == 0:
+            # Show current cached broker path
+            cm = AppConfigManager()
+            print(f"Current broker simulation path: {cm.get('path.broker')}")
+        elif args['#'] >= 1:
+            if self.simulate and self.simulate.is_alive():
+                dbg_warning("Cannot change broker path while simulation is running. Please stop the simulation first.")
+                return False
+
+            if args['1'] == 'load':
+                new_path = args['2']
+                # self._cached_broker_path = new_path # Update cached value
+                self.print(f"Load broker simulation path to: {new_path}")
+
+                cm = AppConfigManager()
+                cm.set('path.broker', new_path) # Load broker path
+
+                # apply config
+                self.simulate = Simulate(start_time=self._cached_end_time, end_time=self._cached_end_time)
+                self.simulate.product_list = []
+                self.simulate.initialize()
+        else:
+            dbg_warning("Usage: broker_path [new_path | generate]")
+            return False
+        return True
+
     def _cmd_info(self, args):
         """
         Displays information about the simulation.
         """
         table_data = []
         headers = ["Setting", "Value"]
+        cm = AppConfigManager() # Get config manager to retrieve broker path
 
         if self.simulate:
             print("Simulation Status:")
@@ -130,7 +147,8 @@ Simulation path: {cm.get('path.broker')}
                     product_list_display = f"{', '.join(self.simulate.product_list[:10])}, ... ({len(self.simulate.product_list)} total)"
                 else:
                     product_list_display = ', '.join(self.simulate.product_list)
-            table_data.append(["Product List", product_list_display])
+                table_data.append(["Product List", product_list_display])
+                table_data.append(["Broker Path", cm.get('path.broker')]) # Add current broker path (actual path used by running sim)
 
             # Potential future expansion: Add more info from BrokerManager or Trading if available
             # For example:
@@ -141,20 +159,22 @@ Simulation path: {cm.get('path.broker')}
             #     table_data.append(["Total Trades", self.simulate.trading_instance.get_total_trades()])
 
             print(tabulate(table_data, headers=headers, tablefmt="grid"))
-        else:
-            print("Simulation is not running. Cached settings:")
-            table_data.append(["Cached Start Time", self._cached_start_time.strftime("%Y-%m-%d %H:%M:%S")])
-            table_data.append(["Cached End Time", self._cached_end_time.strftime("%Y-%m-%d %H:%M:%S")])
-            
-            cached_product_list_display = "Using default product list"
-            if self._cached_product_list is not None:
-                if len(self._cached_product_list) > 10:
-                    cached_product_list_display = f"{', '.join(self._cached_product_list[:10])}, ... ({len(self._cached_product_list)} total)"
-                else:
-                    cached_product_list_display = ', '.join(self._cached_product_list)
-            table_data.append(["Cached Product List", cached_product_list_display])
-            
-            print(tabulate(table_data, headers=headers, tablefmt="grid"))
+
+        # always show cached info.
+        print("Simulation is not running. Cached settings:")
+        table_data = [] # Reset table_data for cached settings
+        table_data.append(["Cached Start Time", self._cached_start_time.strftime("%Y-%m-%d %H:%M:%S")])
+        table_data.append(["Cached End Time", self._cached_end_time.strftime("%Y-%m-%d %H:%M:%S")])
+        
+        cached_product_list_display = "Using default product list"
+        if self._cached_product_list is not None:
+            if len(self._cached_product_list) > 10:
+                cached_product_list_display = f"{', '.join(self._cached_product_list[:10])}, ... ({len(self._cached_product_list)} total)"
+            else:
+                cached_product_list_display = ', '.join(self._cached_product_list)
+        table_data.append(["Cached Product List", cached_product_list_display])
+        
+        print(tabulate(table_data, headers=headers, tablefmt="grid"))
         return True
 
     def _cmd_start(self, args):
@@ -165,6 +185,14 @@ Simulation path: {cm.get('path.broker')}
             print("Simulation is already running. Please stop it first.")
         else:
             print("Starting simulation...")
+            cm = AppConfigManager()
+
+            # generate broker path
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            generated_path = f"simulate/{timestamp}"
+            new_broker_path = generated_path # Update cached value
+            cm.set('path.broker', new_broker_path) # Set broker path from cached value before starting
+            
             # Create a new Simulate instance with cached settings
             self.simulate = Simulate(start_time=self._cached_start_time, end_time=self._cached_end_time)
             self.simulate.product_list = self._cached_product_list # Set product list
@@ -206,6 +234,21 @@ Simulation path: {cm.get('path.broker')}
             print("Simulation continued.")
         else:
             print("Simulation is not running or not paused.")
+        return True
+
+    def _cmd_ignore_pause(self, args):
+        """
+        Temporarily ignores automatic pausing for a specified duration (default 1 hour).
+        """
+        if self.simulate and self.simulate.is_alive():
+            hours = 1 # Default to 1 hour
+            if args['#'] == 1 and args['1'].isdigit():
+                hours = int(args['1'])
+            
+            self.simulate.disable_auto_pause_for_duration(hours=hours)
+            print(f"Automatic pausing will be ignored for {hours} hour(s).")
+        else:
+            print("Simulation is not running.")
         return True
 
     def _cmd_date(self, args):

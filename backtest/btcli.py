@@ -188,7 +188,7 @@ class BTCLI(CommandLineInterface):
         self.regist_cmd("load_info", self.cmd_load_info, description="Load backtest info from a JSON file.", group='tools')
 
         ## utility
-        register_commands(self)
+        register_backtest_commands(self)
 
     def cmd_test(self, args):
         operation_list = self.total_test_cmd_list

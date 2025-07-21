@@ -97,3 +97,32 @@ class Database(uDatabase):
         trades_query = f"SELECT trade_id, symbol, strategy FROM Trades {where_clause}"
         return self.execute(trades_query)
 
+    def get_closed_trades_info(self, symbol: str = None) -> list:
+        """
+        Retrieves information about closed trades, optionally filtered by symbol.
+        A trade is considered closed if the sum of bought sizes equals the sum of sold sizes.
+        """
+        where_clause = f"WHERE T.symbol = '{symbol}'" if symbol else ""
+        
+        query = f"""
+            SELECT T.trade_id, T.symbol, T.strategy
+            FROM Trades T
+            JOIN Transactions T2 ON T.trade_id = T2.trade_id
+            {where_clause}
+            GROUP BY T.trade_id
+            HAVING SUM(CASE WHEN T2.action = 'BUY' THEN T2.size ELSE -T2.size END) = 0
+        """
+        return self.execute(query)
+
+    def get_trade_ids_by_transaction_time_range(self, start_timestamp: int, end_timestamp: int) -> list[str]:
+        """
+        Retrieves unique trade IDs that have at least one transaction within the specified time range.
+        """
+        query = f"""
+            SELECT DISTINCT trade_id
+            FROM Transactions
+            WHERE timestamp >= {start_timestamp} AND timestamp < {end_timestamp}
+        """
+        result = self.execute(query)
+        return [row[0] for row in result]
+

@@ -1,8 +1,9 @@
 import traceback
 import pandas as pd
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta # Import timedelta
 from tabulate import tabulate
+from typing import List, Dict, Any, Optional, Tuple # Added Tuple for _parse_transaction_numerics return
 
 from utility.debug import *
 from trading.tradedata import Database
@@ -173,28 +174,181 @@ class Recorder:
 
         self.show_records(symbol=symbol)
     
-    def show_records(self, symbol: str = None, strategy: str = None):
+    def get_report(self, period: Optional[str] = 'month') -> pd.DataFrame:
+        """
+        Generates a profit/loss report for closed trades, grouped by the specified period.
+        Args:
+            period: The period to group the report by ('day', 'week', 'month', 'year'). Defaults to 'month'.
+        Returns:
+            A pandas DataFrame with the report.
+        """
+        closed_trades_info = self.db.get_closed_trades_info()
+        if not closed_trades_info:
+            dbg_info("No closed trades to report.")
+            return pd.DataFrame()
+
+        closed_trade_ids = [row[0] for row in closed_trades_info]
+        closed_trades_map = {row[0]: {'symbol': row[1], 'strategy': row[2]} for row in closed_trades_info}
+
+        transactions_list = self.db.get_transactions_for_trades(closed_trade_ids)
+        transactions_df = pd.DataFrame(
+            transactions_list,
+            columns=['trade_id', 'action', 'price', 'size', 'timestamp', 'commission']
+        )
+
+        reconstructed_trades = []
+        for trade_id, trade_info in closed_trades_map.items():
+            trade_transactions = transactions_df[transactions_df['trade_id'] == trade_id]
+            if trade_transactions.empty:
+                continue
+
+            # Find the first transaction to initialize the Trade object
+            # This assumes transactions are ordered by timestamp, which they are from get_transactions_for_trades
+            first_trans = trade_transactions.iloc[0]
+            trade = Trade(
+                symbol=trade_info['symbol'],
+                action=OrderAction[first_trans['action']],
+                price=first_trans['price'],
+                size=int(first_trans['size']),
+                timestamp=first_trans['timestamp'],
+                commission=first_trans['commission'],
+                strategy=trade_info['strategy']
+            )
+            trade.trade_id = trade_id
+
+            # Add subsequent transactions
+            for _, trans_row in trade_transactions.iloc[1:].iterrows():
+                trade.add_transaction(
+                    action=OrderAction[trans_row['action']],
+                    price=trans_row['price'],
+                    size=int(trans_row['size']),
+                    timestamp=trans_row['timestamp'],
+                    commission=trans_row['commission']
+                )
+            reconstructed_trades.append(trade)
+
+        report_data = []
+        for trade in reconstructed_trades:
+            if not trade.is_open: # Only include closed trades in the report
+                report_data.append({
+                    'trade_id': trade.trade_id,
+                    'symbol': trade.symbol,
+                    'strategy': trade.strategy,
+                    'profit': trade.calculate_profit(),
+                    'close_timestamp': max(t['timestamp'] for t in trade.transactions) # Use the latest transaction timestamp as close time
+                })
+        
+        if not report_data:
+            dbg_info("No closed trades with calculated profit to report.")
+            return pd.DataFrame()
+
+        report_df = pd.DataFrame(report_data)
+        report_df['close_datetime'] = pd.to_datetime(report_df['close_timestamp'], unit='ms')
+
+        # Grouping by period
+        if period == 'day':
+            report_df['period'] = report_df['close_datetime'].dt.to_period('D')
+        elif period == 'week':
+            report_df['period'] = report_df['close_datetime'].dt.to_period('W')
+        elif period == 'month':
+            report_df['period'] = report_df['close_datetime'].dt.to_period('M')
+        elif period == 'year':
+            report_df['period'] = report_df['close_datetime'].dt.to_period('Y')
+        else:
+            dbg_warning(f"Invalid period specified: {period}. Defaulting to 'month'.")
+            report_df['period'] = report_df['close_datetime'].dt.to_period('M')
+
+        grouped_report = report_df.groupby('period').agg(
+            total_profit=('profit', 'sum'),
+            num_trades=('trade_id', 'count'),
+            avg_profit_per_trade=('profit', 'mean')
+        ).reset_index()
+
+        grouped_report['period'] = grouped_report['period'].astype(str) # Convert Period objects to string for display
+        return grouped_report
+
+    def show_report(self, period: Optional[str] = 'month'):
+        """
+        Displays the profit/loss report in a tabular format.
+        Args:
+            period: The period to group the report by ('day', 'week', 'month', 'year'). Defaults to 'month'.
+        """
+        report_df = self.get_report(period)
+
+        if report_df.empty:
+            print(f"No closed trade report available for period: {period}.")
+            return
+
+        print(f"\n--- Profit/Loss Report by {period.capitalize()} ---")
+        headers = ["Period", "Total Profit", "Number of Trades", "Avg Profit/Trade"]
+        table_data = report_df[['period', 'total_profit', 'num_trades', 'avg_profit_per_trade']].values.tolist()
+        
+        # Format numerical columns
+        for row in table_data:
+            row[1] = f"{row[1]:.2f}" # Total Profit
+            row[3] = f"{row[3]:.2f}" # Avg Profit/Trade
+
+        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+
+    def show_records(self, symbol: str = None, strategy: str = None, duration: Optional[str] = None):
         """Displays the recorded trades and transactions in a tabular format.
         If a symbol is provided, only shows records for that symbol.
-        If a strategy is provided, only shows records for that strategy."""
+        If a strategy is provided, only shows records for that strategy.
+        If a duration is provided ('day', 'week', 'month', 'year'), it shows open trades
+        and trades with transactions within that duration."""
         
-        trades_info = self.db.get_trades_info(symbol, strategy)
+        # Get all open trades first, as they should always be shown
+        open_trades_info = self.db.get_open_trades_info(symbol)
+        open_trade_ids = {row[0] for row in open_trades_info} # Use a set for efficient lookup
 
-        if not trades_info:
+        # Determine the time range for duration-based filtering
+        filtered_trade_ids_by_duration = set()
+        if duration:
+            end_timestamp = int(datetime.now().timestamp() * 1000) # Current time in milliseconds
+            start_timestamp = 0 # Default to beginning of time if duration not matched
+
+            if duration == 'day':
+                start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                start_timestamp = int(start_of_day.timestamp() * 1000)
+            elif duration == 'week':
+                start_of_week = datetime.now() - timedelta(days=datetime.now().weekday()) # Monday
+                start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+                start_timestamp = int(start_of_week.timestamp() * 1000)
+            elif duration == 'month':
+                start_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                start_timestamp = int(start_of_month.timestamp() * 1000)
+            elif duration == 'year':
+                start_of_year = datetime.now().replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                start_timestamp = int(start_of_year.timestamp() * 1000)
+            else:
+                dbg_warning(f"Invalid duration specified: {duration}. Showing all trades.")
+                duration = None # Reset duration to show all if invalid
+
+            if duration:
+                filtered_trade_ids_by_duration = set(self.db.get_trade_ids_by_transaction_time_range(start_timestamp, end_timestamp))
+
+        # Combine trade IDs: all open trades + trades with recent transactions (if duration specified)
+        all_relevant_trade_ids = open_trade_ids.union(filtered_trade_ids_by_duration)
+
+        if not all_relevant_trade_ids:
             print("No trade records to show.")
             return
 
-        trades_df = pd.DataFrame(trades_info, columns=['trade_id', 'symbol', 'strategy'])
-        trade_ids = [row['trade_id'] for index, row in trades_df.iterrows()]
+        # Fetch trade info for the combined set of IDs
+        # This requires a new method in Database or filtering the existing get_trades_info result
+        # For simplicity, let's fetch all trades and then filter in Python
+        all_trades_info = self.db.get_trades_info(symbol, strategy)
+        trades_df = pd.DataFrame(all_trades_info, columns=['trade_id', 'symbol', 'strategy'])
+        
+        # Filter trades_df to only include relevant trade_ids
+        trades_df = trades_df[trades_df['trade_id'].isin(all_relevant_trade_ids)]
 
-        if not trade_ids:
-            if symbol:
-                print(f"No trade records found for symbol: {symbol}")
-            else:
-                print("No trade records to show.")
+        if trades_df.empty:
+            print("No trade records to show after filtering.")
             return
 
-        transactions_list = self.db.get_transactions_for_trades(trade_ids)
+        trade_ids_to_fetch_transactions = trades_df['trade_id'].tolist()
+        transactions_list = self.db.get_transactions_for_trades(trade_ids_to_fetch_transactions)
         transactions_df = pd.DataFrame(transactions_list, columns=['trade_id', 'action', 'price', 'size', 'timestamp', 'commission'])
 
         # Reconstruct trades to calculate is_open and current_size

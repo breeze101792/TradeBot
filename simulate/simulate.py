@@ -4,10 +4,12 @@ from time import sleep as t_sleep
 import threading
 import shutil
 
-from datetime import datetime, time # Import time
+from datetime import datetime
+from datetime import time as dt_time
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
-from freezegun.api import real_datetime # Import real_datetime to get actual time
+import freezegun
+# from freezegun.api import real_datetime # Import real_datetime to get actual time
 
 # Local file
 from utility.debug import *
@@ -23,6 +25,7 @@ class Simulate(threading.Thread):
         self._is_running = True
         self._is_paused = False # New flag for pausing
         self._pause_event = threading.Event() # Event to signal pausing
+        self._auto_pause_disabled_until = None # New: datetime object to temporarily disable auto-pause
 
         # vars
         self.trading = None
@@ -109,6 +112,17 @@ class Simulate(threading.Thread):
         self.trading = Trading()
 
         dbg_info('Before simulation, please check the initialize is correct.')
+
+    def finiallize(self):
+        self._is_running = False
+        self._pause_event.set() # Wake up thraed.
+
+        # wait for thread end.
+        while self.is_alive():
+            time.sleep(1)
+
+        BrokerManager.finalize()
+
     def run(self):
         """
         The main method that will be executed when the thread starts.
@@ -127,75 +141,87 @@ class Simulate(threading.Thread):
             self._simulation_time = datetime.now()
             while self._is_running and datetime.now() < self.end_time:
                 current_sim_time = datetime.now() # This is the simulated time
-                current_real_time = real_datetime.now() # This is the actual real time
+                # current_real_time = real_datetime.datetime.now() # This is the actual real time
+                current_real_time = freezegun.api.real_datetime.now()
 
                 # Automatic pause/continue logic for trading hours (Monday-Friday, 9:00-13:30)
                 is_weekday = 0 <= current_real_time.weekday() <= 4 # Monday is 0, Friday is 4
                 
-                trading_start_time = time(9, 0, 0)
-                trading_end_time = time(13, 30, 0)
+                trading_start_time = dt_time(9, 0, 0)
+                trading_end_time = dt_time(13, 30, 0)
                 is_within_trading_hours = trading_start_time <= current_real_time.time() < trading_end_time
 
-                data_update_start_time = time(18, 0, 0)
-                data_update_end_time = time(20, 0, 0)
+                data_update_start_time = dt_time(18, 0, 0)
+                data_update_end_time = dt_time(20, 0, 0)
                 is_within_data_update_hours = data_update_start_time <= current_real_time.time() < data_update_end_time
 
                 should_pause = is_weekday and (is_within_trading_hours or is_within_data_update_hours)
 
-                if should_pause:
-                    if not self._is_paused: # Only pause if not already paused
-                        dbg_info(f"Automatically pausing simulation during restricted hours: {current_sim_time.strftime('%Y-%m-%d %H:%M:%S')}")
-                        self.pause()
+                if self._auto_pause_disabled_until and current_real_time < self._auto_pause_disabled_until:
+                    # ignore checking pause
+                    if should_pause or self._is_paused:
+                        dbg_debug(f"Auto-pause temporarily disabled. Ignoring restricted hours: {current_sim_time.strftime('%Y-%m-%d %H:%M:%S')}")
                 else:
-                    if self._is_paused: # Only continue if currently paused
-                        dbg_info(f"Automatically continuing simulation outside restricted hours: {current_sim_time.strftime('%Y-%m-%d %H:%M:%S')}")
-                        self.continue_simulation()
+                    # check the pause
+                    if should_pause:
+                        if not self._is_paused: # Only pause if not already paused
+                            dbg_info(f"Automatically pausing simulation during restricted hours: {current_sim_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                            self._pause_event.wait(timeout=1800) # Wait until the event is set, with a 30-minutes timeout
+                            # self.pause()
+                            continue
 
-                # Check if paused (either manually or automatically)
-                if self._is_paused:
-                    dbg_info("Simulation paused. Waiting to continue...")
-                    self._pause_event.wait() # Wait until the event is set
-                    self._pause_event.clear() # Clear the event after resuming
-                    dbg_info("Simulation resumed.")
+                    # Check if paused (either manually or automatically)
+                    if self._is_paused:
+                        dbg_info("Simulation paused. Waiting to continue...")
+                        self._pause_event.wait() # Wait until the event is set
+                        self._pause_event.clear() # Clear the event after resuming
+                        dbg_info("Simulation resumed.")
 
-                dbg_info(f"simulation loop. Current time: {datetime.now()}")
+                dbg_info(f"Simulation loop. Current time: {datetime.now()}")
                 # update vars.
 
+                # time check.
                 #############################################################
-                # buying eval .
-                try:
-                    buying_list = self.trading.trading_eval(product_list = self.product_list)
-                    if len(buying_list) > 0:
-                        dbg_info(f'Executing buying orders: {buying_list}')
-                        self.trading.buying_exec(buying_list)
-                    else:
-                        dbg_info('No buying actions triggered in this interval.')
-                except Exception as e:
-                    dbg_error(e)
-                
-                    traceback_output = traceback.format_exc()
-                    dbg_error(traceback_output)
+                # we do trading only on monday to friday, so ignore saunday and saturday.
+                # Monday is 0, Friday is 4
+                is_simulated_weekday = 0 <= current_sim_time.weekday() <= 4 # Monday is 0, Friday is 4
 
-                # selling eval .
-                try:
-                    # NOTE. only do it daily, it may have the difference between core trading flow.
-                    # But it only better?
-                    selling_list = self.trading.selling_eval()
-                    if len(selling_list) > 0:
-                        dbg_info(f'Executing selling orders: {selling_list}')
-                        self.trading.selling_exec(selling_list) # Corrected: use selling_list
-                    else:
-                        dbg_info('No selling actions triggered in this interval.')
+                if is_simulated_weekday:
+                    #############################################################
+                    # buying eval .
+                    try:
+                        buying_list = self.trading.trading_eval(product_list = self.product_list)
+                        if len(buying_list) > 0:
+                            dbg_debug(f'Executing buying orders: {buying_list}')
+                            self.trading.buying_exec(buying_list)
+                        else:
+                            dbg_debug('No buying actions triggered in this interval.')
+                    except Exception as e:
+                        dbg_error(e)
+                    
+                        traceback_output = traceback.format_exc()
+                        dbg_error(traceback_output)
 
-                    # show summary.
-                    self.broker_manager.summarize_positions()
-                    # self.broker_manager.summarize_transactions()
-                    recorder.show_records()
-                except Exception as e:
-                    dbg_error(e)
-                
-                    traceback_output = traceback.format_exc()
-                    dbg_error(traceback_output)
+                    # selling eval .
+                    try:
+                        # NOTE. only do it daily, it may have the difference between core trading flow.
+                        # But it only better?
+                        selling_list = self.trading.selling_eval()
+                        if len(selling_list) > 0:
+                            dbg_debug(f'Executing selling orders: {selling_list}')
+                            self.trading.selling_exec(selling_list) # Corrected: use selling_list
+                        else:
+                            dbg_debug('No selling actions triggered in this interval.')
+
+                        # show summary.
+                        self.broker_manager.summarize_positions()
+                        # self.broker_manager.summarize_transactions()
+                        recorder.show_records()
+                    except Exception as e:
+                        dbg_error(e)
+                    
+                        traceback_output = traceback.format_exc()
+                        dbg_error(traceback_output)
 
                 #############################################################
                 t_sleep(loop_interval)
@@ -230,10 +256,20 @@ class Simulate(threading.Thread):
             self._pause_event.set() # Signal to resume
             dbg_info("Simulation is continuing...")
         else:
-            dbg_warning("Simulation is not paused, cannot continue.")
+            # dbg_warning("Simulation is not paused, cannot continue.")
+
+            # it could also continue the pause set by auto check.
+            self._pause_event.set() # Signal to resume
+
+    def disable_auto_pause_for_duration(self, hours: int = 1):
+        """
+        Temporarily disables automatic pausing for a specified duration.
+        """
+        self._auto_pause_disabled_until = freezegun.api.real_datetime.now() + relativedelta(hours=hours)
+        dbg_info(f"Automatic pausing disabled until {self._auto_pause_disabled_until.strftime('%Y-%m-%d %H:%M:%S')}.")
+        self._pause_event.set() # Wake up thraed.
 
     def time_machine_eval(self, fun_ptr, *args, **kwargs):
         with freeze_time(self._simulation_time) as frozen_time:
             dbg_info(f"Time machine eval: {fun_ptr.__name__}")
             return fun_ptr(*args, **kwargs)
-

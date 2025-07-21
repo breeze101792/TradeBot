@@ -13,11 +13,11 @@ from utility.debug import *
 from utility.cli import *
 from market.market import *
 
-from backtest.commands import *
+from backtest.commands import register_backtest_commands
 from backtest.btcli import *
-from broker.brokermanager import BrokerManager
 from trading.trading import Trading
 from trading.traderecord import Recorder
+from trading.commands import register_trading_commands
 
 class TDCLI(CommandLineInterface):
     def __init__(self, promote = 'TDCLI'):
@@ -31,21 +31,19 @@ class TDCLI(CommandLineInterface):
 
         ## cmds
         ########################################################################
-        register_commands(self)
-        self.regist_cmd("trade", self.cmd_trade, description="Setting trading actions", arg_list = ['buy', 'sell', 'enable', 'disable', 'status'], group='admin')
-        self.regist_cmd("positons", self.cmd_positions, description=f"show positions.", arg_list = ['show'], group='trade')
-        self.regist_cmd("transactions", self.cmd_transactions, description="show transaction.", arg_list=['year', 'month', 'week', 'day'], group='tools')
-        self.regist_cmd("backtest", self.cmd_backtest, description="Enter backtest cli.", group='tools')
+        self.regist_cmd("trading_config", self.cmd_trade_config, description="Configure global trading settings (e.g., enable/disable buying/selling).", arg_list = ['buy', 'sell', 'enable', 'disable', 'status'], group='trading_private')
 
-    def cmd_trade(self, args):
+        register_trading_commands(self)
+
+        register_backtest_commands(self)
+
+    def cmd_trade_config(self, args):
         trading = Trading()
 
         if args['#'] == 1:
             if args['1'] == 'status':
                 print(f"buying " + "enable" if Trading.BUYING_IGNORE is False else 'disable')
                 print(f"selling " + "enable" if Trading.SELLING_IGNORE is False else 'disable')
-                recorder = Recorder()
-                recorder.show_records()
         elif args['#'] == 2:
             if args['1'] == 'buy':
                 if args['2'] == 'enable':
@@ -62,41 +60,5 @@ class TDCLI(CommandLineInterface):
                 print(f"buying " + "enable" if Trading.BUYING_IGNORE is False else 'disable')
                 print(f"selling " + "enable" if Trading.SELLING_IGNORE is False else 'disable')
         return True
-    def cmd_backtest(self, args):
-        try:
-            btcli = BTCLI()
-            btcli.run()
-        except Exception as e:
-            dbg_error(e)
-        
-            traceback_output = traceback.format_exc()
-            dbg_error(traceback_output)
-            return False
-        return True
 
-    def cmd_positions(self, args):
-        trade_broker = BrokerManager()
-
-        if args['#'] == 1:
-            if args['1'] == 'show':
-                trade_broker.summarize_positions()
-        else:
-            trade_broker.summarize_positions()
-        return True
-    def cmd_transactions(self, args):
-        trade_broker = BrokerManager()
-
-        if args['#'] == 1:
-            if args['1'] == 'year':
-                trade_broker.summarize_transactions('year')
-            elif args['1'] == 'month':
-                trade_broker.summarize_transactions('month')
-            elif args['1'] == 'week':
-                trade_broker.summarize_transactions('week')
-            elif args['1'] == 'day':
-                trade_broker.summarize_transactions('day')
-        else:
-            trade_broker.summarize_transactions('day')
-
-        return True
 

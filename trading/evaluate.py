@@ -43,7 +43,7 @@ class Evaluate:
 
         last_trading_day = MarketTime.get_previous_market_update_time()
 
-        dbg_info(f"Find product on {last_trading_day} with {len(product_list)} products.")
+        dbg_debug(f"Find product on {last_trading_day} with {len(product_list)} products.")
 
         trade_broker = BrokerManager()
         trade_analyzer = Analyzer(self.market)
@@ -93,7 +93,7 @@ class Evaluate:
                 
                     traceback_output = traceback.format_exc()
                     dbg_warning(traceback_output)
-        dbg_info(f"All product evaluated.", prefix='\n')
+        dbg_debug(f"All product evaluated.", prefix='\n')
         return candidate_dict
     def __buy_filering_profitable_product(self, candidate_dict):
         if len(candidate_dict) == 0:
@@ -202,7 +202,7 @@ class Evaluate:
 
         # dump buying data list.
         if len(buying_dict) != 0:
-            dbg_info(f"Buying List: {buying_dict.keys()}")
+            dbg_debug(f"Buying List: {buying_dict.keys()}")
             # Prepare data for tabulation
             headers = ["Product", "Name", "Category", "Strategy", "Profit (%)", "Sharpe", "VWR", "Drawdown (%)", "SQN", "Score"]
             table_data = []
@@ -220,9 +220,9 @@ class Evaluate:
                     f"{data['sqn']:.2f}",
                     f"{data['score']:.2f}"
                 ])
-            dbg_info("\n" + tabulate(table_data, headers=headers, tablefmt="grid"))
+            print("\n" + tabulate(table_data, headers=headers, tablefmt="grid"))
         else:
-            dbg_info(f"No buying candidates found.")
+            dbg_debug(f"No buying candidates found.")
 
         return buying_dict
     def __get_realtime_data_list(self, symbol):
@@ -335,7 +335,7 @@ class Evaluate:
         selling_analyzer.clean_result()
 
         last_trading_day = MarketTime.get_previous_market_update_time()
-        dbg_info(f"Evaluating {len(position_dict)} products with last Trad date {last_trading_day}")
+        dbg_debug(f"Evaluating {len(position_dict)} products with last Trad date {last_trading_day}")
 
         # Iterate through positions provided by the broker (dict: {symbol: Position_object})
         for symbol, position_obj in position_dict.items():
@@ -393,7 +393,7 @@ class Evaluate:
                     dbg_warning(f"Skipping evaluation for {symbol}: Missing or invalid position data (Date: {purchase_date}, Price: {purchase_price}, Size: {position_size})")
                     continue
 
-                dbg_info(f"Evaluating for {symbol} using strategy {strategy_name}")
+                dbg_debug(f"Evaluating for {symbol} using strategy {strategy_name}")
 
                 selling_analyzer.setup() # Setup Cerebro instance
 

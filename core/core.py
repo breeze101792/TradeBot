@@ -22,7 +22,7 @@ from trading.tradecli import TDCLI
 from trading.trading import Trading
 from trading.evaluate import Evaluate
 from broker.brokermanager import BrokerManager
-from stockwatch.server import TradeBotServer
+from stockwatch.commands import register_stockwatch_commands
 
 class TradingStatus:
     class Trading:
@@ -71,7 +71,6 @@ class Core:
         self.cm = None
         self.trading = None
         self.broker_manager = None
-        self.server = None
 
     def __initcheck(self):
         # Check env setup is okay or not.
@@ -492,28 +491,6 @@ class Core:
         self.flag_datasource_service_running = False
         dbg_warning('Data Source End.')
 
-    def cmd_server(self, args = None):
-        """Manages the TradeBot server (e.g., start, stop)."""
-        if args and args['#'] == 1:
-            subcommand = args['1']
-            if subcommand == "start":
-                try:
-                    self.server = TradeBotServer(port=5000, host='0.0.0.0') # Default port and host
-                    self.server.run()
-                    self.server = None
-                except KeyboardInterrupt:
-                    dbg_info(f"Get key board interrupt.")
-                except Exception as e:
-                    dbg_error(f"Error starting TradeBot server: {e}")
-                    traceback_output = traceback.format_exc()
-                    dbg_error(traceback_output)
-            else:
-                dbg_error(f"Unknown 'server' subcommand: {subcommand}")
-        else:
-            dbg_error("Please specify a subcommand for 'server' (e.g., 'server start').")
-
-        return True
-
     def cmd_status(self, args = None):
         """Prints the current status of the trading core and its services."""
         print("--- Core Status ---")
@@ -588,7 +565,7 @@ class Core:
             self.tdcli.regist_cmd("buy", self.trading.trading_eval, description="Do Trading/buy analysis and buy stock.", group='tools')
             self.tdcli.regist_cmd("sell", self.trading.selling_eval, description="Do Selling analysis and sell stock.", group='tools')
             self.tdcli.regist_cmd("status", self.cmd_status, description="Get trading status.", group='tools')
-            self.tdcli.regist_cmd("server", self.cmd_server, description="Manage the TradeBot server (e.g., 'server start').", group='tools')
+            register_stockwatch_commands(self.tdcli)
         except Exception as e:
             dbg_error(e)
             traceback_output = traceback.format_exc()

@@ -78,6 +78,8 @@ class TradeBotServer:
         try:
             # self.app.run(debug=debug, host=self.host, port=self.port)
             self.app.run(host=self.host, port=self.port, debug=debug, use_reloader=use_reloader)
+        except KeyboardInterrupt:
+            print(f"Get key board interrupt.")
         except Exception as e:
             print(e)
         
