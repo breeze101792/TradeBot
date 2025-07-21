@@ -332,7 +332,7 @@ class MockBroker(BaseBroker):
         """
         try:
             if self.simulation is True:
-                dbg_info(f"Running in simulation mode for {symbol}.")
+                dbg_debug(f"Running in simulation mode for {symbol}.")
                 # In simulation, get_data returns historical DataFrame.
                 # We need to extract the latest price from it, considering the simulation date.
                 data_df = self.data_provider.get_data(symbol, incremental_update = True)

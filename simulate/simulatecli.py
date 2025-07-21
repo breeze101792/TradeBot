@@ -17,6 +17,7 @@ from stockwatch.commands import register_stockwatch_commands
 from trading.commands import register_trading_commands
 from trading.traderecord import Recorder
 from trading.trading import Trading
+from utility.parallelprocessor import ParallelProcessor,analyze_chunk
 
 class SimulateCLI(CommandLineInterface):
     def __init__(self):
@@ -65,9 +66,20 @@ Simulation path: {cm.get('path.broker')}
         # register server
         register_stockwatch_commands(self)
 
+        self.regist_cmd("exp", self._cmd_exp, description="Execute a exp", group='trading')
+
     def on_exit(self):
         if self.simulate:
             self.simulate.finiallize()
+    def _cmd_exp(self, args):
+        """
+        Run an experiment.
+        """
+        processor_chunk = ParallelProcessor(analyze_func=analyze_chunk, num_threads=8, process_chunk_by_chunk=True, debug_mode=True)
+        results_chunk = processor_chunk.process(['2330', '2454'])
+        print(f'processed chunk.')
+        return True
+
     ## Trading, need to mock time.
     ############################################################################
     def _cmd_buy(self, args):

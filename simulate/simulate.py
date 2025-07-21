@@ -1,4 +1,5 @@
 # system file
+import os
 import traceback
 from time import sleep as t_sleep
 import threading
@@ -13,6 +14,7 @@ import freezegun
 
 # Local file
 from utility.debug import *
+from utility.parallelprocessor import ParallelProcessor,analyze_chunk
 from core.config import *
 from trading.trading import Trading
 from broker.brokermanager import BrokerManager
@@ -26,6 +28,10 @@ class Simulate(threading.Thread):
         self._is_paused = False # New flag for pausing
         self._pause_event = threading.Event() # Event to signal pausing
         self._auto_pause_disabled_until = None # New: datetime object to temporarily disable auto-pause
+        # Calculate the number of threads/processes based on CPU count, with a minimum of 2.
+        # This value will be used when initializing ParallelProcessor later.
+        num_cpu = os.cpu_count()
+        self.parallel_thread = max(2, num_cpu if num_cpu is not None else 2)
 
         # vars
         self.trading = None
@@ -147,11 +153,12 @@ class Simulate(threading.Thread):
                 # Automatic pause/continue logic for trading hours (Monday-Friday, 9:00-13:30)
                 is_weekday = 0 <= current_real_time.weekday() <= 4 # Monday is 0, Friday is 4
                 
-                trading_start_time = dt_time(9, 0, 0)
+                # check before 30 minutes
+                trading_start_time = dt_time(8, 30, 0)
                 trading_end_time = dt_time(13, 30, 0)
                 is_within_trading_hours = trading_start_time <= current_real_time.time() < trading_end_time
 
-                data_update_start_time = dt_time(18, 0, 0)
+                data_update_start_time = dt_time(17, 30, 0)
                 data_update_end_time = dt_time(20, 0, 0)
                 is_within_data_update_hours = data_update_start_time <= current_real_time.time() < data_update_end_time
 
@@ -167,6 +174,7 @@ class Simulate(threading.Thread):
                         if not self._is_paused: # Only pause if not already paused
                             dbg_info(f"Automatically pausing simulation during restricted hours: {current_sim_time.strftime('%Y-%m-%d %H:%M:%S')}")
                             self._pause_event.wait(timeout=1800) # Wait until the event is set, with a 30-minutes timeout
+                            self._pause_event.clear() # Clear the event after resuming
                             # self.pause()
                             continue
 
@@ -190,7 +198,20 @@ class Simulate(threading.Thread):
                     #############################################################
                     # buying eval .
                     try:
-                        buying_list = self.trading.trading_eval(product_list = self.product_list)
+                        buying_list = []
+                        # FIXME, backtesting lock
+                        if False: # Always use parallel processor for now
+                            dbg_info('Use parallel Proccessor, we need to resolve the backtest lock.')
+                            # Use a lambda to pass the chunk as 'product_list' keyword argument
+                            processor = ParallelProcessor(analyze_func=lambda chunk: self.trading.trading_eval(product_list=chunk), num_threads=self.parallel_thread, process_chunk_by_chunk=True, debug_mode = False)
+                            # processor = ParallelProcessor(analyze_func=analyze_chunk, num_processes=2, process_chunk_by_chunk=True, debug_mode = True)
+
+                            buying_list = processor.process(self.product_list)
+
+                        else:
+                            # Fallback for non-parallel processing (though currently always true)
+                            buying_list = self.trading.trading_eval(product_list = self.product_list)
+
                         if len(buying_list) > 0:
                             dbg_debug(f'Executing buying orders: {buying_list}')
                             self.trading.buying_exec(buying_list)
