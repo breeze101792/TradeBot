@@ -35,9 +35,14 @@ Simulation path: {cm.get('path.broker')}
 
         self.simulate = None
         # Cached simulation settings
-        self._cached_start_time = (datetime.now() - relativedelta(days=7)).replace(hour=10, minute=0, second=0, microsecond=0)
-        self._cached_end_time = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
-        self._cached_product_list = None # Default product list
+        # self._cached_start_time = (datetime.now() - relativedelta(days=7)).replace(hour=10, minute=0, second=0, microsecond=0)
+        # self._cached_end_time = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0)
+        # self._cached_product_list = None # Default product list
+
+        # use default test for develoment.
+        self._cached_start_time = datetime(2025, 6, 20, 10, 0, 0)
+        self._cached_end_time = datetime(2025, 7, 17, 10, 0, 0)
+        self._cached_product_list = ['6742']
 
         # register commands
         self.regist_cmd("info", self._cmd_info, description="Show simulation information", group='tools')
@@ -52,17 +57,16 @@ Simulation path: {cm.get('path.broker')}
         self.regist_cmd("test", self._cmd_test, description="Apply predefined test simulation settings (e.g., 'test single', 'test t50', 'test all')", arg_list = ['single', 'multiple', 't1', 't50', 'all'], group='config')
         self.regist_cmd("date", self._cmd_date, description="Set simulation date range (e.g., 'date 20230101 20231231', 'date week', 'date year 2023')", arg_list = ['from', 'to', 'week', 'month', 'halfyear', 'year'], group='config')
         self.regist_cmd("product", self._cmd_product, description="Set product list for simulation (e.g., 'product 2330 2331', 'product t50', 'product all')", arg_list = ['product_id'], group='config')
+        self.regist_cmd("update", self.cmd_update_database, description="Update local database. (e.g., 'update', 'update <product_id>', 'update all', 'update force', 'update force all')", arg_list = ['all', 'force'], group='tools')
 
         # trading
         self.regist_cmd("buy", self._cmd_buy, description="Execute a buy order in simulation", group='trading')
         self.regist_cmd("sell", self._cmd_sell, description="Execute a sell order in simulation", group='trading')
 
-        # self.regist_cmd("positions", self._cmd_positions, description="Show current positions in simulation", group='trading')
-        # self.regist_cmd("transactions", self._cmd_transactions, description="Show transaction history in simulation (e.g., 'transactions day', 'transactions month')", group='trading')
-        # self.regist_cmd("trade", self._cmd_trade, description="Show trade records for a specific product and/or strategy (e.g., 'trade 2330' or 'trade strategy=MyStrategy')", arg_list = ['product_id', 'strategy'], group='trading')
+        self.regist_cmd("positions", self._cmd_positions, description="Show current positions in simulation", group='trading')
+        self.regist_cmd("transactions", self._cmd_transactions, description="Show transaction history in simulation (e.g., 'transactions day', 'transactions month')", group='trading')
+        self.regist_cmd("trade", self._cmd_trade, description="Show trade records for a specific product and/or strategy (e.g., 'trade 2330' or 'trade strategy=MyStrategy')", arg_list = ['product_id', 'strategy'], group='trading')
 
-        # register trading commands.
-        register_trading_commands(self)
         # register server
         register_stockwatch_commands(self)
 
@@ -70,7 +74,11 @@ Simulation path: {cm.get('path.broker')}
 
     def on_exit(self):
         if self.simulate:
-            self.simulate.finiallize()
+            # self.simulate.finiallize()
+            self.simulate.stop()
+            self.simulate.terminate()
+            self.simulate.join() # Wait for the thread to finish
+            self.simulate = None # Clear the instance after stopping
     def _cmd_exp(self, args):
         """
         Run an experiment.
@@ -83,20 +91,57 @@ Simulation path: {cm.get('path.broker')}
     ## Trading, need to mock time.
     ############################################################################
     def _cmd_buy(self, args):
-        if self.simulate and self.simulate.trading is not None:
-            self.simulate.time_machine_eval(self.simulate.trading.trading_eval)
+        if self.simulate and self.simulate.is_alive():
+            self.simulate.command_queue.put('buy')
+            self.print("Buy evaluation command sent to simulation.")
             return True
         else:
             dbg_warning(f'Please start simulation first.')
             return False
     def _cmd_sell(self, args):
-        if self.simulate and self.simulate.trading is not None:
-            self.simulate.time_machine_eval(self.simulate.trading.selling_eval)
+        if self.simulate and self.simulate.is_alive():
+            self.simulate.command_queue.put('sell')
+            self.print("Sell evaluation command sent to simulation.")
             return True
         else:
             dbg_warning(f'Please start simulation first.')
             return False
-    
+
+    def _cmd_positions(self, args):
+        if self.simulate and self.simulate.is_alive():
+            self.simulate.command_queue.put(('positions', [], {}))
+            self.print("Position summary request sent to simulation.")
+            return True
+        else:
+            dbg_warning(f'Please start simulation first.')
+            return False
+
+    def _cmd_transactions(self, args):
+        if self.simulate and self.simulate.is_alive():
+            period = 'day' # Default period
+            if args['#'] == 1:
+                if args['1'] in ['year', 'month', 'week', 'day']:
+                    period = args['1']
+            self.simulate.command_queue.put(('transactions', [period], {}))
+            self.print("Transaction summary request sent to simulation.")
+            return True
+        else:
+            dbg_warning(f'Please start simulation first.')
+            return False
+
+    def _cmd_trade(self, args):
+        if self.simulate and self.simulate.is_alive():
+            symbol = None
+            strategy = args.get('strategy', None)
+            if args['#'] == 1:
+                symbol = args['1']
+            self.simulate.command_queue.put(('trade', [], {'symbol': symbol, 'strategy': strategy}))
+            self.print("Trade record request sent to simulation.")
+            return True
+        else:
+            dbg_warning(f'Please start simulation first.')
+            return False
+
     ## End of Trading
     ############################################################################
 
@@ -119,17 +164,18 @@ Simulation path: {cm.get('path.broker')}
                 return False
 
             if args['1'] == 'load':
-                new_path = args['2']
-                # self._cached_broker_path = new_path # Update cached value
-                self.print(f"Load broker simulation path to: {new_path}")
-
-                cm = AppConfigManager()
-                cm.set('path.broker', new_path) # Load broker path
-
-                # apply config
-                self.simulate = Simulate(start_time=self._cached_end_time, end_time=self._cached_end_time)
-                self.simulate.product_list = []
-                self.simulate.initialize()
+                dbg_warning(f'Loading config is not working yet.')
+                # new_path = args['2']
+                # # self._cached_broker_path = new_path # Update cached value
+                # self.print(f"Load broker simulation path to: {new_path}")
+                #
+                # cm = AppConfigManager()
+                # cm.set('path.broker', new_path) # Load broker path
+                #
+                # # apply config
+                # self.simulate = Simulate(start_time=self._cached_end_time, end_time=self._cached_end_time)
+                # self.simulate.product_list = []
+                # self.simulate.initialize()
         else:
             dbg_warning("Usage: broker_path [new_path | generate]")
             return False
@@ -219,6 +265,7 @@ Simulation path: {cm.get('path.broker')}
         if self.simulate and self.simulate.is_alive():
             print("Stopping simulation...")
             self.simulate.stop()
+            self.simulate.terminate()
             self.simulate.join() # Wait for the thread to finish
             self.simulate = None # Clear the instance after stopping
             print("Simulation stopped.")
@@ -257,7 +304,7 @@ Simulation path: {cm.get('path.broker')}
             if args['#'] == 1 and args['1'].isdigit():
                 hours = int(args['1'])
             
-            self.simulate.disable_auto_pause_for_duration(hours=hours)
+            self.simulate.disable_pause_for_duration(hours=hours)
             print(f"Automatic pausing will be ignored for {hours} hour(s).")
         else:
             print("Simulation is not running.")
@@ -333,6 +380,36 @@ Simulation path: {cm.get('path.broker')}
         else:
             dbg_warning("Please provide product IDs or use 't50'/'all'. Usage: product <id1> <id2> ... or product t50 or product all")
             return False
+
+    def cmd_update_database(self, args):
+        self.print("Update local database.")
+        current_product_list = self._cached_product_list
+        current_market =  Market()
+
+        if args['#'] == 1:
+            if args['1'] == 'all':
+                self.print("!!! Are you really sure about updating local database.(YES/No, Defaul No. Please enter full word.) !!!")
+                ans = input()
+                if ans == 'YES':
+                    current_market.update_data()
+            elif args['1'] == 'force':
+                current_market.update_data(product_list = current_product_list, force_update = True)
+            else:
+                self.print(f"Update product {args['1']}")
+                current_market.update_data(product_list = [args['1']])
+        elif args['#'] == 2:
+            if args['1'] == 'force':
+                if args['2'] == 'all':
+                    self.print("!!! Are you really sure about FORCE updating local database.(YES/No, Defaul No. Please enter full word.) !!!")
+                    ans = input()
+                    if ans == 'YES':
+                        current_market.update_data(force_update = True)
+                else:
+                    self.print(f"Force update product {args['2']}")
+                    current_market.update_data(product_list = [args['2']], force_update = True)
+        else:
+            current_market.update_data(product_list = current_product_list)
+        return True
 
     def _cmd_test(self, args):
         if args['#'] == 1:

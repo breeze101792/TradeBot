@@ -29,7 +29,7 @@ class Evaluate:
         # self.strategy_list = [MovingAverageCrossoverStrategy, RelativeStrengthIndexStrategy, BreakoutMomentumStrategy]
         self.strategy_list = self.stra_mgr.get_strategy_list([StrategyManager.Level.OFFICIAL])
         self.default_strategy = self.strategy_list[0]
-        dbg_info(f"default strategy: {self.default_strategy}, Strategy list: {self.strategy_list}")
+        dbg_debug(f"default strategy: {self.default_strategy}, Strategy list: {self.strategy_list}")
 
         self.cm = AppConfigManager()
 
@@ -76,7 +76,8 @@ class Evaluate:
 
                     trade_analyzer.eval()
                     # Print detailed last trade information
-                    trade_info = each_strategy.last_trade
+                    # trade_info = each_strategy.last_trade
+                    trade_info = trade_analyzer.get_last_trade()[0]
 
                     if trade_info['action'] == 'buy':
                         if trade_info['symbol'] not in candidate_dict:
@@ -430,7 +431,8 @@ class Evaluate:
 
                 last_price = target_df['Close'].iloc[-1] if target_df is not None and not target_df.empty else None
                 # Print detailed last trade information
-                trade_info = target_strategy.last_trade
+                # trade_info = target_strategy.last_trade
+                trade_info = selling_analyzer.get_last_trade()[0]
                 selling_eval_result_list.append({
                     'symbol': symbol,
                     'open': purchase_date.isoformat(),

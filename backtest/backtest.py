@@ -389,6 +389,23 @@ class Backtest:
             return None
         else:
             return self.result_analyzed_data_list
+    def get_last_trade(self):
+        """
+        Retrieves the last trade information from each executed strategy.
+
+        This method iterates through the list of strategy instances that were run
+        and collects the `last_trade` attribute from each one. The format of
+        the `last_trade` information is determined by the strategy's implementation.
+
+        Returns:
+            list: A list containing the last trade information from each strategy.
+                  The list will be empty if no strategies were run or if the
+                  strategies do not have a `last_trade` attribute.
+        """
+        last_trade_info_list = []
+        for each_strategy in self.strategy_list:
+            last_trade_info_list.append(each_strategy.last_trade)
+        return last_trade_info_list
 
     def add_data_frame(self, symbol_data_list, cerebro = None):
         """
@@ -665,6 +682,9 @@ class Backtest:
                 # update result data.
                 self.result_timestatmp = datetime.now()
                 self.result_strategy_list = stra_list
+        except ValueError as e:
+            dbg_error(e)
+            dbg_error(f"Symbol: {self.data_list}")
         except Exception as e:
             dbg_error(e)
         

@@ -193,18 +193,11 @@ class Trading:
                         dbg_warning(f"Can't get current price of {symbol} (returned None), ignore actions.")
                         continue
                     holding_size = trade_broker.get_position_by_symbol(symbol).size
-                    # sanity check
-                    if holding_size <= 0:
-                        dbg_warning(f'Selling product: {symbol}, current hoding: {holding_size}.')
-                        continue
-                    elif selling_size == holding_size or selling_size <= 0:
-                        # if equal then we just sell it all.
-                        trade_broker.place_order(symbol=symbol, size=selling_size, action=OrderAction.SELL)
 
                     dbg_info(f'Selling product: {symbol}, try selling {selling_size} from current hoding {holding_size}')
-                    if current_price == 0:
+                    if current_price <= 0 or holding_size <= 0:
                         # FIXME, find another way to take actions.
-                        dbg_warning("can't get current price of {symbol}, ignore actions.")
+                        dbg_warning("can't get current price of {symbol} or size {holding_size}, ignore actions.")
                         continue
 
                     elif selling_size == holding_size:
