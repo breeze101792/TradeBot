@@ -151,6 +151,8 @@ class Simulate(multiprocessing.Process):
         try:
             with open(sim_config_file, 'w') as f:
                 json.dump(state, f, indent=4)
+                f.flush()  # Ensure all buffered data is written to the OS
+                os.fsync(f.fileno()) # Ensure the OS writes the data to disk
             dbg_info(f"Simulation state saved to {sim_config_file}")
         except Exception as e:
             dbg_error(f"Failed to save simulation state: {e}")
@@ -227,9 +229,9 @@ class Simulate(multiprocessing.Process):
 
     def _time_iteration(self):
         loop_interval = 0.1
-        dbg_info(f"-- Start of time iteration from {self.start_time} to {self.end_time}. --")
+        dbg_info(f"-- Start of time iteration from {self.start_time} to {self.end_time}, current time is {self.simulation_time}. --")
         # do time simulation.
-        with freeze_time(self.start_time) as frozen_time:
+        with freeze_time(self.simulation_time) as frozen_time:
             # self._simulation_time.value = datetime.now().timestamp()
             while self.simulation_time < self.end_time:
                 try:
@@ -300,11 +302,12 @@ class Simulate(multiprocessing.Process):
                 finally:
                     ## Update time variable
                     #############################################################
-                    t_sleep(loop_interval)
                     # Advance time by one day for the next iteration
                     frozen_time.tick(relativedelta(days=1))
                     self._simulation_time.value = datetime.now().timestamp()
                     self._config_save() # Save configuration after each daily iteration
+
+                    t_sleep(loop_interval)
         dbg_info("-- End of time iteration. --")
 
     def _simulate(self):
@@ -384,14 +387,17 @@ class Simulate(multiprocessing.Process):
 
         # Start simulation from the specified start_time
         while self._is_running.value:
-
             # time iteration.
-            dbg_trace(f"simulation time: {self.simulation_time.date()}, end time: {self.end_time.date()}")
-            if self.simulation_time.date() != self.end_time.date():
-                self._time_iteration()
-
-            t_sleep(1)
-
+            try:
+                dbg_trace(f"simulation time: {self.simulation_time.date()}, end time: {self.end_time.date()}")
+                if self.simulation_time.date() != self.end_time.date():
+                    self._time_iteration()
+            except Exception as e:
+                dbg_error(e)
+                traceback_output = traceback.format_exc()
+                dbg_error(traceback_output)
+            finally:
+                t_sleep(1)
 
     def stop(self):
         """

@@ -51,7 +51,7 @@ Simulation path: {cm.get('path.broker')}
         self.regist_cmd("pause", self._cmd_pause, description="Pause the simulation", group='tools')
         self.regist_cmd("continue", self._cmd_continue, description="Continue a paused simulation", group='tools')
         self.regist_cmd("ignore_pause", self._cmd_ignore_pause, description="Temporarily ignore automatic pausing for 1 hour.", group='tools')
-        self.regist_cmd("config", self._cmd_config, description="Show, set, or generate the broker simulation data path (e.g., 'broker_path' to show, 'broker_path generate' to create new, 'broker_path set <your/path>' to set).", arg_list=['path', 'generate', 'load'], group='config')
+        self.regist_cmd("config", self._cmd_config, description="Manage broker simulation data paths (e.g., 'config' to show current, 'config list' to list all, 'config load <path>' to load, 'config previous' to load latest).", arg_list=['list', 'load', 'previous'], group='config')
 
         # configs
         self.regist_cmd("test", self._cmd_test, description="Apply predefined test simulation settings (e.g., 'test single', 'test t50', 'test all', 'test <year> (2000-2025)')", arg_list = ['single', 'multiple', 't1', 't50', 'all', 'year'], group='config')
@@ -205,6 +205,32 @@ Simulation path: {cm.get('path.broker')}
                 self.print(f"Load data from {full_path_to_check}, start new instance.")
                 self.simulate.start()
                 return True
+            elif args['1'] == 'previous':
+                cm = AppConfigManager()
+                simulate_root = cm.get_path('simulate')
+                if not os.path.exists(simulate_root):
+                    self.print(f"Simulation root directory does not exist: {simulate_root}")
+                    return False
+
+                simulation_dirs = []
+                for item in os.listdir(simulate_root):
+                    full_path = os.path.join(simulate_root, item)
+                    if os.path.isdir(full_path) and re.match(r"^\d{8}_\d{6}$", item):
+                        simulation_dirs.append(item)
+
+                if not simulation_dirs:
+                    self.print("No previous simulation data directories found.")
+                    return False
+
+                latest_sim_dir = sorted(simulation_dirs, reverse=True)[0]
+                full_path_to_load = os.path.join(simulate_root, latest_sim_dir)
+
+                cm.set('path.broker', full_path_to_load)
+                self.simulate = Simulate()
+                self.simulate.load(full_path_to_load)
+                self.print(f"Load data from latest simulation: {full_path_to_load}, start new instance.")
+                self.simulate.start()
+                return True
             elif args['1'] == 'list':
                 cm = AppConfigManager()
                 simulate_root = cm.get_path('simulate')
@@ -230,7 +256,7 @@ Simulation path: {cm.get('path.broker')}
                     self.print("No simulation data directories found.")
                 return True
             else:
-                dbg_warning("Usage: load [generate | list | load <your/path>]")
+                dbg_warning("Usage: config [list | load <your/path> | load previous]")
                 return False
         return True
 

@@ -46,6 +46,23 @@ class MovingProfitStrategy(BasicExitStrategy):
             dbg_error(f'trailing_takeprofit_pct({self.p.trailing_takeprofit_pct}) should bigger then trailing_stop_pct({self.p.trailing_stop_pct}).')
             raise
 
+    def calc_selling_size(self, current_size, current_price):
+        def_parts = 2
+        # TODO, check if we need to adjust to 5 or others
+        # def_parts = 5
+        # def_parts = 10
+        sell_pos = 0
+
+        try:
+            lot_size = current_size / self.LOT_UNIT
+            if lot_size >= def_parts and floor(lot_size/def_parts) * self.LOT_UNIT * current_price >= self.MIN_CASH_PER_TRADE:
+                sell_pos = int(ceil(lot_size/def_parts) * self.LOT_UNIT)
+            else:
+                sell_pos = lot_size * self.LOT_UNIT
+        except Exception as e:
+            dbg_error(f"Error calculating sell_pos: {e}")
+            sell_pos = 0 # Default to 0 if an error occurs
+        return sell_pos
     def next(self):
         if not self.is_trading_date(self.datas[0].datetime.date(0)):
             return
@@ -95,12 +112,13 @@ class MovingProfitStrategy(BasicExitStrategy):
                     # trailing stop loss.
 
                     # calc size to sell
-                    lot_size = pos.size / self.LOT_UNIT
-                    sell_pos = 0
-                    if lot_size >= 2 and floor(lot_size/2) * self.LOT_UNIT * price >= self.MIN_CASH_PER_TRADE:
-                        sell_pos = int(ceil(lot_size/2) * self.LOT_UNIT)
-                    else:
-                        sell_pos = lot_size * self.LOT_UNIT
+                    # lot_size = pos.size / self.LOT_UNIT
+                    # sell_pos = 0
+                    # if lot_size >= 2 and floor(lot_size/2) * self.LOT_UNIT * price >= self.MIN_CASH_PER_TRADE:
+                    #     sell_pos = int(ceil(lot_size/2) * self.LOT_UNIT)
+                    # else:
+                    #     sell_pos = lot_size * self.LOT_UNIT
+                    sell_pos = self.calc_selling_size(pos.size, price)
                     # dbg_info(f'Selling debug: {pos.size}->{sell_pos}')
                     self.sell(data=data, size=sell_pos)
 
@@ -114,12 +132,13 @@ class MovingProfitStrategy(BasicExitStrategy):
                     # adjust moving profit.
 
                     # we don't sell out all stock at once.
-                    lot_size = pos.size / self.LOT_UNIT
-                    sell_pos = 0
-                    if lot_size >= 2 and floor(lot_size/2) * self.LOT_UNIT * price >= self.MIN_CASH_PER_TRADE:
-                        sell_pos = int(ceil(lot_size/2) * self.LOT_UNIT)
-                    else:
-                        sell_pos = lot_size * self.LOT_UNIT
+                    # lot_size = pos.size / self.LOT_UNIT
+                    # sell_pos = 0
+                    # if lot_size >= 2 and floor(lot_size/2) * self.LOT_UNIT * price >= self.MIN_CASH_PER_TRADE:
+                    #     sell_pos = int(ceil(lot_size/2) * self.LOT_UNIT)
+                    # else:
+                    #     sell_pos = lot_size * self.LOT_UNIT
+                    sell_pos = self.calc_selling_size(pos.size, price)
                     # dbg_info(f'Selling debug: {pos.size}->{sell_pos}')
                     self.sell(data=data, size=sell_pos)
 
