@@ -51,10 +51,10 @@ Simulation path: {cm.get('path.broker')}
         self.regist_cmd("pause", self._cmd_pause, description="Pause the simulation", group='tools')
         self.regist_cmd("continue", self._cmd_continue, description="Continue a paused simulation", group='tools')
         self.regist_cmd("ignore_pause", self._cmd_ignore_pause, description="Temporarily ignore automatic pausing for 1 hour.", group='tools')
-        self.regist_cmd("broker_path", self._cmd_broker_path, description="Show, set, or generate the broker simulation data path (e.g., 'broker_path' to show, 'broker_path generate' to create new, 'broker_path set <your/path>' to set).", arg_list=['path', 'generate', 'load'], group='config')
+        self.regist_cmd("config", self._cmd_config, description="Show, set, or generate the broker simulation data path (e.g., 'broker_path' to show, 'broker_path generate' to create new, 'broker_path set <your/path>' to set).", arg_list=['path', 'generate', 'load'], group='config')
 
         # configs
-        self.regist_cmd("test", self._cmd_test, description="Apply predefined test simulation settings (e.g., 'test single', 'test t50', 'test all')", arg_list = ['single', 'multiple', 't1', 't50', 'all'], group='config')
+        self.regist_cmd("test", self._cmd_test, description="Apply predefined test simulation settings (e.g., 'test single', 'test t50', 'test all', 'test <year> (2000-2025)')", arg_list = ['single', 'multiple', 't1', 't50', 'all', 'year'], group='config')
         self.regist_cmd("date", self._cmd_date, description="Set simulation date range (e.g., 'date 20230101 20231231', 'date week', 'date year 2023')", arg_list = ['from', 'to', 'week', 'month', 'halfyear', 'year'], group='config')
         self.regist_cmd("product", self._cmd_product, description="Set product list for simulation (e.g., 'product 2330 2331', 'product t50', 'product all')", arg_list = ['product_id'], group='config')
         self.regist_cmd("update", self.cmd_update_database, description="Update local database. (e.g., 'update', 'update <product_id>', 'update all', 'update force', 'update force all')", arg_list = ['all', 'force'], group='tools')
@@ -66,6 +66,7 @@ Simulation path: {cm.get('path.broker')}
         self.regist_cmd("positions", self._cmd_positions, description="Show current positions in simulation", group='trading')
         self.regist_cmd("transactions", self._cmd_transactions, description="Show transaction history in simulation (e.g., 'transactions day', 'transactions month')", group='trading')
         self.regist_cmd("trade", self._cmd_trade, description="Show trade records for a specific product and/or strategy (e.g., 'trade 2330' or 'trade strategy=MyStrategy')", arg_list = ['product_id', 'strategy'], group='trading')
+        self.regist_cmd("report", self._cmd_report, description="Generate a trade report grouped by period (e.g., 'report day', 'report week', 'report month', 'report year'). Defaults to 'month'.", arg_list = ['day', 'week', 'month', 'year'], group='trading')
 
         # register server
         register_stockwatch_commands(self)
@@ -142,10 +143,22 @@ Simulation path: {cm.get('path.broker')}
             dbg_warning(f'Please start simulation first.')
             return False
 
+    def _cmd_report(self, args):
+        if self.simulate and self.simulate.is_alive():
+            period = 'month'
+            if args['#'] == 1:
+                period = args['1']
+            self.simulate.command_queue.put(('report', [], {'period': period}))
+            self.print("Trade report request sent to simulation.")
+            return True
+        else:
+            dbg_warning(f'Please start simulation first.')
+            return False
+
     ## End of Trading
     ############################################################################
 
-    def _cmd_broker_path(self, args):
+    def _cmd_config(self, args):
         """
         Sets the broker simulation path or generates a new one based on timestamp.
         Usage: broker_path [new_path]
@@ -164,21 +177,61 @@ Simulation path: {cm.get('path.broker')}
                 return False
 
             if args['1'] == 'load':
-                dbg_warning(f'Loading config is not working yet.')
-                # new_path = args['2']
-                # # self._cached_broker_path = new_path # Update cached value
-                # self.print(f"Load broker simulation path to: {new_path}")
-                #
-                # cm = AppConfigManager()
-                # cm.set('path.broker', new_path) # Load broker path
-                #
-                # # apply config
-                # self.simulate = Simulate(start_time=self._cached_end_time, end_time=self._cached_end_time)
-                # self.simulate.product_list = []
-                # self.simulate.initialize()
-        else:
-            dbg_warning("Usage: broker_path [new_path | generate]")
-            return False
+                if args['#'] < 2:
+                    dbg_warning("Usage: load load <your/path>")
+                    return False
+                
+                exsit_timestamp = args['2'] # This is the value to set for 'path.broker'
+                
+                cm = AppConfigManager()
+                
+                # Construct the full absolute path to check existence
+                # Assuming exsit_timestamp is relative to the project root
+                full_path_to_check = os.path.join(cm.get_path('simulate'), exsit_timestamp)
+                
+                if not os.path.isdir(full_path_to_check):
+                    dbg_warning(f"The specified path '{full_path_to_check}' does not exist or is not a directory.")
+                    return False
+
+                cm.set('path.broker', full_path_to_check) # Set broker path in config
+                # self.print(f"Broker simulation path set to: {full_path_to_check}")
+                
+                # Re-initialize simulate instance to pick up the new path
+                # Note: The Simulate instance will read the 'path.broker' from AppConfigManager during its own initialization.
+                # self.simulate = Simulate(start_time=self._cached_start_time, end_time=self._cached_end_time)
+                # self.simulate.product_list = self._cached_product_list
+                self.simulate = Simulate()
+                self.simulate.load(full_path_to_check)
+                self.print(f"Load data from {full_path_to_check}, start new instance.")
+                self.simulate.start()
+                return True
+            elif args['1'] == 'list':
+                cm = AppConfigManager()
+                simulate_root = cm.get_path('simulate')
+                if not os.path.exists(simulate_root):
+                    self.print(f"Simulation root directory does not exist: {simulate_root}")
+                    return False
+                
+                self.print(f"Listing simulation data directories in: {simulate_root}")
+                
+                # List directories that look like timestamped simulation runs
+                simulation_dirs = []
+                for item in os.listdir(simulate_root):
+                    full_path = os.path.join(simulate_root, item)
+                    if os.path.isdir(full_path):
+                        # Check if the directory name matches the timestamp format YYYYMMDD_HHMMSS
+                        if re.match(r"^\d{8}_\d{6}$", item):
+                            simulation_dirs.append(item)
+                
+                if simulation_dirs:
+                    for sim_dir in sorted(simulation_dirs):
+                        self.print(f"- {sim_dir}")
+                else:
+                    self.print("No simulation data directories found.")
+                return True
+            else:
+                dbg_warning("Usage: load [generate | list | load <your/path>]")
+                return False
         return True
 
     def _cmd_info(self, args):
@@ -195,9 +248,8 @@ Simulation path: {cm.get('path.broker')}
             table_data.append(["Start Time", self.simulate.start_time.strftime("%Y-%m-%d %H:%M:%S")])
             table_data.append(["End Time", self.simulate.end_time.strftime("%Y-%m-%d %H:%M:%S")])
             
-            # Check for current_time if it exists in Simulate object for more detailed info
-            if hasattr(self.simulate, 'current_time'):
-                table_data.append(["Current Simulated Time", self.simulate.current_time.strftime("%Y-%m-%d %H:%M:%S")])
+            # Display the current simulated time
+            table_data.append(["Current Simulated Time", self.simulate.simulation_time.strftime("%Y-%m-%d %H:%M:%S")])
             
             product_list_display = "N/A"
             if self.simulate.product_list:
@@ -247,8 +299,8 @@ Simulation path: {cm.get('path.broker')}
 
             # generate broker path
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            generated_path = f"simulate/{timestamp}"
-            new_broker_path = generated_path # Update cached value
+            simulate_root = cm.get_path('simulate')
+            new_broker_path = os.path.join(simulate_root, timestamp)
             cm.set('path.broker', new_broker_path) # Set broker path from cached value before starting
             
             # Create a new Simulate instance with cached settings
@@ -451,4 +503,16 @@ Simulation path: {cm.get('path.broker')}
                 self._cached_product_list = mkt.get_data_list()
                 self.print(f"Test settings (multiple) applied: Start={self._cached_start_time}, End={self._cached_end_time}, Products({len(self._cached_product_list)})={self._cached_product_list[:10]}...")
                 return True
+            elif args['1'].isdigit():
+                year = int(args['1'])
+                if 2000 <= year <= datetime.now().year: # Allow years from 2000 up to the current year
+                    self._cached_start_time = datetime(year, 1, 1, 10, 0, 0, 0)
+                    self._cached_end_time = datetime(year, 12, 31, 10, 0, 0, 0)
+                    mkt = Market()
+                    self._cached_product_list = mkt.get_data_list()
+                    self.print(f"Test settings (multiple) applied: Start={self._cached_start_time}, End={self._cached_end_time}, Products({len(self._cached_product_list)})={self._cached_product_list[:10]}...")
+                    return True
+                else:
+                    dbg_warning(f"Invalid year: {year}. Please provide a year between 2000 and {datetime.now().year}.")
+                    return False
         return False

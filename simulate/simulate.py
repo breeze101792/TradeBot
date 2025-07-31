@@ -6,6 +6,7 @@ import multiprocessing
 import threading
 import shutil
 from queue import Empty
+import json
 
 from datetime import datetime
 from datetime import time as dt_time
@@ -110,11 +111,9 @@ class Simulate(multiprocessing.Process):
 
         if os.path.exists(broker_path):
             if os.path.isfile(broker_path):
-                os.remove(broker_path)
-                dbg_info(f"Removed existing broker file: {broker_path}")
+                dbg_warning(f"An existing broker file: {broker_path}, please fix it.")
             elif os.path.isdir(broker_path):
-                shutil.rmtree(broker_path)
-                dbg_info(f"Removed existing broker directory: {broker_path}")
+                dbg_info(f"Start with existing broker directory: {broker_path}")
 
     def _initialize(self):
         # NOTE. this functon need to sync with core.initialize, and enable simulation
@@ -134,6 +133,61 @@ class Simulate(multiprocessing.Process):
             t_sleep(1)
 
         BrokerManager.finalize()
+
+    def _config_save(self, file_path: str = None):
+        """Saves the current simulation state to a configuration file."""
+        cfg_mgr = AppConfigManager()
+        sim_config_file = file_path if file_path else os.path.join(cfg_mgr.get_path('broker'), 'simulation_state.json')
+        
+        state = {
+            'start_time': self._start_time.value,
+            'end_time': self._end_time.value,
+            'simulation_time': self._simulation_time.value,
+            'product_list': self._product_list,
+            'is_paused': self._is_paused.value,
+            'pause_disabled_until': self._pause_disabled_until.value
+        }
+        
+        try:
+            with open(sim_config_file, 'w') as f:
+                json.dump(state, f, indent=4)
+            dbg_info(f"Simulation state saved to {sim_config_file}")
+        except Exception as e:
+            dbg_error(f"Failed to save simulation state: {e}")
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+
+    def _config_load(self, file_path: str = None):
+        """Loads the simulation state from a configuration file."""
+        cfg_mgr = AppConfigManager()
+        sim_config_file = file_path if file_path else os.path.join(cfg_mgr.get_path('broker'), 'simulation_state.json')
+
+        if os.path.exists(sim_config_file):
+            try:
+                with open(sim_config_file, 'r') as f:
+                    state = json.load(f)
+                
+                self._start_time.value = state.get('start_time', self._start_time.value)
+                self._end_time.value = state.get('end_time', self._end_time.value)
+                self._simulation_time.value = state.get('simulation_time', self._simulation_time.value)
+                self._product_list = state.get('product_list', self._product_list)
+                self._is_paused.value = state.get('is_paused', self._is_paused.value)
+                self._pause_disabled_until.value = state.get('pause_disabled_until', self._pause_disabled_until.value)
+                
+                dbg_info(f"Simulation state loaded from {sim_config_file}")
+            except Exception as e:
+                dbg_error(f"Failed to load simulation state: {e}")
+                traceback_output = traceback.format_exc()
+                dbg_error(traceback_output)
+        else:
+            dbg_info(f"No existing simulation state found at {sim_config_file}. Starting with default/provided values.")
+    def load(self, broker_path: str):
+        """
+        Loads the simulation state from a specified broker path.
+        This function is intended for external calls to resume the simulation from a saved state.
+        """
+        sim_config_file = os.path.join(broker_path, 'simulation_state.json')
+        self._config_load(file_path=sim_config_file)
 
     def _command_handler(self):
         """Handles commands from the command queue."""
@@ -160,6 +214,9 @@ class Simulate(multiprocessing.Process):
                 elif command == 'trade':
                     dbg_info("Trade record summary triggered via command.")
                     self.time_machine_eval(Recorder().show_records, *c_args, **c_kwargs)
+                elif command == 'report':
+                    dbg_info("Trade report summary triggered via command.")
+                    self.time_machine_eval(Recorder().show_report, *c_args, **c_kwargs)
             except Empty:
                 pass  # Check running flag and wait for new commands
             except Exception as e:
@@ -170,9 +227,10 @@ class Simulate(multiprocessing.Process):
 
     def _time_iteration(self):
         loop_interval = 0.1
+        dbg_info(f"-- Start of time iteration from {self.start_time} to {self.end_time}. --")
         # do time simulation.
         with freeze_time(self.start_time) as frozen_time:
-            self._simulation_time.value = datetime.now().timestamp()
+            # self._simulation_time.value = datetime.now().timestamp()
             while self.simulation_time < self.end_time:
                 try:
                     # Time control
@@ -203,7 +261,7 @@ class Simulate(multiprocessing.Process):
                         # check the pause
                         if should_pause:
                             if not self._is_paused.value: # Only pause if not already paused
-                                dbg_info(f"Automatically pausing simulation during restricted hours: {current_sim_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                                dbg_info(f"Automatically pausing simulation during restricted hours: {current_real_time.strftime('%Y-%m-%d %H:%M:%S')}")
                                 self._pause_event.wait(timeout=1800) # Wait until the event is set, with a 30-minutes timeout
                                 self._pause_event.clear() # Clear the event after resuming
                                 # self.pause()
@@ -216,7 +274,7 @@ class Simulate(multiprocessing.Process):
                             self._pause_event.clear() # Clear the event after resuming
                             dbg_info("Simulation resumed.")
 
-                    dbg_debug(f"Simulation loop. Current time: {datetime.now()}")
+                    dbg_info(f"Simulation start. Current time: {datetime.now()}")
                     # update vars.
 
                     ## time check.
@@ -229,6 +287,8 @@ class Simulate(multiprocessing.Process):
                     #############################################################
                     if is_simulated_weekday:
                         self._simulate()
+
+                    dbg_info(f"Simulation finished. Current time: {datetime.now()}")
                 except KeyboardInterrupt:
                     self._pause_event.clear() # Clear the event after resuming
                     dbg_info(f"get keyboard interupt.")
@@ -244,7 +304,8 @@ class Simulate(multiprocessing.Process):
                     # Advance time by one day for the next iteration
                     frozen_time.tick(relativedelta(days=1))
                     self._simulation_time.value = datetime.now().timestamp()
-        dbg_info("-- End of simulation. --")
+                    self._config_save() # Save configuration after each daily iteration
+        dbg_info("-- End of time iteration. --")
 
     def _simulate(self):
         #############################################################
@@ -286,6 +347,14 @@ class Simulate(multiprocessing.Process):
             else:
                 dbg_debug('No selling actions triggered in this interval.')
 
+        except Exception as e:
+            dbg_error(e)
+        
+            traceback_output = traceback.format_exc()
+            dbg_error(traceback_output)
+
+        # summary eval .
+        try:
             # show summary.
             self.broker_manager.summarize_positions()
             # self.broker_manager.summarize_transactions()
@@ -317,7 +386,7 @@ class Simulate(multiprocessing.Process):
         while self._is_running.value:
 
             # time iteration.
-            dbg_trace(f"simulation time: {self.simulation_time}, end time: {self.end_time}")
+            dbg_trace(f"simulation time: {self.simulation_time.date()}, end time: {self.end_time.date()}")
             if self.simulation_time.date() != self.end_time.date():
                 self._time_iteration()
 

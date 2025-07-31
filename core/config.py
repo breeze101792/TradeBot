@@ -15,6 +15,7 @@ class AppConfig(BasicConfig):
         log = "log"
         key = "key"
         broker = "broker"
+        simulate = "simulate"
         trade_cmd_history = 'trade_cmd.history'
 
         backtest = 'backtest'
