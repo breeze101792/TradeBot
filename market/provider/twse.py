@@ -109,33 +109,35 @@ class TWSE(DataProvider):
         if product_type != ProductType.STOCK and product_type != ProductType.ALL:
             return pd.DataFrame([])
 
-        for each_id in twstock.codes.keys():
-            try:
-                self.lock()
-                each_stock = twstock.codes[each_id]
-                if each_stock.type != '股票':
-                    continue
-                if each_stock.market != '上市':
-                    continue
+        try:
+            # lock should be outside loop..
+            self.lock()
+            for each_id in twstock.codes.keys():
+                try:
+                    each_stock = twstock.codes[each_id]
+                    if each_stock.type != '股票':
+                        continue
+                    if each_stock.market != '上市':
+                        continue
 
-                # 整理資料
-                product_data = {
-                    "code": each_stock.code,
-                    "type": each_stock.type,
-                    "name": each_stock.name,
-                    "start": pd.to_datetime(each_stock.start, errors='coerce').strftime('%Y-%m-%d') if each_stock.start else None,
-                    "market": self.convert_market(each_stock.market),
-                    "category": each_stock.group,
-                    "country": "TW",
-                }
-                product_list.append(product_data)
+                    # 整理資料
+                    product_data = {
+                        "code": each_stock.code,
+                        "type": each_stock.type,
+                        "name": each_stock.name,
+                        "start": pd.to_datetime(each_stock.start, errors='coerce').strftime('%Y-%m-%d') if each_stock.start else None,
+                        "market": self.convert_market(each_stock.market),
+                        "category": each_stock.group,
+                        "country": "TW",
+                    }
+                    product_list.append(product_data)
 
-            except Exception as e:
-                dbg_error(f"Error processing stock: {each_stock}")
-                dbg_error(e)
-                continue
-            finally:
-                self.unlock()
+                except Exception as e:
+                    dbg_error(f"Error processing stock: {each_stock}")
+                    dbg_error(e)
+                    continue
+        finally:
+            self.unlock()
 
         # 轉換成 Pandas DataFrame
         df = pd.DataFrame(product_list)

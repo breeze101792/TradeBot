@@ -491,7 +491,15 @@ Simulation path: {cm.get('path.broker')}
 
     def _cmd_test(self, args):
         if args['#'] == 1:
-            if args['1'] == 'single':
+            if args['1'] == '2330':
+                # buy & sell.
+                self._cached_start_time = datetime(2020, 1, 1, 10, 0, 0)
+                # self._cached_end_time = datetime(2020, 12, 31, 10, 0, 0)
+                self._cached_end_time = datetime(2020, 12, 31, 10, 0, 0)
+                self._cached_product_list = ['2330'] # Default product list
+                self.print(f"Test settings (single) applied: Start={self._cached_start_time}, End={self._cached_end_time}, Products={self._cached_product_list}")
+                return True
+            elif args['1'] == 'single':
                 # buy & sell.
                 self._cached_start_time = datetime(2025, 6, 20, 10, 0, 0)
                 self._cached_end_time = datetime(2025, 7, 17, 10, 0, 0)

@@ -153,7 +153,7 @@ class Simulate(multiprocessing.Process):
                 json.dump(state, f, indent=4)
                 f.flush()  # Ensure all buffered data is written to the OS
                 os.fsync(f.fileno()) # Ensure the OS writes the data to disk
-            dbg_info(f"Simulation state saved to {sim_config_file}")
+            dbg_trace(f"Simulation state saved to {sim_config_file}")
         except Exception as e:
             dbg_error(f"Failed to save simulation state: {e}")
             traceback_output = traceback.format_exc()
@@ -176,7 +176,7 @@ class Simulate(multiprocessing.Process):
                 self._is_paused.value = state.get('is_paused', self._is_paused.value)
                 self._pause_disabled_until.value = state.get('pause_disabled_until', self._pause_disabled_until.value)
                 
-                dbg_info(f"Simulation state loaded from {sim_config_file}")
+                dbg_trace(f"Simulation state loaded from {sim_config_file}")
             except Exception as e:
                 dbg_error(f"Failed to load simulation state: {e}")
                 traceback_output = traceback.format_exc()
@@ -228,7 +228,7 @@ class Simulate(multiprocessing.Process):
                 dbg_error(traceback_output)
 
     def _time_iteration(self):
-        loop_interval = 0.1
+        loop_interval = 0.5
         dbg_info(f"-- Start of time iteration from {self.start_time} to {self.end_time}, current time is {self.simulation_time}. --")
         # do time simulation.
         with freeze_time(self.simulation_time) as frozen_time:
@@ -276,9 +276,6 @@ class Simulate(multiprocessing.Process):
                             self._pause_event.clear() # Clear the event after resuming
                             dbg_info("Simulation resumed.")
 
-                    dbg_info(f"Simulation start. Current time: {datetime.now()}")
-                    # update vars.
-
                     ## time check.
                     #############################################################
                     # we do trading only on monday to friday, so ignore saunday and saturday.
@@ -289,8 +286,8 @@ class Simulate(multiprocessing.Process):
                     #############################################################
                     if is_simulated_weekday:
                         self._simulate()
+                        dbg_info(f"Simulation finished. Current time: {datetime.now()}")
 
-                    dbg_info(f"Simulation finished. Current time: {datetime.now()}")
                 except KeyboardInterrupt:
                     self._pause_event.clear() # Clear the event after resuming
                     dbg_info(f"get keyboard interupt.")
@@ -314,6 +311,7 @@ class Simulate(multiprocessing.Process):
         #############################################################
         # buying eval .
         try:
+            dbg_debug(f'-- Buying evaluation. --')
             buying_list = []
             # FIXME, backtesting lock
             if self._parallel and (self.product_list is not None and len(self.product_list) > self.parallel_num): # Always use parallel processor for now
@@ -341,6 +339,7 @@ class Simulate(multiprocessing.Process):
 
         # selling eval .
         try:
+            dbg_debug(f'-- Selling evaluation. --')
             # NOTE. only do it daily, it may have the difference between core trading flow.
             # But it only better?
             selling_list = self.trading.selling_eval()
@@ -358,6 +357,7 @@ class Simulate(multiprocessing.Process):
 
         # summary eval .
         try:
+            dbg_debug(f'-- Daily summary. --')
             # show summary.
             self.broker_manager.summarize_positions()
             # self.broker_manager.summarize_transactions()
@@ -376,6 +376,9 @@ class Simulate(multiprocessing.Process):
         Add the simulation logic here.
         """
         dbg_info("-- Simulation started. --")
+
+        # variable setup
+        loop_interval = 0.1
 
         # env setup
         self._prepare()
@@ -397,7 +400,7 @@ class Simulate(multiprocessing.Process):
                 traceback_output = traceback.format_exc()
                 dbg_error(traceback_output)
             finally:
-                t_sleep(1)
+                t_sleep(loop_interval)
 
     def stop(self):
         """

@@ -102,6 +102,7 @@ class DataProvider:
 
     def get_data_list(self, market: str = None, country: str = None, force_update: bool = False, product_type: ProductType = ProductType.STOCK):
         data_list_cache_folder = os.path.join(self.cache_data_root_path, self.cache_data_name, 'lists')
+        os.makedirs(data_list_cache_folder, exist_ok=True)
         filename_prefix = "data_list"
         today_str = self.get_last_trading_update_date().strftime('%Y%m%d')
         current_day_filename = f"{filename_prefix}_{market}_{country}_{product_type.value}_{today_str}.csv"
@@ -149,7 +150,24 @@ class DataProvider:
 
         return df
 
-    def get_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None, incremental_update = False, force_update: bool = False):
+    def get_data(self, product_id: str, start_date: datetime.date = None, end_date: datetime.date = None, incremental_update = False, force_update: bool = False, update = True):
+        """
+        Retrieves historical data for a specific product, handling caching and updates.
+
+        This function fetches data from a local cache if available. It can perform
+        incremental updates to fetch only new data since the last cache, or a full
+        forced update. It also supports providers with adjusted data by managing
+        date-stamped data folders.
+
+        :param product_id: The unique identifier for the product (e.g., 'AAPL').
+        :param start_date: The start date for the requested data range (inclusive). If None, data is returned from the earliest available date.
+        :param end_date: The end date for the requested data range (inclusive). If None, data is returned up to the latest available trading day.
+        :param incremental_update: If True, the method attempts to download only the data missing since the last cached entry up to `end_date` or the latest trading day. This is overridden by `force_update`.
+        :param force_update: If True, forces a full re-download of data for the specified period, overwriting any cached data.
+        :param update: If False, the function will not attempt to download any new data and will only return data from the cache.
+        :return: A pandas DataFrame containing the historical data for the specified product and date range, indexed by date.
+                 Returns an empty DataFrame if no data is available or found for the given criteria.
+        """
         # Get today's date and last trading day
         today = datetime.now().date()
         last_trading_day = self.get_last_trading_update_date()
@@ -211,7 +229,9 @@ class DataProvider:
         download_start_date = None
         download_end_date = None
 
-        if df is None or df.empty or force_update is True:
+        if update is False:
+            dbg_trace(f"Ignore update checking.")
+        elif df is None or df.empty or force_update is True:
             dbg_debug(f"No cached data for {product_id} or cache is empty. Full download required.")
             download_required = True
             # download_start_date = start_date if start_date else datetime(1900, 1, 1).date() # Default to very old date
@@ -322,9 +342,9 @@ class DataProvider:
             except Exception as e:
                 raise e
         if flag_wait is True:
-            dbg_info(f"Get new quota {self.get_quota()}", prefix='\n')
+            dbg_info(f"Get new quota {require_quota}/{self.get_quota()}", prefix='\n')
         else:
-            dbg_info(f"Remain Quota: {self.get_quota()}", prefix='\n')
+            dbg_info(f"Remain Quota: {require_quota}/{self.get_quota()}", prefix='\n')
 
     def update_data(self, product_list = [], force_update: bool = False):
         if len(product_list) == 0:

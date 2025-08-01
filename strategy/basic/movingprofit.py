@@ -47,10 +47,8 @@ class MovingProfitStrategy(BasicExitStrategy):
             raise
 
     def calc_selling_size(self, current_size, current_price):
-        def_parts = 2
-        # TODO, check if we need to adjust to 5 or others
-        # def_parts = 5
-        # def_parts = 10
+        # def_parts = 2
+        def_parts = 5
         sell_pos = 0
 
         try:

@@ -332,10 +332,12 @@ class MockBroker(BaseBroker):
         """
         try:
             if self.simulation is True:
-                dbg_debug(f"Running in simulation mode for {symbol}.")
+                dbg_trace(f"Running in simulation mode for {symbol}.")
                 # In simulation, get_data returns historical DataFrame.
                 # We need to extract the latest price from it, considering the simulation date.
-                data_df = self.data_provider.get_data(symbol, incremental_update = True)
+                # Don't pull data from online if missing. check data before simulation.
+                # data_df = self.data_provider.get_data(symbol, incremental_update = True)
+                data_df = self.data_provider.get_data(symbol, update = False)
                 if data_df is not None and not data_df.empty:
                     # Ensure the index is datetime for proper filtering
                     if not isinstance(data_df.index, pd.DatetimeIndex):
