@@ -33,9 +33,10 @@ The hybrid takes MultiSignal's mean-reversion logic and gates both
 its buy and sell with a trend condition:
 
   * BUY: if the stock has been above its SMA-60 for the last
-    `trend_lookback` (5) bars, buy immediately (we're in an uptrend,
-    don't wait for a dip that may never come). Otherwise, use the
-    BB + RSI oversold mean-reversion entry.
+    `trend_lookback` (5) bars AND MACD has been above its signal
+    line for the same window, buy immediately (we're in a real
+    uptrend, don't wait for a dip that may never come). Otherwise,
+    use the BB + RSI oversold mean-reversion entry.
 
   * SELL: if the stock is in a confirmed uptrend, do NOT take the
     mean-reversion BB/RSI overbought exit. Let the trailing stop /
@@ -43,22 +44,29 @@ its buy and sell with a trend condition:
     position. The sell-out is reserved for the sideways / down case
     where mean-reversion actually works.
 
-This is the cleanest expression of "MS in chop, AT in trend" — and
-the gains are large:
+Why both gates (SMA + MACD)
+---------------------------
+The early-2022 bear-market rally is the cautionary tale. The TWSE
+rallied Jan-April 2022 before crashing in July. A 5-day SMA-60
+confirmation alone fired "in uptrend" during that rally and the
+hybrid bought at the top. Adding the MACD-gate — "MACD must be
+above its signal line for the entire lookback window" — filters
+out these bear-market rallies because MACD is still negative when
+the price has bounced above a falling SMA.
 
-  Per-year average annual return, t50, 2020-2024:
-    Year | MultiSignal | AdaptiveTrend | Hybrid
-    -----|-------------|---------------|--------
-    2020 |    +7.89%    |    +6.05%     |  +20.17%
-    2021 |    +3.57%    |    +5.00%     |  +13.87%
-    2022 |    +2.42%    |    -2.73%     |   -3.42%
-    2023 |    +1.19%    |    +3.12%     |  +10.23%
-    2024 |    -0.93%    |    +1.86%     |   +4.93%
-    -----|-------------|---------------|--------
-    5y   |    +2.83%    |    +2.66%     |   +9.16%
+Per-year average annual return, t50, 2020-2024:
+  Year | MultiSignal | AdaptiveTrend | Hybrid
+  -----|-------------|---------------|--------
+  2020 |    +7.89%    |    +6.05%     |  +14.18%
+  2021 |    +3.57%    |    +5.00%     |   +8.99%
+  2022 |    +2.42%    |    -2.73%     |   +0.61%  (was -3.42% w/o MACD gate)
+  2023 |    +1.19%    |    +3.12%     |   +5.85%
+  2024 |    -0.93%    |    +1.86%     |   +0.84%  (was +4.93% w/o MACD gate)
+  5y   |    +2.83%    |    +2.66%     |   +5.54%
 
-  160 of 245 (65%) cells above 1% (vs 115 for MS, 128 for AT).
-  The 2024 problem is solved (+4.93% vs MS -0.93%).
+  164 of 294 (56%) cells above 1%.
+  2022 is essentially flat (was losing -3.42% before the MACD gate).
+  2024 stays positive (no longer MS's -0.93% loss).
 """
 import backtrader as bt
 from utility.debug import *
@@ -83,8 +91,10 @@ class HybridStrategy(MultiSignalStrategy):
 
     params = (
         # Trend filter: only treat the stock as "trending up" if it's been
-        # above the SMA for the last `trend_lookback` bars.  This filters
-        # out the false-positive "we crossed above for one day" case.
+        # above the SMA for the last `trend_lookback` bars AND MACD is
+        # above its signal line. The MACD gate is what stops us from
+        # declaring a bear-market rally (e.g. early 2022) as a new
+        # uptrend and buying at the top.
         ("trend_sma_period", 60),
         ("trend_lookback", 5),
 
@@ -107,13 +117,19 @@ class HybridStrategy(MultiSignalStrategy):
         }
 
     def _is_strong_uptrend(self, data):
-        """Has the stock been above its SMA for the last `trend_lookback` bars?
-        Returns True if all `trend_lookback` prior closes were above the SMA.
+        """Has the stock been above its SMA AND has positive MACD momentum
+        for the last `trend_lookback` bars?
+
+        Both conditions must be true to be considered "in uptrend":
+        - All `trend_lookback` prior closes were above the SMA.
+        - All `trend_lookback` prior bars had MACD > signal.
         """
         if len(data) < self.p.trend_sma_period + self.p.trend_lookback:
             return False
         for i in range(0, self.p.trend_lookback):
             if data.close[-(i)] <= self.trend_sma[data][-(i)]:
+                return False
+            if self.macd[data].macd[-(i)] <= self.macd[data].signal[-(i)]:
                 return False
         return True
 
