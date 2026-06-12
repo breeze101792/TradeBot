@@ -176,7 +176,13 @@ class Market:
             market (str, optional): The name of the market provider to use initially.
                                     If None, defaults to the first provider in the list.
         """
-        self.__market_list = [FindMind, TWSE, Yahoo]
+        # Order matters: the first entry is the default when Market() is
+        # called with no `market` argument. TWSE is the most reliable
+        # (no token required, no rate limits beyond a 1.6s/call lock) so
+        # it sits first. FindMind requires a FinMind API token at
+        # ~/.findmind.key and is marked experimental in its source, so
+        # it sits second. Yahoo can list prices but not products.
+        self.__market_list = [TWSE, FindMind, Yahoo]
         self.instance = None
         self.cached_stock_info_frame = None
         self.time = MarketTime
