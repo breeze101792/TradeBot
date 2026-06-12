@@ -15,4 +15,5 @@ dotenv
 shioaji[speed]
 gitpython
 freezegun
+filelock
 # python-dotenv
