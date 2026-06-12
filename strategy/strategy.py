@@ -9,6 +9,8 @@ from strategy.candidate.bm import BreakoutMomentumStrategy
 from strategy.candidate.rsi import RelativeStrengthIndexStrategy, RSI_SMA
 from strategy.candidate.bmr import BollingerMeanReversionStrategy
 from strategy.candidate.multisignal import MultiSignalStrategy
+from strategy.candidate.adaptive import AdaptiveTrendStrategy
+from strategy.candidate.hybrid import HybridStrategy
 
 # experiment
 from strategy.experiment.experiment import *
@@ -49,6 +51,15 @@ class StrategyManager:
 
         # signal watcher
         self.register_strategy(MultiSignalStrategy, level=self.Level.BETA)
+
+        ## AI Strategy
+        ########################################################################
+        # Long-term trend filter + medium-term momentum entry + ATR scaling.
+        self.register_strategy(AdaptiveTrendStrategy, level=self.Level.BETA)
+
+        # MultiSignal with trend-conditioned exit (hybrid mean-reversion + trend-following).
+        self.register_strategy(HybridStrategy, level=self.Level.BETA)
+        ########################################################################
 
         # Testing, don't enable it on real world.
         if test > 0:
