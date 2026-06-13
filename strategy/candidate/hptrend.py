@@ -104,9 +104,9 @@ class HPTrendStrategy(MultiSignalStrategy):
     params = (
         # Lookback for HP filter
         ("hp_lookback", 90),  # use last 90 days for HP (best)
-        ("hp_lambda", 1e5),
+        ("hp_lambda", 1e5),  # smoothness parameter
         # Trend slope threshold (HP_trend must be rising)
-        ("slope_lookback", 5),  # 5-bar slope window (best)
+        ("slope_lookback", 3),  # 3-bar slope window (grid best)
         ("risk_per_trade", 0.8),
         ("trailing_stop_pct", 0.10),
         ("trailing_takeprofit_pct", 0.12),
