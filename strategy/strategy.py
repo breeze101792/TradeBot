@@ -11,6 +11,7 @@ from strategy.candidate.bmr import BollingerMeanReversionStrategy
 from strategy.candidate.multisignal import MultiSignalStrategy
 from strategy.candidate.adaptive import AdaptiveTrendStrategy
 from strategy.candidate.hybrid import HybridStrategy
+from strategy.candidate.trendrider import TrendRiderStrategy
 
 # experiment
 from strategy.experiment.experiment import *
@@ -59,6 +60,9 @@ class StrategyManager:
 
         # MultiSignal with trend-conditioned exit (hybrid mean-reversion + trend-following).
         self.register_strategy(HybridStrategy, level=self.Level.BETA)
+
+        # Long-only trend-rider: buy on trend filter, hold with wide trailing stop.
+        self.register_strategy(TrendRiderStrategy, level=self.Level.BETA)
         ########################################################################
 
         # Testing, don't enable it on real world.

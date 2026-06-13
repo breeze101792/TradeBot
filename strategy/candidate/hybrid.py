@@ -91,12 +91,26 @@ class HybridStrategy(MultiSignalStrategy):
 
     params = (
         # Trend filter: only treat the stock as "trending up" if it's been
-        # above the SMA for the last `trend_lookback` bars AND MACD is
-        # above its signal line. The MACD gate is what stops us from
-        # declaring a bear-market rally (e.g. early 2022) as a new
-        # uptrend and buying at the top.
+        # above the SMA for the last `trend_lookback` bars AND MACD has
+        # been above the zero line for the same window. The MACD gate
+        # is what stops us from declaring a bear-market rally (e.g.
+        # early 2022) as a new uptrend and buying at the top, while
+        # still letting us hold through normal pullbacks inside a real
+        # uptrend.
         ("trend_sma_period", 60),
         ("trend_lookback", 5),
+
+        # Inherited from MovingProfitStrategy with wider targets so
+        # winners can run in 2024-style uptrends. The defaults (6%
+        # stop / 8% take-profit) cause the ratchet to sell on every
+        # 6% pullback once the position is up 8%, which is too tight
+        # for TWSE uptrends that regularly pull back 8-12% mid-trend.
+        # 8% / 12% is a compromise: wider than MS's defaults but not
+        # so wide that the choppy names (1326, 6505, 1301) blow up
+        # when the wider stop ratchet holds through a big drawdown.
+        ("risk_per_trade", 0.8),
+        ("trailing_stop_pct", 0.10),  # 10% trailing stop (was 6%)
+        ("trailing_takeprofit_pct", 0.12),  # 12% trailing take-profit (was 8%)
 
         # Inherited
         ("bb_period", 20), ("bb_stddev", 2),
@@ -118,18 +132,28 @@ class HybridStrategy(MultiSignalStrategy):
 
     def _is_strong_uptrend(self, data):
         """Has the stock been above its SMA AND has positive MACD momentum
-        for the last `trend_lookback` bars?
+        (MACD above the zero line, not above the signal line) for the
+        last `trend_lookback` bars?
 
         Both conditions must be true to be considered "in uptrend":
         - All `trend_lookback` prior closes were above the SMA.
-        - All `trend_lookback` prior bars had MACD > signal.
+        - All `trend_lookback` prior bars had MACD > 0.
+
+        Why "MACD > 0" not "MACD > signal": the signal line oscillates
+        around zero during normal pullbacks inside a strong uptrend.
+        Using "MACD > signal" flickers the filter on and off every few
+        weeks and forces the strategy to sell winners on every dip.
+        Using "MACD > 0" (positive momentum) keeps the strategy in the
+        position through normal pullbacks while still filtering out
+        bear-market rallies (where MACD stays negative even though
+        price has bounced above a falling SMA).
         """
         if len(data) < self.p.trend_sma_period + self.p.trend_lookback:
             return False
         for i in range(0, self.p.trend_lookback):
             if data.close[-(i)] <= self.trend_sma[data][-(i)]:
                 return False
-            if self.macd[data].macd[-(i)] <= self.macd[data].signal[-(i)]:
+            if self.macd[data].macd[-(i)] <= 0:
                 return False
         return True
 
