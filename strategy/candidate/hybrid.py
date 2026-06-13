@@ -97,8 +97,8 @@ class HybridStrategy(MultiSignalStrategy):
         # early 2022) as a new uptrend and buying at the top, while
         # still letting us hold through normal pullbacks inside a real
         # uptrend.
-        ("trend_sma_period", 60),
-        ("trend_lookback", 5),
+        ("trend_sma_period", 45),  # 45-day SMA = medium-term trend
+        ("trend_lookback", 5),  # 5-bar confirmation (proven best)
 
         # Inherited from MovingProfitStrategy with wider targets so
         # winners can run in 2024-style uptrends. The defaults (6%
