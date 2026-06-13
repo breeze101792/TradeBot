@@ -13,6 +13,8 @@ from strategy.candidate.adaptive import AdaptiveTrendStrategy
 from strategy.candidate.hybrid import HybridStrategy
 from strategy.candidate.trendrider import TrendRiderStrategy
 from strategy.candidate.atrtrend import ATRTrendStrategy
+from strategy.candidate.slopetrend import SlopeTrendStrategy
+from strategy.candidate.hptrend import HPTrendStrategy
 
 # experiment
 from strategy.experiment.experiment import *
@@ -67,6 +69,14 @@ class StrategyManager:
 
         # ATR-adaptive trend: long-term filter (SMA-200) + ATR-volatility-based stops.
         self.register_strategy(ATRTrendStrategy, level=self.Level.BETA)
+
+        # SlopeTrend: SMA slope + Kalman-filtered MACD momentum. Filters out
+        # bear-market rallies that the Hybrid's "price > SMA" check lets through.
+        self.register_strategy(SlopeTrendStrategy, level=self.Level.BETA)
+
+        # HPTrend: Hodrick-Prescott filtered price + slope. Denoses the
+        # 1-2 day noise that fools the Hybrid's raw-price trend filter.
+        self.register_strategy(HPTrendStrategy, level=self.Level.BETA)
         ########################################################################
 
         # Testing, don't enable it on real world.
