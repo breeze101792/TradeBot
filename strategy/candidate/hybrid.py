@@ -105,7 +105,7 @@ class HybridStrategy(MultiSignalStrategy):
         # stop / 8% take-profit) cause the ratchet to sell on every
         # 6% pullback once the position is up 8%, which is too tight
         # for TWSE uptrends that regularly pull back 8-12% mid-trend.
-        # 8% / 12% is a compromise: wider than MS's defaults but not
+        # 10% / 12% is a compromise: wider than MS defaults but not
         # so wide that the choppy names (1326, 6505, 1301) blow up
         # when the wider stop ratchet holds through a big drawdown.
         ("risk_per_trade", 0.8),

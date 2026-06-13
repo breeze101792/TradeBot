@@ -68,14 +68,13 @@ class TrendRiderStrategy(MovingProfitStrategy):
         ("trend_sma_period", 60),
         ("trend_lookback", 5),  # need 5 bars above SMA + MACD>0 to confirm
 
-        # Wide trailing stop (vs 6% in MS defaults). 12% lets through
-        # mid-trend pullbacks. The 0050 leaders (2330, 2454) regularly
-        # pull back 10-12% mid-trend without breaking the uptrend.
-        # The 0.99 take-profit pct is set high enough to never
-        # trigger a take-profit; we just hold.
+        # Wide trailing stop (vs 6% in MS defaults). 10% lets through
+        # mid-trend pullbacks but not so wide that 2022 crashes blow
+        # up the strategy. The 0.99 take-profit pct is set high enough
+        # to never trigger a take-profit; we just hold.
         ("risk_per_trade", 0.8),
-        ("trailing_stop_pct", 0.15),  # 15% trailing stop
-        ("trailing_takeprofit_pct", 0.30),  # 30% take-profit (effectively unused)
+        ("trailing_stop_pct", 0.10),  # 10% trailing stop
+        ("trailing_takeprofit_pct", 0.20),  # 20% take-profit (effectively unused)
 
         # Inherited but unused (kept for the MovingProfitStrategy
         # contract; we override stra_initial/buy/sell).

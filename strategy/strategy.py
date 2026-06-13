@@ -12,6 +12,7 @@ from strategy.candidate.multisignal import MultiSignalStrategy
 from strategy.candidate.adaptive import AdaptiveTrendStrategy
 from strategy.candidate.hybrid import HybridStrategy
 from strategy.candidate.trendrider import TrendRiderStrategy
+from strategy.candidate.atrtrend import ATRTrendStrategy
 
 # experiment
 from strategy.experiment.experiment import *
@@ -63,6 +64,9 @@ class StrategyManager:
 
         # Long-only trend-rider: buy on trend filter, hold with wide trailing stop.
         self.register_strategy(TrendRiderStrategy, level=self.Level.BETA)
+
+        # ATR-adaptive trend: long-term filter (SMA-200) + ATR-volatility-based stops.
+        self.register_strategy(ATRTrendStrategy, level=self.Level.BETA)
         ########################################################################
 
         # Testing, don't enable it on real world.
