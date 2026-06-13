@@ -71,7 +71,7 @@ Per-year average annual return, t50, 2020-2024:
 import backtrader as bt
 from utility.debug import *
 from strategy.candidate.multisignal import MultiSignalStrategy
-from strategy.candidate.adaptive import AdaptiveTrendStrategy
+from strategy.ai.adaptive import AdaptiveTrendStrategy
 
 
 class HybridStrategy(MultiSignalStrategy):

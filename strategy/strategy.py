@@ -9,12 +9,15 @@ from strategy.candidate.bm import BreakoutMomentumStrategy
 from strategy.candidate.rsi import RelativeStrengthIndexStrategy, RSI_SMA
 from strategy.candidate.bmr import BollingerMeanReversionStrategy
 from strategy.candidate.multisignal import MultiSignalStrategy
-from strategy.candidate.adaptive import AdaptiveTrendStrategy
-from strategy.candidate.hybrid import HybridStrategy
-from strategy.candidate.trendrider import TrendRiderStrategy
-from strategy.candidate.atrtrend import ATRTrendStrategy
-from strategy.candidate.slopetrend import SlopeTrendStrategy
-from strategy.candidate.hptrend import HPTrendStrategy
+
+# AI / noise-filtered strategies (uses signal processing on
+# price before trend detection: HP filter, Kalman, slope, etc.)
+from strategy.ai.adaptive import AdaptiveTrendStrategy
+from strategy.ai.hybrid import HybridStrategy
+from strategy.ai.trendrider import TrendRiderStrategy
+from strategy.ai.atrtrend import ATRTrendStrategy
+from strategy.ai.slopetrend import SlopeTrendStrategy
+from strategy.ai.hptrend import HPTrendStrategy
 
 # experiment
 from strategy.experiment.experiment import *
