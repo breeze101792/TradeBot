@@ -68,13 +68,13 @@ class TrendRiderStrategy(MovingProfitStrategy):
         ("trend_sma_period", 60),
         ("trend_lookback", 5),  # need 5 bars above SMA + MACD>0 to confirm
 
-        # Wide trailing stop (vs 6% in MS defaults). 10% lets through
-        # mid-trend pullbacks but not so wide that 2022 crashes blow
-        # up the strategy. The 0.99 take-profit pct is set high enough
-        # to never trigger a take-profit; we just hold.
+        # Wide trailing stop (HP-tuned: 12% stop, no take-profit).
+        # 10/20 was conservative; HPTrend's 12/99 combo gains +0.98pp
+        # on t50/5y. The 12% stop lets through mid-trend pullbacks; the
+        # 99% TP means winners run.
         ("risk_per_trade", 0.8),
-        ("trailing_stop_pct", 0.10),  # 10% trailing stop
-        ("trailing_takeprofit_pct", 0.20),  # 20% take-profit (effectively unused)
+        ("trailing_stop_pct", 0.12),  # 12% trailing stop (was 10%)
+        ("trailing_takeprofit_pct", 0.99),  # no TP (was 20%)
 
         # Inherited but unused (kept for the MovingProfitStrategy
         # contract; we override stra_initial/buy/sell).

@@ -19,6 +19,17 @@ from strategy.ai.atrtrend import ATRTrendStrategy
 from strategy.ai.slopetrend import SlopeTrendStrategy
 from strategy.ai.hptrend import HPTrendStrategy
 
+# Canonical quant strategies (GEMS, Turtle, Dual Thrust, etc.)
+from strategy.ai.dualmomentum import DualMomentumStrategy
+from strategy.ai.donchian import DonchianStrategy
+from strategy.ai.dualthrust import DualThrustStrategy
+from strategy.ai.volbreakout import VolatilityBreakoutStrategy
+from strategy.ai.supertrend import SuperTrendStrategy
+from strategy.ai.keltner import KeltnerChannelStrategy
+from strategy.ai.keltner_hp import KeltnerHPStrategy
+from strategy.ai.psar import ParabolicSARStrategy
+from strategy.ai.hptrend_ha import HPTrendHAStrategy
+
 # experiment
 from strategy.experiment.experiment import *
 from strategy.experiment.volumn import *
@@ -80,6 +91,40 @@ class StrategyManager:
         # HPTrend: Hodrick-Prescott filtered price + slope. Denoses the
         # 1-2 day noise that fools the Hybrid's raw-price trend filter.
         self.register_strategy(HPTrendStrategy, level=self.Level.BETA)
+
+        # GEMS-style Dual Momentum: 12m return + 200d MA filter. Famous for
+        # beating buy-and-hold with less drawdown (Antonacci 2014).
+        self.register_strategy(DualMomentumStrategy, level=self.Level.BETA)
+
+        # Donchian / Turtle breakout: 20-day high entry, 10-day low exit.
+        # The original trend-following system (Dennis 1983).
+        self.register_strategy(DonchianStrategy, level=self.Level.BETA)
+
+        # Dual Thrust: adaptive breakout using yesterday's range. Robust
+        # across markets (Chiu 1997).
+        self.register_strategy(DualThrustStrategy, level=self.Level.BETA)
+
+        # Larry Williams' Volatility Breakout: Open + k*ATR threshold.
+        # Famous overnight momentum rule.
+        self.register_strategy(VolatilityBreakoutStrategy, level=self.Level.BETA)
+
+        # SuperTrend: ATR-based trend indicator, very popular on TradingView.
+        # Designed to ride trends with volatility-adjusted bands.
+        self.register_strategy(SuperTrendStrategy, level=self.Level.BETA)
+
+        # Keltner Channel: EMA + k*ATR envelope. Volatility-adaptive breakout.
+        self.register_strategy(KeltnerChannelStrategy, level=self.Level.BETA)
+
+        # KeltnerHP: Keltner Channel on HP-filtered price. Combines
+        # Keltner's adaptive bands with HP's denoising.
+        self.register_strategy(KeltnerHPStrategy, level=self.Level.BETA)
+
+        # Parabolic SAR: Wilder's original trailing-stop flip indicator.
+        self.register_strategy(ParabolicSARStrategy, level=self.Level.BETA)
+
+        # HPTrendHA: HPTrend on Heikin Ashi close (HA close = (O+H+L+C)/4).
+        # Doubly-smoothed trend: HA removes bar noise, HP removes longer noise.
+        self.register_strategy(HPTrendHAStrategy, level=self.Level.BETA)
         ########################################################################
 
         # Testing, don't enable it on real world.

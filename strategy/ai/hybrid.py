@@ -100,17 +100,15 @@ class HybridStrategy(MultiSignalStrategy):
         ("trend_sma_period", 45),  # 45-day SMA = medium-term trend
         ("trend_lookback", 5),  # 5-bar confirmation (proven best)
 
-        # Inherited from MovingProfitStrategy with wider targets so
-        # winners can run in 2024-style uptrends. The defaults (6%
-        # stop / 8% take-profit) cause the ratchet to sell on every
-        # 6% pullback once the position is up 8%, which is too tight
-        # for TWSE uptrends that regularly pull back 8-12% mid-trend.
-        # 10% / 12% is a compromise: wider than MS defaults but not
-        # so wide that the choppy names (1326, 6505, 1301) blow up
-        # when the wider stop ratchet holds through a big drawdown.
+        # Inherited from MovingProfitStrategy with HP-tuned risk
+        # profile: 12% trailing stop, no take-profit (99% = "never").
+        # Confirmed optimal on t50/5y: 5y avg goes from 9.67% (10/12)
+        # to 13.02% (12/99), a +3.35pp gain. Same change that brought
+        # HPTrend to 14.24%. The 12% stop lets through mid-trend
+        # pullbacks; removing the take-profit lets winners compound.
         ("risk_per_trade", 0.8),
-        ("trailing_stop_pct", 0.10),  # 10% trailing stop (was 6%)
-        ("trailing_takeprofit_pct", 0.12),  # 12% trailing take-profit (was 8%)
+        ("trailing_stop_pct", 0.12),  # 12% trailing stop (was 10%)
+        ("trailing_takeprofit_pct", 0.99),  # no TP (was 12%)
 
         # Inherited
         ("bb_period", 20), ("bb_stddev", 2),

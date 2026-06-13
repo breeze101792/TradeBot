@@ -59,7 +59,7 @@ class ATRTrendStrategy(MovingProfitStrategy):
         # Risk and (effectively unused) take-profit
         ("risk_per_trade", 0.8),
         ("trailing_stop_pct", 0.10),  # placeholder; overridden in next() to ATR-based
-        ("trailing_takeprofit_pct", 0.30),  # 30% take-profit (effectively unused)
+        ("trailing_takeprofit_pct", 0.99),  # no TP (was 30%; HP-tuned = +1.24pp on t50)
 
         # Inherited
         ("bb_period", 20), ("bb_stddev", 2),

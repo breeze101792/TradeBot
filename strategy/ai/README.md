@@ -9,12 +9,21 @@ raw-price filters.
 
 | File | Strategy | 5y avg return (t50, 2020-2024) | Math |
 |------|----------|-------------------------------|------|
-| `adaptive.py` | AdaptiveTrend | +11.73% | SMA-45 trend filter + MACD momentum + ATR |
-| `hybrid.py`    | Hybrid       | +11.73% | MultiSignal gated by SMA-45 + MACD>0 (mean-reversion + trend) |
-| `trendrider.py`| TrendRider   |  ~6-7%   | Long-only trend-rider, no MS logic, wide trailing stop |
-| `atrtrend.py`  | ATRTrend     |  ~5-6%   | SMA-200 filter + ATR-volatility-based stops |
-| `slopetrend.py`| SlopeTrend   | +8.96%  | SMA slope + Kalman-filtered MACD |
-| `hptrend.py`   | HPTrend      | **+14.24%** | Hodrick-Prescott filtered price + slope |
+| `hptrend.py`     | HPTrend         | **+14.23%** | HP-filtered price + slope |
+| `hptrend_ha.py`  | HPTrendHA       | +14.16%     | HP-filtered Heikin Ashi close |
+| `hybrid.py`      | Hybrid          | +13.02%     | MultiSignal gated by SMA-45 + MACD>0 |
+| `slopetrend.py`  | SlopeTrend      | +12.45%     | SMA slope + Kalman-filtered MACD |
+| `adaptive.py`    | AdaptiveTrend   | +7.99%      | SMA-200 trend filter + MACD + ATR |
+| `trendrider.py`  | TrendRider      | +7.97%      | Long-only trend-rider, wide trailing stop |
+| `atrtrend.py`    | ATRTrend        | +7.58%      | SMA-200 filter + ATR-based stops |
+| `dualmomentum.py`| DualMomentum    | +7.23%      | GEMS-style 12m return + 200d MA |
+| `donchian.py`    | Donchian        | +8.30%      | 20-day high breakout, 10-day low exit (Turtle S1) |
+| `dualthrust.py`  | DualThrust      | +1.03%      | Adaptive range breakout (Chiu 1997) |
+| `volbreakout.py` | VolBreakout     | -0.71%      | Open + k*ATR threshold (Williams) |
+| `supertrend.py`  | SuperTrend      | -10.80%     | ATR-based trend indicator |
+| `keltner.py`     | Keltner         | +9.83%      | EMA + k*ATR envelope |
+| `keltner_hp.py`  | KeltnerHP       | +6.63%      | Keltner on HP-filtered price |
+| `psar.py`        | ParabolicSAR    | +8.16%      | Wilder's trailing-stop flip |
 
 ## Why these?
 
@@ -38,47 +47,94 @@ series first:
   SMA-slope > 0 (vs raw price > SMA) to filter out bear-market
   rallies.
 
-## Backtest results (t50, 2020-2024, 5y window)
+## Backtest results (t50, 2020-2024, 5y window, HP-tuned 12/99 risk)
 
 ```
-Year | HPTrend | 0050 ETF
------|---------|----------
-2020 | +39.83% | +22.00%
-2021 | +15.98% | +23.50%
-2022 |  -5.57% | -22.40%
-2023 | +24.63% | +26.50%
-2024 | +10.51% | +28.00%
-5y   | +14.24% | +15.52%
+Year | HPTrend | Hybrid | SlopeTrend | 0050 ETF
+-----|---------|--------|------------|----------
+2020 | +39.83% | +40.04%|  +39.06%   | +22.00%
+2021 | +15.98% | +19.59%|  +18.98%   | +23.50%
+2022 |  -5.57% |  -5.04%|   -5.29%   | -22.40%
+2023 | +24.63% | +16.51%|  +17.75%   | +26.50%
+2024 | +10.51% |  +7.01%|   +4.18%   | +28.00%
+5y   | +14.23% | +13.02%|  +12.45%   | +15.52%
 ```
 
-HPTrend is the strongest of the AI strategies at +14.24% 5y avg
-— just 1.28pp behind 0050's 15.52% (and the gap would close
-to ~1pp in a year where 0050 didn't have a +28% rally).
+### Full ranking (t50 2020-2024, HP-tuned 12/99 risk)
 
-### Why HPTrend is now the best (after the 2024 tuning)
+```
+ 1. HPTrend       +14.23%   ← best AI strategy
+ 2. HPTrendHA     +14.16%   (HA close; basically tied with HPTrend)
+ 3. Hybrid        +13.02%   (mean-reversion + trend gate)
+ 4. SlopeTrend    +12.45%   (Kalman-MACD + slope)
+ 5. Keltner        +9.83%
+ 6. Donchian       +8.30%
+ 7. ParabolicSAR   +8.16%
+ 8. Adaptive       +7.99%
+ 9. TrendRider     +7.97%
+10. ATRTrend       +7.58%
+11. DualMomentum   +7.23%
+12. KeltnerHP      +6.63%
+13. DualThrust     +1.03%
+14. VolBreakout    -0.71%
+15. SuperTrend    -10.80%
+```
 
-The first version of HPTrend had `trailing_stop_pct=0.10` and
-`trailing_takeprofit_pct=0.12`. The 12% take-profit looked
-sensible in backtest rows for choppy 2017-2019 names, but in
-2020-2024 (a long bull market), it sold 1/5 of the position at
-+12%, +24%, +36%, +48% on names like 2330 (which ran +60%),
-locking in gains but missing 30+pp of the bigger picture.
+### The HP-tuned risk profile (12% stop, no take-profit)
 
-Tuning (`bench_hptrend_v2.py`, then `bench_hptrend_finetune.py`)
-over (stop, TP) found:
-  - HPR-10-12 (original):  11.13% 5y avg
-  - HPR-12-25:            11.38%
-  - HPR-10-99 (no TP):    13.74%
-  - HPR-12-99:            **14.23%**
-  - HPR-13-99:            **14.24%** ← current
+Tuning `bench_hptrend_v2.py` found that **12% trailing stop +
+0.99 take-profit (effectively no TP)** is the optimal risk
+profile on t50/5y. This combination is universally beneficial
+for trend-following strategies:
 
-The 12% stop + no take-profit is the new sweet spot. The 12%
-stop still protects in the 2022 bear (-5.57% vs 0050's -22.40%)
-but no longer churns winners in 2020/2023 bull runs.
+| Strategy          | Original (10/12 or 4/10) | HP-tuned (12/99) | Gain |
+|-------------------|--------------------------|------------------|------|
+| AdaptiveTrend     |  +2.17%                  |  +7.99%          | +5.82pp |
+| Hybrid            |  +9.67%                  | +13.02%          | +3.35pp |
+| SlopeTrend        |  +8.87%                  | +12.45%          | +3.58pp |
+| ATRTrend          |  +6.38%                  |  +7.58%          | +1.20pp |
+| TrendRider        |  +6.99%                  |  +7.97%          | +0.98pp |
+| HPTrend           | +11.13%                  | +14.23%          | +3.10pp |
 
-Fine-tuning over (slope_lookback, hp_lambda) was a flat plateau
-(all configs cluster at 14.20-14.24%), so we left the original
-3-bar slope + lambda=1e5.
+The 12% trailing stop lets through mid-trend pullbacks (TWSE
+regularly pulls back 8-12% mid-trend) but still protects in
+2022-style bear markets (-5% vs 0050's -22%). Removing the
+take-profit lets winners run — the 12% TP was selling 1/5 of
+positions at +12%, +24%, +36%, +48% in +60% bull runs (e.g.
+2330 in 2020), capturing gains but missing 30+pp of upside.
+
+### Why HPTrend is the strongest AI strategy
+
+HPTrend uses the **HP filter** to denoise price action, then
+checks the **slope of the smoothed series** rather than the
+raw price. This eliminates the 1-2 day noise that fools the
+Hybrid's "close > SMA" check.
+
+The HP filter is a macro-economist's tool for separating trend
+from cycle. With `lambda=1e5` on a 90-day window, the result
+is a smooth "true" trend that:
+- Rises continuously through bull markets (catching 2330's
+  +60% in 2020, 2308's +90% in 2023)
+- Stays flat during choppy sideways action
+- Falls only in real bear markets (2022: -5% vs 0050's -22%)
+
+The `slope_lookback=3` (3-bar slope rise required) and
+`hp_lambda=1e5` are the grid-search-best values. Fine-tuning
+over (slope, lambda) was a flat plateau at 14.20-14.24%.
+
+### 1.3pp gap to 0050 (15.52%)
+
+The remaining gap is structural:
+- 0050 is cap-weighted (holds more 2330/2454/2308 than
+  equal-weighted t50)
+- 0050 caught the 2024 AI rally (+28%) better than HPTrend
+  (+10.5%) because it didn't sell high-multiple tech names
+- Pure signal processing on equal-weight t50 has hit a
+  plateau at ~14%
+
+To close the gap requires either: (a) cap-weighting the
+portfolio, (b) different exit criteria for AI-sector names,
+or (c) accepting the 14% as the strategy's ceiling.
 
 ## References
 

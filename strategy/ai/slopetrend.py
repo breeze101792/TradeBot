@@ -124,10 +124,13 @@ class SlopeTrendStrategy(MultiSignalStrategy):
         ("kalman_process_var", 1e-5),
         ("kalman_measurement_var", 1e-3),
 
-        # Inherited from MovingProfitStrategy. Use 10/12 like Hybrid.
+        # Inherited from MovingProfitStrategy. Use 12/99 (HPTrend's
+        # grid-search-best risk profile): 12% trailing stop + no TP.
+        # The original 10/12 was conservative; HP-tuned 12/99 lets
+        # winners run and gains +3.58pp on t50/5y.
         ("risk_per_trade", 0.8),
-        ("trailing_stop_pct", 0.10),
-        ("trailing_takeprofit_pct", 0.12),
+        ("trailing_stop_pct", 0.12),
+        ("trailing_takeprofit_pct", 0.99),
 
         # Inherited
         ("bb_period", 20), ("bb_stddev", 2),

@@ -53,12 +53,14 @@ class AdaptiveTrendStrategy(MovingProfitStrategy):
         # ATR lookback for volatility-aware tuning
         ("atr_period", 14),
 
-        # Inherited from MovingProfitStrategy — tighten the stop-loss so
-        # 2022-style bear markets don't drag the per-year return into
-        # double-digit negatives.
-        ("risk_per_trade", 0.5),
-        ("trailing_stop_pct", 0.04),  # 4% trailing stop
-        ("trailing_takeprofit_pct", 0.10),  # 10% trailing take-profit
+        # Inherited from MovingProfitStrategy — HP-tuned risk profile
+        # (12% stop, no take-profit) gains +5.82pp on t50/5y vs the
+        # original 4%/10% tight setup. The 4% stop was too tight for
+        # TWSE uptrends (regular 8-12% mid-trend pullbacks); the 10%
+        # TP caused winners to be sold and re-bought higher.
+        ("risk_per_trade", 0.8),
+        ("trailing_stop_pct", 0.12),  # 12% trailing stop (was 4%)
+        ("trailing_takeprofit_pct", 0.99),  # no TP (was 10%)
     )
 
     def stra_initial(self):
