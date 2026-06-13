@@ -30,9 +30,9 @@ class KeltnerHPStrategy(MovingProfitStrategy):
         # HP filter
         ("hp_lookback", 90),
         ("hp_lambda", 1e5),
-        # EMA + ATR for bands
-        ("ema_period", 20),
-        ("atr_period", 10),
+        # EMA + ATR for bands — long periods (grid-search best on t50/5y)
+        ("ema_period", 50),
+        ("atr_period", 20),
         ("k", 1.5),
         # Trailing stop / no TP
         ("risk_per_trade", 0.8),

@@ -22,7 +22,7 @@ raw-price filters.
 | `volbreakout.py` | VolBreakout     | -0.71%      | Open + k*ATR threshold (Williams) |
 | `supertrend.py`  | SuperTrend      | -10.80%     | ATR-based trend indicator |
 | `keltner.py`     | Keltner         | +9.83%      | EMA + k*ATR envelope |
-| `keltner_hp.py`  | KeltnerHP       | +6.63%      | Keltner on HP-filtered price |
+| `keltner_hp.py`  | KeltnerHP       | +11.07%     | Keltner on HP-filtered price (long EMA-50, ATR-20, k=1.5) |
 | `psar.py`        | ParabolicSAR    | +8.16%      | Wilder's trailing-stop flip |
 
 ## Why these?
@@ -67,14 +67,14 @@ Year | HPTrend | Hybrid | SlopeTrend | 0050 ETF
  2. HPTrendHA     +14.16%   (HA close; basically tied with HPTrend)
  3. Hybrid        +13.02%   (mean-reversion + trend gate)
  4. SlopeTrend    +12.45%   (Kalman-MACD + slope)
- 5. Keltner        +9.83%
- 6. Donchian       +8.30%
- 7. ParabolicSAR   +8.16%
- 8. Adaptive       +7.99%
- 9. TrendRider     +7.97%
-10. ATRTrend       +7.58%
-11. DualMomentum   +7.23%
-12. KeltnerHP      +6.63%
+ 5. KeltnerHP     +11.07%   (long EMA-50 + ATR-20, HP-filtered)
+ 6. Keltner        +9.83%
+ 7. Donchian       +8.30%
+ 8. ParabolicSAR   +8.16%
+ 9. Adaptive       +7.99%
+10. TrendRider     +7.97%
+11. ATRTrend       +7.58%
+12. DualMomentum   +7.23%
 13. DualThrust     +1.03%
 14. VolBreakout    -0.71%
 15. SuperTrend    -10.80%
