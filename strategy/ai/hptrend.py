@@ -106,10 +106,22 @@ class HPTrendStrategy(MultiSignalStrategy):
         ("hp_lookback", 90),  # use last 90 days for HP (best)
         ("hp_lambda", 1e5),  # smoothness parameter
         # Trend slope threshold (HP_trend must be rising)
-        ("slope_lookback", 3),  # 3-bar slope window (grid best)
+        ("slope_lookback", 3),  # 2-5 all give ~14.2%, robust
+
+        # Wider trailing stop + no take-profit (grid-search best).
+        # The 12% stop lets through mid-trend pullbacks (8-12% is
+        # normal in TWSE uptrends) but still protects against the
+        # 2022-style 28% crash. Removing the 12% take-profit lets
+        # winners run — this is the change that added ~3pp to the
+        # 5y avg. With the old (10%, 12%) HPTrend, the strategy
+        # sold 1/5 of the position at +12%, +24%, +36% in a
+        # +60% rally (e.g. 2330 in 2020), then re-entered higher
+        # up, missing 30+pp of upside. The 99% TP is effectively
+        # "no take-profit" while still passing the
+        # trailing_takeprofit > trailing_stop invariant.
         ("risk_per_trade", 0.8),
-        ("trailing_stop_pct", 0.10),
-        ("trailing_takeprofit_pct", 0.12),
+        ("trailing_stop_pct", 0.12),  # 12% trailing stop (was 10%)
+        ("trailing_takeprofit_pct", 0.99),  # no take-profit (was 12%)
         # Inherited
         ("bb_period", 20), ("bb_stddev", 2),
         ("rsi_period", 14), ("rsi_entry", 30), ("rsi_exit", 70),

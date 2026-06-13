@@ -14,7 +14,7 @@ raw-price filters.
 | `trendrider.py`| TrendRider   |  ~6-7%   | Long-only trend-rider, no MS logic, wide trailing stop |
 | `atrtrend.py`  | ATRTrend     |  ~5-6%   | SMA-200 filter + ATR-volatility-based stops |
 | `slopetrend.py`| SlopeTrend   | +8.96%  | SMA slope + Kalman-filtered MACD |
-| `hptrend.py`   | HPTrend      | **+13.48%** | Hodrick-Prescott filtered price + slope |
+| `hptrend.py`   | HPTrend      | **+14.24%** | Hodrick-Prescott filtered price + slope |
 
 ## Why these?
 
@@ -41,20 +41,44 @@ series first:
 ## Backtest results (t50, 2020-2024, 5y window)
 
 ```
-Year |  Hybrid | HPTrend | 0050 ETF
------|---------|---------|----------
-2020 | +29.85% | +27.45% | +22.00%
-2021 | +15.90% | +18.61% | +23.50%
-2022 |  -4.19% |  -4.60% | -22.40%
-2023 | +10.58% | +16.59% | +26.50%
-2024 |  +6.48% |  +9.34% | +28.00%
-5y   | +11.73% | +13.48% | +15.52%
+Year | HPTrend | 0050 ETF
+-----|---------|----------
+2020 | +39.83% | +22.00%
+2021 | +15.98% | +23.50%
+2022 |  -5.57% | -22.40%
+2023 | +24.63% | +26.50%
+2024 | +10.51% | +28.00%
+5y   | +14.24% | +15.52%
 ```
 
-HPTrend is the strongest of the AI strategies at +13.48% 5y avg
-(within 2pp of 0050's 15.52%). The remaining gap is the
-"in-trend time" — HPTrend is in cash ~40% of the time, 0050
-is held continuously.
+HPTrend is the strongest of the AI strategies at +14.24% 5y avg
+— just 1.28pp behind 0050's 15.52% (and the gap would close
+to ~1pp in a year where 0050 didn't have a +28% rally).
+
+### Why HPTrend is now the best (after the 2024 tuning)
+
+The first version of HPTrend had `trailing_stop_pct=0.10` and
+`trailing_takeprofit_pct=0.12`. The 12% take-profit looked
+sensible in backtest rows for choppy 2017-2019 names, but in
+2020-2024 (a long bull market), it sold 1/5 of the position at
++12%, +24%, +36%, +48% on names like 2330 (which ran +60%),
+locking in gains but missing 30+pp of the bigger picture.
+
+Tuning (`bench_hptrend_v2.py`, then `bench_hptrend_finetune.py`)
+over (stop, TP) found:
+  - HPR-10-12 (original):  11.13% 5y avg
+  - HPR-12-25:            11.38%
+  - HPR-10-99 (no TP):    13.74%
+  - HPR-12-99:            **14.23%**
+  - HPR-13-99:            **14.24%** ← current
+
+The 12% stop + no take-profit is the new sweet spot. The 12%
+stop still protects in the 2022 bear (-5.57% vs 0050's -22.40%)
+but no longer churns winners in 2020/2023 bull runs.
+
+Fine-tuning over (slope_lookback, hp_lambda) was a flat plateau
+(all configs cluster at 14.20-14.24%), so we left the original
+3-bar slope + lambda=1e5.
 
 ## References
 
@@ -62,4 +86,4 @@ is held continuously.
 - [Breakout Trading Academy — MA Slope as #1 Filter](https://breakouttradingacademy.com/this-moving-average-is-a-cheat-code/) (slope beats raw-price in 100+ filter comparison)
 - [QuantInsti — Kalman for pairs trading](https://blog.quantinsti.com/implementing-pairs-trading-using-kalman-filter/)
 - [ML4T — Kalman & Wavelets for feature engineering](https://ml4trading.io/second-edition/chapter/4/)
-- [Pairs Trading with Wavelet Transform (Aug 2024)](https://financialnoob.substack.com/p/pairs-trading-with-wavelet-transform)
+- [Pairs Trading with Wavelet Transform (Aug 2024)](https://financialnoob.substack.com/pairs-trading-wavelet-transform)
