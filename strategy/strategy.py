@@ -29,6 +29,9 @@ from strategy.ai.keltner import KeltnerChannelStrategy
 from strategy.ai.keltner_hp import KeltnerHPStrategy
 from strategy.ai.psar import ParabolicSARStrategy
 from strategy.ai.hptrend_ha import HPTrendHAStrategy
+from strategy.ai.confluence import ConfluenceStrategy
+from strategy.ai.multi_denoise import TripleDenoiseStrategy
+from strategy.ai.cycle_buy import CycleBuyStrategy
 
 # experiment
 from strategy.experiment.experiment import *
@@ -125,6 +128,22 @@ class StrategyManager:
         # HPTrendHA: HPTrend on Heikin Ashi close (HA close = (O+H+L+C)/4).
         # Doubly-smoothed trend: HA removes bar noise, HP removes longer noise.
         self.register_strategy(HPTrendHAStrategy, level=self.Level.BETA)
+
+        # Confluence: vote-based 5-signal strategy (HP, SMA-slope, MACD,
+        # ADX regime gate, volume). Enter on 4-of-5 consensus, exit on
+        # 2-or-fewer. "Democratic" approach — no single signal can
+        # dominate.
+        self.register_strategy(ConfluenceStrategy, level=self.Level.BETA)
+
+        # TripleDenoise: 3 denoising methods (HP + Kalman + EMA) must
+        # all agree. Different math, same goal (smooth price). The
+        # consensus is more robust than any single denoiser.
+        self.register_strategy(TripleDenoiseStrategy, level=self.Level.BETA)
+
+        # CycleBuy: HP-confirmed uptrend + DPO cycle-trough entry.
+        # "Buy the dip in a confirmed uptrend" — HP for direction,
+        # DPO for timing.
+        self.register_strategy(CycleBuyStrategy, level=self.Level.BETA)
         ########################################################################
 
         # Testing, don't enable it on real world.
